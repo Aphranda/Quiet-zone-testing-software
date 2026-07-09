@@ -1,0 +1,1 @@
+"""Scan setup presentation module."""
