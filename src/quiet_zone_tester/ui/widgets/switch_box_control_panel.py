@@ -14,23 +14,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
-DEFAULT_LINK_COMMANDS = [
-    "CONFigure:LINK DUT, AMP1, SA",
-    "CONFigure:LINK DUT, AMP1, VNA2",
-    "CONFigure:LINK H, SG",
-    "CONFigure:LINK H, VNA1",
-    "CONFigure:LINK H, SA",
-    "CONFigure:LINK H, AMP2, SG",
-    "CONFigure:LINK H, AMP2, VNA1",
-    "CONFigure:LINK H, AMP2, SA",
-    "CONFigure:LINK V, SG",
-    "CONFigure:LINK V, VNA1",
-    "CONFigure:LINK V, SA",
-    "CONFigure:LINK V, AMP2, SG",
-    "CONFigure:LINK V, AMP2, VNA1",
-    "CONFigure:LINK V, AMP2, SA",
-]
+from quiet_zone_tester.presentation.modules.link_control import DEFAULT_LINK_COMMANDS, LinkControlViewModel
 
 
 class SwitchBoxDiagramWidget(QWidget):
@@ -191,6 +175,7 @@ class SwitchBoxControlPanel(QGroupBox):
 
     def __init__(self, parent=None) -> None:
         super().__init__("开关箱控制", parent)
+        self._view_model = LinkControlViewModel()
         self._busy = False
         self._connected = False
 
@@ -210,11 +195,15 @@ class SwitchBoxControlPanel(QGroupBox):
 
         self._route_button = QPushButton("按 S 参数切换")
         self._route_button.setIcon(self.style().standardIcon(QStyle.SP_ArrowForward))
-        self._route_button.clicked.connect(lambda: self.parameter_requested.emit(self._parameter.currentText()))
+        self._route_button.clicked.connect(
+            lambda: self.parameter_requested.emit(self._view_model.route_parameter(self._parameter.currentText()))
+        )
 
         self._send_button = QPushButton("发送链路命令")
         self._send_button.setIcon(self.style().standardIcon(QStyle.SP_DialogApplyButton))
-        self._send_button.clicked.connect(lambda: self.command_requested.emit(self._command.currentText()))
+        self._send_button.clicked.connect(
+            lambda: self.command_requested.emit(self._view_model.send_command(self._command.currentText()))
+        )
 
         self._input_widgets: list[QWidget] = [
             self._parameter,
@@ -259,14 +248,14 @@ class SwitchBoxControlPanel(QGroupBox):
         self._refresh_enabled_state()
 
     def set_result(self, message: str) -> None:
-        self._last_result.setText(message or "-")
+        self._last_result.setText(self._view_model.result_text(message))
 
     def _set_current_command(self, command: str) -> None:
-        command = command.strip() or DEFAULT_LINK_COMMANDS[0]
+        command = self._view_model.selected_command(command)
         self._diagram.set_selected_command(command)
-        self._current_command.setText(f"当前命令：{command}")
+        self._current_command.setText(self._view_model.current_command_text(command))
 
     def _refresh_enabled_state(self) -> None:
-        enabled = self._connected and not self._busy
+        state = self._view_model.ui_state(connected=self._connected, busy=self._busy)
         for widget in self._input_widgets:
-            widget.setEnabled(enabled)
+            widget.setEnabled(state.inputs_enabled)

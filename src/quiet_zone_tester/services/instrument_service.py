@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from threading import Event, Lock
 
+from quiet_zone_tester.domains.acquisition import AcquisitionService, AcquisitionServiceError
 from quiet_zone_tester.domains.data_management import TraceStorage
 from quiet_zone_tester.domains.instrument_management import (
     InstrumentConnectionConfig,
@@ -14,6 +15,8 @@ from quiet_zone_tester.domains.instrument_management import (
     SwitchBoxConnectionConfig,
     VnaConnectionConfig,
 )
+from quiet_zone_tester.domains.link_management import LinkService, LinkServiceError
+from quiet_zone_tester.domains.motion_control import MotionService, MotionServiceError
 from quiet_zone_tester.domains.scan_management import ScanSettings
 from quiet_zone_tester.drivers import (
     InstrumentInfo,
@@ -215,7 +218,11 @@ class InstrumentService:
         try:
             if config:
                 self.update_positioner_runtime_config(config)
-            self._positioner.jog_axis(axis, speed_mm_s)
+            self._motion_service().jog_axis(axis, speed_mm_s)
+        except InstrumentServiceError:
+            raise
+        except MotionServiceError as exc:
+            raise InstrumentServiceError(f"扫描架运动失败：{exc}") from exc
         except Exception as exc:
             logger.exception("Positioner jog failed.")
             raise InstrumentServiceError(f"扫描架运动失败：{exc}") from exc
@@ -226,7 +233,11 @@ class InstrumentService:
         try:
             if config:
                 self.update_positioner_runtime_config(config)
-            return self._positioner.position
+            return self._motion_service().query_position()
+        except InstrumentServiceError:
+            raise
+        except MotionServiceError as exc:
+            raise InstrumentServiceError(f"扫描架位置查询失败：{exc}") from exc
         except Exception as exc:
             logger.exception("Positioner position query failed.")
             raise InstrumentServiceError(f"扫描架位置查询失败：{exc}") from exc
@@ -243,7 +254,11 @@ class InstrumentService:
         try:
             if config:
                 self.update_positioner_runtime_config(config)
-            return self._positioner.move_to(float(x_mm), float(y_mm), float(speed_mm_s))
+            return self._motion_service().move_absolute(x_mm, y_mm, speed_mm_s)
+        except InstrumentServiceError:
+            raise
+        except MotionServiceError as exc:
+            raise InstrumentServiceError(f"扫描架绝对定位失败：{exc}") from exc
         except Exception as exc:
             logger.exception("Positioner absolute move failed.")
             raise InstrumentServiceError(f"扫描架绝对定位失败：{exc}") from exc
@@ -260,12 +275,11 @@ class InstrumentService:
         try:
             if config:
                 self.update_positioner_runtime_config(config)
-            current = self._positioner.position
-            return self._positioner.move_to(
-                current.x_mm + float(delta_x_mm),
-                current.y_mm + float(delta_y_mm),
-                float(speed_mm_s),
-            )
+            return self._motion_service().move_relative(delta_x_mm, delta_y_mm, speed_mm_s)
+        except InstrumentServiceError:
+            raise
+        except MotionServiceError as exc:
+            raise InstrumentServiceError(f"扫描架相对定位失败：{exc}") from exc
         except Exception as exc:
             logger.exception("Positioner relative move failed.")
             raise InstrumentServiceError(f"扫描架相对定位失败：{exc}") from exc
@@ -302,7 +316,9 @@ class InstrumentService:
         if not self.is_positioner_connected or self._positioner is None:
             raise InstrumentServiceError("请先连接扫描架，再停止运动。")
         try:
-            self._positioner.stop_axis(axis)
+            self._motion_service().stop_axis(axis)
+        except MotionServiceError as exc:
+            raise InstrumentServiceError(f"扫描架停止失败：{exc}") from exc
         except Exception as exc:
             logger.exception("Positioner stop failed.")
             raise InstrumentServiceError(f"扫描架停止失败：{exc}") from exc
@@ -311,7 +327,9 @@ class InstrumentService:
         if not self.is_positioner_connected or self._positioner is None:
             return
         try:
-            self._positioner.stop_all()
+            self._motion_service().stop_all()
+        except MotionServiceError as exc:
+            raise InstrumentServiceError(f"扫描架停止失败：{exc}") from exc
         except Exception as exc:
             logger.exception("Positioner stop all failed.")
             raise InstrumentServiceError(f"扫描架停止失败：{exc}") from exc
@@ -321,9 +339,7 @@ class InstrumentService:
         self._resume_event.set()
         if self._positioner is None:
             return
-        cancel_motion = getattr(self._positioner, "cancel_motion", None)
-        if callable(cancel_motion):
-            cancel_motion()
+        MotionService(self._positioner).cancel_motion_if_supported()
 
     def request_stop_and_stop_positioner(self) -> None:
         self.request_stop()
@@ -353,13 +369,20 @@ class InstrumentService:
     ) -> SParameterTrace:
         self.verify_ready_for_test()
 
-        start_hz = start_ghz * 1e9
-        stop_hz = stop_ghz * 1e9
-        self._select_switch_box_path(parameter)
-        self._vna.configure_power(vna_power_dbm)
-        self._configure_vna_if_bandwidth(if_bandwidth_hz)
-        self._vna.configure_sweep(start_hz, stop_hz, points)
-        trace = self._vna.measure_s_parameter(parameter)
+        try:
+            self._select_switch_box_path(parameter)
+            trace = self._acquisition_service().acquire_trace(
+                start_ghz=start_ghz,
+                stop_ghz=stop_ghz,
+                points=points,
+                parameter=parameter,
+                power_dbm=vna_power_dbm,
+                if_bandwidth_hz=if_bandwidth_hz,
+            )
+        except InstrumentServiceError:
+            raise
+        except AcquisitionServiceError as exc:
+            raise InstrumentServiceError(f"网分采样失败：{exc}") from exc
         self._save_trace_csv(
             trace,
             position_mm=self._current_position_tuple(),
@@ -410,16 +433,16 @@ class InstrumentService:
             raise InstrumentServiceError("请先连接网分仪，再执行配置。")
 
         try:
-            start_hz = float(start_ghz) * 1e9
-            stop_hz = float(stop_ghz) * 1e9
-            self._vna.configure_power(float(vna_power_dbm))
-            self._configure_vna_if_bandwidth(float(if_bandwidth_hz))
-            self._vna.configure_sweep(start_hz, stop_hz, int(points))
-            configure_parameter = getattr(self._vna, "configure_measurement_parameter", None)
-            if callable(configure_parameter):
-                configure_parameter(str(parameter))
-        except InstrumentServiceError:
-            raise
+            self._acquisition_service().configure_trace(
+                start_ghz=start_ghz,
+                stop_ghz=stop_ghz,
+                points=points,
+                parameter=parameter,
+                power_dbm=vna_power_dbm,
+                if_bandwidth_hz=if_bandwidth_hz,
+            )
+        except AcquisitionServiceError as exc:
+            raise InstrumentServiceError(f"网分仪配置失败：{exc}") from exc
         except Exception as exc:
             logger.exception("VNA standalone configuration failed.")
             raise InstrumentServiceError(f"网分仪配置失败：{exc}") from exc
@@ -429,7 +452,7 @@ class InstrumentService:
             raise InstrumentServiceError("请先连接网分仪，再执行采样。")
 
         try:
-            trace = self._vna.measure_s_parameter(str(parameter))
+            trace = self._acquisition_service().sample_trace(parameter)
             self._save_trace_csv(
                 trace,
                 position_mm=self._current_position_tuple(),
@@ -439,6 +462,8 @@ class InstrumentService:
             return trace
         except InstrumentServiceError:
             raise
+        except AcquisitionServiceError as exc:
+            raise InstrumentServiceError(f"网分仪采样失败：{exc}") from exc
         except Exception as exc:
             logger.exception("VNA standalone sample failed.")
             raise InstrumentServiceError(f"网分仪采样失败：{exc}") from exc
@@ -534,36 +559,18 @@ class InstrumentService:
         if not self.is_switch_box_connected or self._switch_box is None:
             raise InstrumentServiceError("请先连接开关箱，再切换链路。")
 
-        parameter = str(parameter).strip().upper()
-        if not parameter:
-            raise InstrumentServiceError("S 参数不能为空。")
-
         try:
-            command = self._switch_box.select_s_parameter(parameter)
-            logger.info("Switch box routed %s with command %s.", parameter, command)
-            return command
-        except Exception as exc:
-            logger.exception("Switch box route selection failed.")
+            return LinkService(self._switch_box).select_s_parameter(parameter)
+        except (LinkServiceError, ValueError) as exc:
             raise InstrumentServiceError(f"开关箱切换失败：{exc}") from exc
 
     def send_switch_box_command(self, command: str) -> str:
         if not self.is_switch_box_connected or self._switch_box is None:
             raise InstrumentServiceError("请先连接开关箱，再发送命令。")
 
-        command = str(command).strip()
-        if not command:
-            raise InstrumentServiceError("开关箱命令不能为空。")
-
-        send_command = getattr(self._switch_box, "send_command", None)
-        if not callable(send_command):
-            raise InstrumentServiceError("当前开关箱驱动不支持直接发送命令。")
-
         try:
-            response = str(send_command(command))
-            logger.info("Switch box command executed: %s -> %s.", command, response)
-            return response
-        except Exception as exc:
-            logger.exception("Switch box command failed.")
+            return LinkService(self._switch_box).send_command(command)
+        except LinkServiceError as exc:
             raise InstrumentServiceError(f"开关箱命令执行失败：{exc}") from exc
 
     def _run_step_scan(
@@ -859,33 +866,39 @@ class InstrumentService:
         return results
 
     def _configure_vna_for_scan(self, settings: dict) -> None:
-        assert self._vna is not None
-        start_hz = float(settings["start_ghz"]) * 1e9
-        stop_hz = float(settings["stop_ghz"]) * 1e9
         self._select_switch_box_path(str(settings["parameter"]))
-        self._vna.configure_power(float(settings["vna_power_dbm"]))
-        self._configure_vna_if_bandwidth(float(settings.get("if_bandwidth_hz", 1000.0)))
-        self._vna.configure_sweep(start_hz, stop_hz, int(settings["points"]))
+        try:
+            self._acquisition_service().configure_for_scan(settings)
+        except AcquisitionServiceError as exc:
+            raise InstrumentServiceError(f"网分配置失败：{exc}") from exc
 
     def _configure_vna_if_bandwidth(self, bandwidth_hz: float) -> None:
-        assert self._vna is not None
-        configure_if_bandwidth = getattr(self._vna, "configure_if_bandwidth", None)
-        if callable(configure_if_bandwidth):
-            configure_if_bandwidth(float(bandwidth_hz))
+        try:
+            self._acquisition_service().configure_if_bandwidth(bandwidth_hz)
+        except AcquisitionServiceError as exc:
+            raise InstrumentServiceError(f"网分中频带宽配置失败：{exc}") from exc
 
     def _measure_scan_trace(self, settings: dict) -> SParameterTrace:
-        self._raise_if_stopped()
-        assert self._vna is not None
         try:
-            trace = self._vna.measure_s_parameter(str(settings["parameter"]))
-        except Exception as exc:
+            trace = self._acquisition_service().sample_scan_trace(
+                str(settings["parameter"]),
+                stop_requested=self._stop_event.is_set,
+            )
+        except AcquisitionServiceError as exc:
             if self._stop_event.is_set():
                 raise InstrumentServiceError("扫描流程已停止。") from exc
             raise InstrumentServiceError(f"网分读取失败，扫描架已停机：{exc}") from exc
-        self._raise_if_stopped()
-        if trace.frequency_hz.size == 0 or trace.complex_values.size == 0:
-            raise InstrumentServiceError("网分未返回有效数据，扫描架已停机。")
         return trace
+
+    def _acquisition_service(self) -> AcquisitionService:
+        if self._vna is None:
+            raise InstrumentServiceError("VNA controller is not configured.")
+        return AcquisitionService(self._vna)
+
+    def _motion_service(self) -> MotionService:
+        if self._positioner is None:
+            raise InstrumentServiceError("Positioner controller is not configured.")
+        return MotionService(self._positioner)
 
     def _save_trace_csv(
         self,

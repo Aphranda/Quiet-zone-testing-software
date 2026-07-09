@@ -88,3 +88,48 @@ Last updated: 2026-07-09
 - 风险：`TestSetupPanel` 仍负责控件创建、布局、可见性和按钮状态，本阶段只迁出纯参数逻辑；后续可继续将模式可见性和按钮状态派生迁入 ViewModel。
 - 后续：进入 P2-03，迁移 `PositionerControlPanel` 到运动控制域，优先抽出手动运动命令和位置显示模型。
 - 涉及文件：`src/quiet_zone_tester/presentation/modules/scan_setup/scan_setup_view_model.py`、`src/quiet_zone_tester/presentation/modules/scan_setup/__init__.py`、`src/quiet_zone_tester/ui/widgets/test_setup_panel.py`、`tests/test_scan_setup_view_model.py`。
+
+### ARCH-TASK-20260709-010 - P2 PositionerControlPanel ViewModel 迁移
+
+- 目标：把扫描架控制面板中的手动运动命令、当前位置显示和基础按钮状态派生迁入运动控制 ViewModel，保留现有 UI 信号载荷。
+- 完成：新增 `MotionControlViewModel`、`AbsoluteMoveCommand`、`RelativeMoveCommand`、`PositionDisplay`、`MotionControlUiState`；`PositionerControlPanel` 的绝对/相对运动命令 dict、位置文本格式和 connected/busy 按钮状态委托 ViewModel；外部 `absolute_move_requested`、`relative_move_requested` 信号仍发旧 dict。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest discover -s tests`，通过 46 个 `unittest`；对 `MotionControlViewModel`、`motion_control/__init__.py`、`PositionerControlPanel` 使用不写 pyc 的源码编译检查，输出 `compile-ok`。
+- 风险：MainWindow 中的位置轮询定时器仍未迁出，本阶段先完成 Widget 内纯逻辑迁移；后续拆 `MotionService` 时再把轮询流程和安全停止流程统一收口。
+- 后续：进入 P2-04，迁移 `SwitchBoxControlPanel` 到链路管理域，优先抽出链路命令选择和面板状态。
+- 涉及文件：`src/quiet_zone_tester/presentation/modules/motion_control/motion_control_view_model.py`、`src/quiet_zone_tester/presentation/modules/motion_control/__init__.py`、`src/quiet_zone_tester/ui/widgets/positioner_control_panel.py`、`tests/test_motion_control_view_model.py`。
+
+### ARCH-TASK-20260709-011 - P2 SwitchBoxControlPanel ViewModel 迁移
+
+- 目标：把开关箱控制面板中的链路命令列表、S 参数规范化、命令文本清洗、结果显示和按钮状态派生迁入链路控制 ViewModel。
+- 完成：新增 `LinkControlViewModel` 和 `LinkControlUiState`；默认 LCD74000F 链路命令列表迁入 `presentation/modules/link_control`；`SwitchBoxControlPanel` 的参数切换信号、命令发送信号、当前命令文本、执行结果文本和 connected/busy 状态委托 ViewModel；面板外部 `parameter_requested`、`command_requested` 信号仍保持旧载荷。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest discover -s tests`，通过 51 个 `unittest`；对 `LinkControlViewModel`、`link_control/__init__.py`、`SwitchBoxControlPanel` 使用不写 pyc 的源码编译检查，输出 `compile-ok`。
+- 风险：链路图绘制仍留在 Widget；真实开关箱执行仍通过 `InstrumentService.select_switch_box_parameter/send_switch_box_command`，后续 P2-05 拆 facade 时再引入更完整的 `LinkService`。
+- 后续：进入 P2-05，将 `InstrumentService` 逐步变成 facade，优先抽取已经有基础模块的数据保存、链路路由和扫描规划委托边界。
+- 涉及文件：`src/quiet_zone_tester/presentation/modules/link_control/link_control_view_model.py`、`src/quiet_zone_tester/presentation/modules/link_control/__init__.py`、`src/quiet_zone_tester/ui/widgets/switch_box_control_panel.py`、`tests/test_link_control_view_model.py`。
+
+### ARCH-TASK-20260709-012 - P2 InstrumentService facade 链路控制抽取
+
+- 目标：启动 `InstrumentService` facade 化，先把开关箱链路选择和原始命令发送委托到链路管理域。
+- 完成：新增 `LinkService` 和 `LinkServiceError`；`InstrumentService.select_switch_box_parameter()` 与 `send_switch_box_command()` 保留原对外 API，但内部委托 `LinkService`；`LinkService` 只依赖开关箱控制器协议，不依赖 UI 和真实通信实现。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest discover -s tests`，通过 55 个 `unittest`；对 `LinkService`、`link_management/__init__.py`、`InstrumentService` 使用不写 pyc 的源码编译检查，输出 `compile-ok`。
+- 风险：P2-05 尚未整体完成；运动、采样、扫描运行和连接创建仍主要留在 `InstrumentService`。本记录只代表链路控制职责已开始委托。
+- 后续：继续 P2-05，优先抽出采样配置/采样执行或运动控制委托，逐步缩小 `InstrumentService`。
+- 涉及文件：`src/quiet_zone_tester/domains/link_management/link_service.py`、`src/quiet_zone_tester/domains/link_management/__init__.py`、`src/quiet_zone_tester/services/instrument_service.py`、`tests/test_link_service.py`。
+
+### ARCH-TASK-20260709-013 - P2 InstrumentService facade 采样职责抽取
+
+- 目标：继续 `InstrumentService` facade 化，把 VNA sweep 配置、IF 带宽配置和单次采样执行迁入采样域。
+- 完成：新增 `AcquisitionService`、`AcquisitionServiceError` 和 `SweepConfiguration`；`InstrumentService.acquire_preview_trace()`、`configure_vna_trace()`、`sample_vna_trace()`、`_configure_vna_for_scan()` 与 `_measure_scan_trace()` 保留原 API，但 VNA 配置和测量调用委托到采样域；扫描配置路径保持原行为，不额外配置 measurement parameter。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest discover -s tests`，通过 60 个 `unittest`；对 `AcquisitionService`、`acquisition/__init__.py`、`InstrumentService` 和新测试使用不写 pyc 的源码编译检查，输出 `compile-ok`。
+- 风险：P2-05 尚未整体完成；扫描运行编排、运动控制、连接创建和数据保存兼容壳仍在 `InstrumentService` 中。真实硬件命令顺序需要后续在硬件环境补一次联调验证。
+- 后续：继续 P2-05，优先抽 `MotionService` 或扫描运行编排服务，逐步只让 `InstrumentService` 保留 facade 协调职责。
+- 涉及文件：`src/quiet_zone_tester/domains/acquisition/acquisition_service.py`、`src/quiet_zone_tester/domains/acquisition/__init__.py`、`src/quiet_zone_tester/services/instrument_service.py`、`tests/test_acquisition_service.py`。
+
+### ARCH-TASK-20260709-014 - P2 InstrumentService facade 手动运动抽取
+
+- 目标：继续 `InstrumentService` facade 化，把扫描架手动 jog、位置查询、绝对/相对运动和停止命令迁入运动控制域。
+- 完成：新增 `MotionService` 和 `MotionServiceError`；`InstrumentService.jog_positioner_axis()`、`query_positioner_position()`、`move_positioner_absolute()`、`move_positioner_relative()`、`stop_positioner_axis()`、`stop_positioner()` 和 `request_stop()` 保留原 API，但实际运动命令委托到 `MotionService`；运行时配置解析仍暂留 `InstrumentService`，避免与连接配置适配混在同一步重构。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest discover -s tests`，通过 64 个 `unittest`；对 `MotionService`、`motion_control/__init__.py`、`InstrumentService` 和新测试使用不写 pyc 的源码编译检查，输出 `compile-ok`。
+- 风险：连续扫描中的轴级运动编排仍留在 `InstrumentService`；本阶段只覆盖 UI 手动运动命令和停止命令。后续抽扫描运行服务时再统一处理轴级扫描运动。
+- 后续：继续 P2-05，优先抽扫描运行编排服务或连接创建工厂，逐步降低 `InstrumentService` 的私有方法体量。
+- 涉及文件：`src/quiet_zone_tester/domains/motion_control/motion_service.py`、`src/quiet_zone_tester/domains/motion_control/__init__.py`、`src/quiet_zone_tester/services/instrument_service.py`、`tests/test_motion_service.py`。

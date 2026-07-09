@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from quiet_zone_tester.drivers import Position
+from quiet_zone_tester.presentation.modules.motion_control import MotionControlViewModel
 
 
 class NoWheelDoubleSpinBox(QDoubleSpinBox):
@@ -30,6 +31,7 @@ class PositionerControlPanel(QGroupBox):
 
     def __init__(self, parent=None) -> None:
         super().__init__("扫描架控制", parent)
+        self._view_model = MotionControlViewModel()
         self._busy = False
         self._connected = False
 
@@ -103,8 +105,7 @@ class PositionerControlPanel(QGroupBox):
     def set_positioner_connected(self, connected: bool) -> None:
         self._connected = connected
         if not connected:
-            self._x_position_value.setText("-")
-            self._y_position_value.setText("-")
+            self._set_position_display(None)
         self._refresh_enabled_state()
 
     def set_busy(self, busy: bool) -> None:
@@ -117,8 +118,12 @@ class PositionerControlPanel(QGroupBox):
         self._absolute_y_mm.setValue(position.y_mm)
 
     def set_current_position(self, position: Position) -> None:
-        self._x_position_value.setText(f"{position.x_mm:.3f} mm")
-        self._y_position_value.setText(f"{position.y_mm:.3f} mm")
+        self._set_position_display(position)
+
+    def _set_position_display(self, position: Position | None) -> None:
+        display = self._view_model.position_display(position)
+        self._x_position_value.setText(display.x_text)
+        self._y_position_value.setText(display.y_text)
 
     def _build_position_group(self) -> QGroupBox:
         group = QGroupBox("当前位置")
@@ -156,27 +161,27 @@ class PositionerControlPanel(QGroupBox):
 
     def _emit_absolute_move(self) -> None:
         self.absolute_move_requested.emit(
-            {
-                "x_mm": self._absolute_x_mm.value(),
-                "y_mm": self._absolute_y_mm.value(),
-                "speed_mm_s": self._absolute_speed_mm_s.value(),
-            }
+            self._view_model.absolute_move_command(
+                x_mm=self._absolute_x_mm.value(),
+                y_mm=self._absolute_y_mm.value(),
+                speed_mm_s=self._absolute_speed_mm_s.value(),
+            )
         )
 
     def _emit_relative_move(self) -> None:
         self.relative_move_requested.emit(
-            {
-                "delta_x_mm": self._relative_x_mm.value(),
-                "delta_y_mm": self._relative_y_mm.value(),
-                "speed_mm_s": self._relative_speed_mm_s.value(),
-            }
+            self._view_model.relative_move_command(
+                delta_x_mm=self._relative_x_mm.value(),
+                delta_y_mm=self._relative_y_mm.value(),
+                speed_mm_s=self._relative_speed_mm_s.value(),
+            )
         )
 
     def _refresh_enabled_state(self) -> None:
-        actions_enabled = self._connected and not self._busy
+        state = self._view_model.ui_state(connected=self._connected, busy=self._busy)
         for widget in self._action_widgets:
-            widget.setEnabled(actions_enabled)
-        self._stop_button.setEnabled(self._connected)
+            widget.setEnabled(state.actions_enabled)
+        self._stop_button.setEnabled(state.stop_enabled)
 
     @staticmethod
     def _position_spinbox(value: float) -> QDoubleSpinBox:
