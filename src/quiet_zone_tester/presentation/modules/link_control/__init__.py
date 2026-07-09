@@ -4,6 +4,7 @@ from quiet_zone_tester.presentation.modules.link_control.link_control_view_model
     DEFAULT_LINK_COMMANDS,
     LinkControlUiState,
     LinkControlViewModel,
+    LinkDiagramState,
 )
 
-__all__ = ["DEFAULT_LINK_COMMANDS", "LinkControlUiState", "LinkControlViewModel"]
+__all__ = ["DEFAULT_LINK_COMMANDS", "LinkControlUiState", "LinkControlViewModel", "LinkDiagramState"]

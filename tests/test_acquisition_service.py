@@ -3,6 +3,7 @@ import unittest
 import numpy as np
 
 from quiet_zone_tester.domains.acquisition import AcquisitionService, AcquisitionServiceError
+from quiet_zone_tester.domains.scan_management import ScanSettings
 from quiet_zone_tester.models import SParameterTrace
 
 
@@ -86,6 +87,30 @@ class AcquisitionServiceTest(unittest.TestCase):
                 ("sweep", 3.0e9, 4.0e9, 11),
             ],
         )
+
+    def test_configure_for_scan_accepts_scan_settings_dataclass(self) -> None:
+        vna = _Vna()
+        settings = ScanSettings.from_mapping(
+            {
+                "start_ghz": 3.0,
+                "stop_ghz": 4.0,
+                "points": 11,
+                "parameter": "S21",
+                "vna_power_dbm": -12.0,
+                "if_bandwidth_hz": 1000.0,
+                "scan_mode": "step",
+                "x_start_mm": 0.0,
+                "x_stop_mm": 1.0,
+                "y_start_mm": 0.0,
+                "y_stop_mm": 0.0,
+                "step_x_mm": 1.0,
+                "step_y_mm": 1.0,
+            }
+        )
+
+        AcquisitionService(vna).configure_for_scan(settings)
+
+        self.assertEqual(vna.calls[-1], ("sweep", 3.0e9, 4.0e9, 11))
 
     def test_acquire_trace_configures_then_samples(self) -> None:
         vna = _Vna()

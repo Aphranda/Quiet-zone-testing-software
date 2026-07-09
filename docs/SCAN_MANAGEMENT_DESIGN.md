@@ -23,7 +23,9 @@ Last updated: 2026-07-10
 - 状态机：`domains/scan_management/scan_state_machine.py`
 - 扫描运行几何：`domains/scan_management/scan_runtime_geometry.py`
 - 扫描运行服务：`domains/scan_management/scan_runtime_service.py`
+- 应用级扫描流程状态：`application/scan_workflow_state.py`
 - 设置 UI ViewModel：`presentation/modules/scan_setup/scan_setup_view_model.py`
+- 扫描点展示模型：`presentation/modules/scan_runtime/scan_point_model.py`
 
 ## 边界
 
@@ -41,10 +43,11 @@ Last updated: 2026-07-10
 - `ScanPlanner` 是扫描路径唯一来源。
 - `ScanStateMachine` 管状态合法转换，不保存大体量 trace。
 - `ScanSession` 保存事实，状态机保存流程阶段。
+- `ScanWorkflowState` 管 UI 工作流中的启动、暂停、停止、失败、完成清理和忙碌派生状态。
+- 扫描点展示、进度状态和后续结果索引共用 `ScanPointModel`。
 - 停止请求应返回已完成的部分结果。
 
 ## 后续迁移
 
-- 将 `InstrumentService.run_scan()` 剩余锁和准备逻辑迁入 application 或扫描运行 ViewModel。
-- 建立扫描点 Qt model，用于动画和结果索引展示。
-
+- 将 `InstrumentService.run_scan()` 剩余锁和准备逻辑继续迁入 application 或扫描运行 ViewModel。
+- 将扫描结果 trace 索引继续接入 `ScanPointModel` 或独立结果 model。

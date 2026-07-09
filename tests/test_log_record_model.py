@@ -48,19 +48,33 @@ class LogRecordModelTest(unittest.TestCase):
         panel = StatusLogPanel()
 
         panel.append_info("started")
+        panel.append_warning("careful")
         panel.append_error("failed")
 
-        self.assertEqual(panel.log_model.rowCount(), 2)
+        self.assertEqual(panel.log_model.rowCount(), 3)
         self.assertEqual(panel.log_model.records[0].level, "INFO")
-        self.assertEqual(panel.log_model.records[1].level, "ERROR")
+        self.assertEqual(panel.log_model.records[1].level, "WARNING")
+        self.assertEqual(panel.log_model.records[2].level, "ERROR")
 
         text_view = panel.findChild(QPlainTextEdit)
         self.assertIsNotNone(text_view)
         text = text_view.toPlainText()
         self.assertIn("INFO", text)
         self.assertIn("started", text)
+        self.assertIn("WARNING", text)
+        self.assertIn("careful", text)
         self.assertIn("ERROR", text)
         self.assertIn("failed", text)
+
+    def test_status_log_panel_text_view_follows_model_insertions(self) -> None:
+        _app()
+        panel = StatusLogPanel()
+
+        panel.log_model.append(level="info", source="unit", message="from model")
+
+        text_view = panel.findChild(QPlainTextEdit)
+        self.assertIsNotNone(text_view)
+        self.assertIn("from model", text_view.toPlainText())
 
 
 if __name__ == "__main__":

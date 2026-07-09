@@ -20,7 +20,7 @@ Last updated: 2026-07-10
 - 路由规则：`domains/link_management/link_router.py`
 - profile：`domains/link_management/switch_box_profiles.py`
 - 执行服务：`domains/link_management/link_service.py`
-- UI 逻辑：`presentation/modules/link_control/link_control_view_model.py`
+- UI 状态和链路图派生状态：`presentation/modules/link_control/link_control_view_model.py`
 - Widget 兼容入口：`ui/widgets/switch_box_control_panel.py`
 
 ## 边界
@@ -34,9 +34,8 @@ Last updated: 2026-07-10
 - Widget 不直接拼接业务命令。
 - `LinkRouter` 可独立测试，不依赖真实开关箱。
 - `LinkService` 只依赖开关箱 controller 协议。
+- 链路图高亮 token 由 `LinkControlViewModel.diagram_state()` 派生，Widget 只负责绘制。
 
 ## 后续迁移
 
-- 将链路图绘制中的派生状态迁入 ViewModel。
 - 为当前链路状态建立结构化 model，供日志、UI 和扫描记录复用。
-

@@ -69,10 +69,15 @@ class ScanRuntimeService:
 
     def run_step_scan(
         self,
-        settings: dict,
+        settings: dict | ScanSettings,
         on_progress: Callable[[int, int, SParameterTrace | None], None] | None = None,
     ) -> list[SParameterTrace]:
-        volume = ScanSettings.from_mapping(settings).scan_volume
+        try:
+            scan_settings = ScanSettings.from_mapping(settings)
+        except ValueError as exc:
+            raise ScanRuntimeServiceError(str(exc)) from exc
+        settings = scan_settings.to_dict()
+        volume = scan_settings.scan_volume
         points = volume.scan_points()
         total = int(points.shape[0])
         settle_delay_s = max(float(settings.get("settle_delay_s", DEFAULT_SETTLE_DELAY_S)), 0.0)
@@ -208,14 +213,19 @@ class ScanRuntimeService:
 
     def run_continuous_scan(
         self,
-        settings: dict,
+        settings: dict | ScanSettings,
         on_progress: Callable[[int, int, SParameterTrace | None], None] | None = None,
     ) -> list[SParameterTrace]:
+        try:
+            scan_settings = ScanSettings.from_mapping(settings)
+        except ValueError as exc:
+            raise ScanRuntimeServiceError(str(exc)) from exc
+        settings = scan_settings.to_dict()
         speed_mm_s = float(settings.get("continuous_speed_mm_s", settings.get("step_speed_mm_s", 100.0)))
         if abs(speed_mm_s) <= 1e-9:
             raise ScanRuntimeServiceError("匀速测试速度不能为 0。")
         speed_mm_s = abs(speed_mm_s)
-        volume = ScanSettings.from_mapping(settings).scan_volume
+        volume = scan_settings.scan_volume
         points = volume.scan_points()
         total = int(points.shape[0])
 

@@ -21,10 +21,12 @@ class SwitchBoxDiagramWidget(QWidget):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._selected_command = DEFAULT_LINK_COMMANDS[0]
+        self._highlighted_tokens: frozenset[str] = frozenset()
         self.setMinimumSize(720, 420)
 
-    def set_selected_command(self, command: str) -> None:
-        self._selected_command = command.strip() or DEFAULT_LINK_COMMANDS[0]
+    def set_link_state(self, *, selected_command: str, highlighted_tokens: frozenset[str]) -> None:
+        self._selected_command = selected_command
+        self._highlighted_tokens = highlighted_tokens
         self.update()
 
     def paintEvent(self, event) -> None:  # noqa: N802 - Qt override.
@@ -60,7 +62,7 @@ class SwitchBoxDiagramWidget(QWidget):
         self._draw_topology(painter, pt, rect, scale)
 
     def _draw_topology(self, painter: QPainter, pt, rect, scale: float) -> None:
-        highlighted = self._highlighted_tokens()
+        highlighted = self._highlighted_tokens
         line_pen = QPen(QColor("#101828"), max(1.4, 1.4 * scale))
         muted_pen = QPen(QColor("#667085"), max(1.0, 1.0 * scale))
         active_pen = QPen(QColor("#e11d25"), max(2.4, 3.0 * scale))
@@ -155,15 +157,6 @@ class SwitchBoxDiagramWidget(QWidget):
         wire([(552, 194), (590, 194), (590, 214)], amp1_active or amp2_active)
         wire([(320, 300), (572, 300)], False)
 
-    def _highlighted_tokens(self) -> set[str]:
-        command = self._selected_command.upper()
-        tokens = set()
-        for token in ("DUT", "H", "V", "VNA1", "VNA2", "SG", "SA", "AMP1", "AMP2"):
-            if token in command:
-                tokens.add(token)
-        return tokens
-
-
 class NoWheelComboBox(QComboBox):
     def wheelEvent(self, event) -> None:  # noqa: N802 - Qt override.
         event.ignore()
@@ -251,9 +244,12 @@ class SwitchBoxControlPanel(QGroupBox):
         self._last_result.setText(self._view_model.result_text(message))
 
     def _set_current_command(self, command: str) -> None:
-        command = self._view_model.selected_command(command)
-        self._diagram.set_selected_command(command)
-        self._current_command.setText(self._view_model.current_command_text(command))
+        state = self._view_model.diagram_state(command)
+        self._diagram.set_link_state(
+            selected_command=state.selected_command,
+            highlighted_tokens=state.highlighted_tokens,
+        )
+        self._current_command.setText(self._view_model.current_command_text(state.selected_command))
 
     def _refresh_enabled_state(self) -> None:
         state = self._view_model.ui_state(connected=self._connected, busy=self._busy)

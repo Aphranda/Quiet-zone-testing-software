@@ -20,6 +20,7 @@ Last updated: 2026-07-10
 
 - domain service：`domains/motion_control/motion_service.py`
 - UI ViewModel：`presentation/modules/motion_control/motion_control_view_model.py`
+- 运动期间位置轮询：`presentation/modules/motion_control/position_tracker.py`
 - Widget 兼容入口：`ui/widgets/positioner_control_panel.py`
 - 硬件实现：`hardware/positioner/` 和 `hardware/mock/positioner.py`
 
@@ -33,10 +34,9 @@ Last updated: 2026-07-10
 
 - 手动运动命令保持旧 dict signal 兼容。
 - 运行时配置更新由 `MotionService.update_runtime_config()` 统一处理。
+- 运动期间位置轮询由 `PositionTracker` 管理定时器和任务互斥。
 - 扫描停止时优先调用安全停止和取消运动能力。
 
 ## 后续迁移
 
-- 将 MainWindow 中的位置轮询定时器迁入运动控制 ViewModel 或 PositionTracker。
 - 为运动状态建立轻量状态机：Idle、Moving、Jogging、Stopping、Fault。
-

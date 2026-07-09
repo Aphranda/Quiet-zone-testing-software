@@ -27,7 +27,7 @@ hardware/
   transport/
 ```
 
-旧 `drivers/` 和 `instruments/` 只保留兼容 re-export。
+旧 `drivers/` 和 `instruments/` 只保留 deprecated 兼容 re-export。
 
 ## 边界
 
@@ -38,11 +38,11 @@ hardware/
 ## 关键规则
 
 - 新代码应从 `quiet_zone_tester.hardware` 导入接口和 controller。
-- 旧路径暂时保留，避免外部脚本或历史代码立即失效。
+- 旧路径暂时保留，避免外部脚本或历史代码立即失效；旧模块已标记 deprecated，不再承接新实现。
 - Mock 和真实实现都必须满足 `hardware/interfaces.py` 中的协议。
+- 真实硬件验证按 `HARDWARE_VALIDATION_CHECKLIST.md` 执行；自动集成入口默认跳过，避免无硬件环境误连设备。
 
 ## 后续迁移
 
-- 后续可移除旧路径或标记为 deprecated。
-- 为真实硬件实现补充设备级集成测试说明和手动验证清单。
-
+- 后续可在确认外部脚本完成迁移后移除旧路径。
+- 按验证清单补充真实设备验证记录。

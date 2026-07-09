@@ -14,22 +14,25 @@
 
 ## 分层架构
 
-项目必须严格遵循 UI 层、业务逻辑层、硬件驱动层分离。
+项目按应用装配、业务域、硬件适配、展示模型和旧 UI 兼容层拆分。
 
-- UI 层：`src/quiet_zone_tester/ui`
-  负责窗口、控件、用户交互、实时曲线显示和状态提示。UI 层不得直接访问仪器，不得执行阻塞硬件 I/O。
+- APP 层：`src/quiet_zone_tester/application`
+  负责应用级依赖装配、后台任务运行器和扫描工作流状态。
 
-- 业务逻辑层：`src/quiet_zone_tester/services`
-  负责编排测试流程，例如仪器连接、扫频配置、预览采样、扫描架扫描、数据保存和报告生成。业务层通过驱动接口访问硬件。
+- 业务域：`src/quiet_zone_tester/domains`
+  负责仪表连接、链路路由、运动控制、采样、扫描运行、数据保存和报告导出。业务域不依赖 Qt Widget。
 
-- 驱动接口层：`src/quiet_zone_tester/drivers`
-  负责 VNA、扫描架、开关箱等设备的统一接口定义和 Mock 后端。
+- 硬件适配层：`src/quiet_zone_tester/hardware`
+  负责统一硬件接口、Mock 实现、真实 VNA/扫描架/开关箱实现和 transport helper。
 
-- 真实仪器层：`src/quiet_zone_tester/instruments`
-  负责真实 VNA、扫描架、开关箱等设备的通信封装。真实设备控制代码必须基于统一接口实现，不得放入 UI 层。
+- 展示模型层：`src/quiet_zone_tester/presentation`
+  负责 ViewModel、Qt model 和面向 UI 的状态派生。
 
-- 数据模型层：`src/quiet_zone_tester/models`
-  负责 S 参数、位置、扫描结果等跨层共享的数据结构。
+- UI 兼容层：`src/quiet_zone_tester/ui`
+  负责现有 Qt Widget、主窗口装配和旧控件入口。UI 层不得直接访问真实硬件 controller，不得执行阻塞硬件 I/O。
+
+- 旧兼容路径：`src/quiet_zone_tester/drivers`、`src/quiet_zone_tester/instruments`
+  仅保留 deprecated re-export，新代码应从 `quiet_zone_tester.hardware` 导入。
 
 ## 线程与 UI 响应规范
 
@@ -73,28 +76,21 @@ UI 线程绝不能被硬件 I/O 阻塞。
 
 ```text
 src/quiet_zone_tester/
-  app.py                    # QApplication 入口
-  main.py                   # 命令行入口
-  logging_config.py         # 日志初始化
-  drivers/
-    base.py                 # VNA/扫描架/开关箱驱动接口
-    mock_vna.py             # Mock VNA
-    mock_positioner.py      # Mock 扫描架
-    mock_switch_box.py      # Mock 开关箱
-  instruments/
-    visa_scpi.py            # VISA/SCPI 会话封装
-    vna_scpi.py             # 真实 VNA 控制器
-    switch_box_tc500.py     # TC500 开关箱控制器
-    switch_box_lcd74000f.py # LCD74000F 开关箱控制器
-    modbus_rtu.py           # Modbus RTU 串口会话封装
-    positioner_icl.py       # iCL-RS 扫描架控制器，X/Y 对应厂家 Axis03/Axis04，实际 Modbus ID 为 2/3
+  app.py                    # QApplication 创建和全局样式
+  main.py                   # 程序入口
+  application/              # AppContext、TaskRunner、扫描工作流状态
+  domains/                  # acquisition/data/instrument/link/motion/scan 等业务域
+  hardware/                 # interfaces、mock、vna、positioner、switch_box、transport
+  presentation/             # ViewModel 和 Qt model
+  drivers/                  # deprecated 兼容 re-export
+  instruments/              # deprecated 兼容 re-export
   models/
     rf_data.py              # S 参数数据模型
     scan_config.py          # X/Y 二维扫描区间模型
   services/
-    instrument_service.py   # 仪器业务流程
+    instrument_service.py   # facade，委托到 domain service
   ui/
-    async_task.py           # QThread 后台任务封装
+    async_task.py           # deprecated 兼容 re-export
     main_window.py          # 主窗口
     widgets/                # 连接、参数、绘图、日志面板
 ```
@@ -140,7 +136,35 @@ python run.py
 - 步进测试：配置 X/Y 扫描区间、步进间隔、步进速度和到点延时。扫描架运动到每个步进点后等待延时，随后触发 VNA 读取数据，再进入下一个点。
 - 匀速测试：配置运行轴、运行速度和运行时间。扫描架按指定速度连续运行，VNA 在运行期间持续读取数据；速度可为负值，用于反向点动。
 
-开关箱可在 TC500 与 LCD74000F 间手动切换，TC500 保留原文本指令，LCD74000F 参考 `resource/LCD74000F.md` 使用 `CONFigure:LINK ...` 链路指令。测试采样前会按 S 参数发送对应开关箱切换命令。Mock 类保留在 `drivers` 下，仅用于测试和离线联调。
+开关箱可在 TC500 与 LCD74000F 间手动切换，TC500 保留原文本指令，LCD74000F 参考 `resource/LCD74000F.md` 使用 `CONFigure:LINK ...` 链路指令。测试采样前会按 S 参数发送对应开关箱切换命令。Mock 类位于 `hardware/mock`，用于测试和离线联调。
+
+## 测试与验证
+
+标准测试使用 `unittest`：
+
+```powershell
+$env:UV_CACHE_DIR='.uv-cache'
+$env:QT_QPA_PLATFORM='offscreen'
+python -m uv run python -m unittest discover -s tests
+```
+
+主窗口 offscreen 初始化检查：
+
+```powershell
+$env:UV_CACHE_DIR='.uv-cache'
+$env:QT_QPA_PLATFORM='offscreen'
+python -m uv run python -c "from PySide6.QtWidgets import QApplication; from quiet_zone_tester.application import create_app_context; app=QApplication([]); w=create_app_context().create_main_window(); w.resize(1200, 800); w.show(); app.processEvents(); print('ok')"
+```
+
+真实硬件验证按 [docs/HARDWARE_VALIDATION_CHECKLIST.md](docs/HARDWARE_VALIDATION_CHECKLIST.md) 执行。硬件集成测试默认跳过；只有显式设置环境变量时才会启用：
+
+```powershell
+$env:RUN_HARDWARE_INTEGRATION='1'
+$env:HARDWARE_VNA_RESOURCE='TCPIP0::192.168.1.10::5025::SOCKET'
+$env:HARDWARE_POSITIONER_PORT='COM3'
+$env:HARDWARE_SWITCH_BOX_MODEL='LCD74000F'
+python -m uv run python -m unittest tests.test_hardware_integration_smoke
+```
 
 ## 开发工作流
 

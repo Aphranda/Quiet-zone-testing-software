@@ -1,6 +1,8 @@
 """Connection presentation module."""
 
 from quiet_zone_tester.presentation.modules.connection.connection_view_model import (
+    ConnectionPanelState,
+    ConnectionState,
     ConnectionViewModel,
     PositionerFormState,
     SwitchBoxFormState,
@@ -9,6 +11,8 @@ from quiet_zone_tester.presentation.modules.connection.connection_view_model imp
 )
 
 __all__ = [
+    "ConnectionPanelState",
+    "ConnectionState",
     "ConnectionViewModel",
     "PositionerFormState",
     "SwitchBoxFormState",

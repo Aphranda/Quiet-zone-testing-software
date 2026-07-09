@@ -28,6 +28,12 @@ class LinkControlUiState:
     inputs_enabled: bool
 
 
+@dataclass(frozen=True)
+class LinkDiagramState:
+    selected_command: str
+    highlighted_tokens: frozenset[str]
+
+
 class LinkControlViewModel:
     def link_commands(self) -> tuple[str, ...]:
         return DEFAULT_LINK_COMMANDS
@@ -46,6 +52,18 @@ class LinkControlViewModel:
 
     def current_command_text(self, command: str) -> str:
         return f"当前命令：{self.selected_command(command)}"
+
+    def diagram_state(self, command: str) -> LinkDiagramState:
+        selected_command = self.selected_command(command)
+        command_upper = selected_command.upper()
+        return LinkDiagramState(
+            selected_command=selected_command,
+            highlighted_tokens=frozenset(
+                token
+                for token in ("DUT", "H", "V", "VNA1", "VNA2", "SG", "SA", "AMP1", "AMP2")
+                if token in command_upper
+            ),
+        )
 
     @staticmethod
     def result_text(message: str) -> str:

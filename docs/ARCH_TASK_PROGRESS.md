@@ -196,3 +196,120 @@ Last updated: 2026-07-10
 - 风险：设计文档仍是当前架构快照，后续继续迁移 `application/`、Qt Model/View 或硬件集成测试时需要同步更新对应 `*_DESIGN.md`。
 - 后续：P2 当前任务已全部完成；下一阶段可基于业务域文档继续拆 `MainWindow` 顶层路由、应用上下文和剩余兼容壳。
 - 涉及文件：`docs/architecture_migration_plan.md`、`docs/APP_DESIGN.md`、`docs/INSTRUMENT_MANAGEMENT_DESIGN.md`、`docs/LINK_MANAGEMENT_DESIGN.md`、`docs/MOTION_CONTROL_DESIGN.md`、`docs/SCAN_MANAGEMENT_DESIGN.md`、`docs/DATA_MANAGEMENT_DESIGN.md`、`docs/HARDWARE_ADAPTER_DESIGN.md`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
+
+### ARCH-TASK-20260710-022 - P3 TODO 扩展与 APP 装配迁移
+
+- 目标：根据 P2 后的剩余架构债务继续扩展 TODO，并启动 P3-01，把应用级依赖装配和后台任务运行器迁入 `application/`。
+- 完成：`ARCH_MIGRATION_TODO.md` 新增 P3/P4 任务组，覆盖 APP 编排、扫描工作流、位置跟踪、状态模型、兼容清理、硬件验证、ScanRepository 和报告导出；新增 `application/app_context.py` 作为应用级 composition root；新增 `application/task_runner.py` 承接原 UI 侧 QThread 任务运行器；`ui/async_task.py` 改为兼容 re-export；`app.py` 改为通过 AppContext 创建主窗口；`MainWindow` 支持注入 task runner factory；`APP_DESIGN.md` 同步当前状态；新增 APP 装配测试。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest discover -s tests`，通过 94 个 `unittest`。
+- 风险：`MainWindow` 仍持有扫描状态布尔组合、位置轮询定时器和多数顶层路由；P3-01 只完成应用装配和任务运行器迁移。
+- 后续：继续 P3-02 或 P3-03，优先把扫描工作流状态或位置轮询从 `MainWindow` 中抽出。
+- 涉及文件：`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`、`docs/APP_DESIGN.md`、`src/quiet_zone_tester/application/app_context.py`、`src/quiet_zone_tester/application/task_runner.py`、`src/quiet_zone_tester/application/__init__.py`、`src/quiet_zone_tester/app.py`、`src/quiet_zone_tester/ui/async_task.py`、`src/quiet_zone_tester/ui/main_window.py`、`tests/test_application_context.py`。
+
+### ARCH-TASK-20260710-023 - P3 位置跟踪器抽取
+
+- 目标：完成 P3-03，将扫描架运动期间的位置轮询定时器、轮询任务互斥和查询触发逻辑从 `MainWindow` 迁入运动控制 presentation 模块。
+- 完成：新增 `PositionTracker`，由它管理 QTimer、当前轮询任务互斥、连接状态判断和位置查询任务触发；`MainWindow` 改为在运动开始/结束/断开/清理时调用 `PositionTracker.start()`、`stop()`、`reset()`，并只处理位置展示和失败日志；运动控制设计文档同步当前实现。
+- 验证：使用 uv 环境运行局部测试 `python -m uv run python -m unittest tests.test_position_tracker tests.test_motion_control_view_model`，通过 10 个 `unittest`；运行全量 `python -m uv run python -m unittest discover -s tests`，通过 99 个 `unittest`；主窗口 offscreen 初始化输出 `ok`。
+- 风险：`MainWindow` 仍直接编排绝对/相对运动命令和手动停止任务；本阶段只抽出运动期间的位置轮询。
+- 后续：继续 P3-02 抽扫描工作流，或 P3-04/P3-05 建立连接和链路状态模型。
+- 涉及文件：`src/quiet_zone_tester/presentation/modules/motion_control/position_tracker.py`、`src/quiet_zone_tester/presentation/modules/motion_control/__init__.py`、`src/quiet_zone_tester/ui/main_window.py`、`tests/test_position_tracker.py`、`docs/MOTION_CONTROL_DESIGN.md`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
+
+### ARCH-TASK-20260710-024 - P3 连接状态模型抽取
+
+- 目标：完成 P3-04，为 VNA、扫描架和开关箱连接状态建立结构化模型，并将连接面板状态文本和按钮启用规则从 Widget 迁入 ViewModel。
+- 完成：新增 `ConnectionState` 和 `ConnectionPanelState`；`ConnectionViewModel.panel_state()` 统一派生“未连接/部分已连接/全部已连接/处理中”文本，以及连接/断开按钮启用状态；`ConnectionPanel._refresh_state()` 改为读取 ViewModel 派生结果；仪表管理设计文档同步当前实现。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest tests.test_connection_view_model`，通过 5 个 `unittest`；运行全量 `python -m uv run python -m unittest discover -s tests`，通过 100 个 `unittest`；主窗口 offscreen 初始化输出 `ok`。
+- 风险：连接状态事实仍由 `ConnectionPanel` 的三个布尔字段持有；后续可继续迁入 `InstrumentManager` 或 Qt model，供更多 UI 共享。
+- 后续：继续 P3-05 建立链路状态模型，或 P3-02 抽扫描工作流。
+- 涉及文件：`src/quiet_zone_tester/presentation/modules/connection/connection_view_model.py`、`src/quiet_zone_tester/presentation/modules/connection/__init__.py`、`src/quiet_zone_tester/ui/widgets/connection_panel.py`、`tests/test_connection_view_model.py`、`docs/INSTRUMENT_MANAGEMENT_DESIGN.md`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
+
+### ARCH-TASK-20260710-025 - P3 链路图派生状态抽取
+
+- 目标：推进 P3-05，将开关箱链路图高亮 token 等派生状态迁入链路 ViewModel，减少 Widget 中的业务解析。
+- 完成：新增 `LinkDiagramState`；`LinkControlViewModel.diagram_state()` 统一规范化当前链路命令并派生高亮 token；`SwitchBoxDiagramWidget` 改为接收 `selected_command` 和 `highlighted_tokens`，只负责绘制；链路管理设计文档同步当前实现。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest tests.test_link_control_view_model`，通过 6 个 `unittest`；运行全量 `python -m uv run python -m unittest discover -s tests`，通过 101 个 `unittest`；主窗口 offscreen 初始化输出 `ok`。
+- 风险：当前链路状态事实仍主要由控件当前值和执行结果标签保存；后续可继续建立完整 `LinkState`，供日志、扫描记录和 UI 复用。
+- 后续：继续 P3-02 抽扫描工作流，或补 P3-06 扫描点/结果 Qt model。
+- 涉及文件：`src/quiet_zone_tester/presentation/modules/link_control/link_control_view_model.py`、`src/quiet_zone_tester/presentation/modules/link_control/__init__.py`、`src/quiet_zone_tester/ui/widgets/switch_box_control_panel.py`、`tests/test_link_control_view_model.py`、`docs/LINK_MANAGEMENT_DESIGN.md`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
+
+### ARCH-TASK-20260710-026 - P3 日志展示收口到 LogRecordModel
+
+- 目标：推进 P3-07，让运行日志文本视图只作为 `LogRecordModel` 的展示层，避免 UI 文本框成为第二套日志事实源。
+- 完成：`StatusLogPanel.append()` 统一向 `LogRecordModel` 写入结构化日志；文本框改为监听 `rowsInserted` 并按模型记录追加展示；新增 `append_warning()`；测试覆盖直接向模型插入记录时文本视图同步更新。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest tests.test_log_record_model`，通过 4 个 `unittest`；运行全量 `python -m uv run python -m unittest discover -s tests`，通过 102 个 `unittest`；主窗口 offscreen 初始化输出 `ok`。
+- 风险：应用中的日志调用仍散落在 `MainWindow` 各流程方法中；后续抽扫描工作流时可继续把日志事件路由迁入 application/controller。
+- 后续：继续 P3-02 抽扫描工作流，统一任务失败、业务日志和 UI 状态切换。
+- 涉及文件：`src/quiet_zone_tester/ui/widgets/status_log_panel.py`、`tests/test_log_record_model.py`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
+
+### ARCH-TASK-20260710-027 - P3 扫描点 Qt Model 建立
+
+- 目标：完成 P3-06，建立可供扫描动画、进度统计和后续结果索引复用的扫描点 Qt model。
+- 完成：新增 `ScanPointModel` 和 `ScanPointDisplay`，提供扫描点表格数据、完成点计数、状态角色和 volume 到扫描点的装载能力；`ScanAnimationPanel` 持有并同步更新 `point_model`，预览、开始扫描、进度更新和停止扫描都会同步模型状态；扫描管理设计文档同步当前实现。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest tests.test_scan_point_model`，通过 3 个 `unittest`；运行全量 `python -m uv run python -m unittest discover -s tests`，通过 105 个 `unittest`；主窗口 offscreen 初始化输出 `ok`。
+- 风险：当前模型只覆盖扫描点和完成状态，trace 结果索引尚未接入；后续可把扫描结果文件、最后一条 trace 或质量标记扩展到 model。
+- 后续：继续 P3-02 抽扫描工作流，或扩展扫描结果 model 与报告导出。
+- 涉及文件：`src/quiet_zone_tester/presentation/modules/scan_runtime/scan_point_model.py`、`src/quiet_zone_tester/presentation/modules/scan_runtime/__init__.py`、`src/quiet_zone_tester/ui/widgets/scan_animation_panel.py`、`tests/test_scan_point_model.py`、`docs/SCAN_MANAGEMENT_DESIGN.md`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
+
+### ARCH-TASK-20260710-028 - P3 扫描工作流状态抽取
+
+- 目标：完成 P3-02，将 `MainWindow` 中扫描启动、暂停、恢复、停止、失败、完成清理和忙碌派生相关布尔组合迁入 application 层。
+- 完成：新增 `ScanWorkflowState`，集中管理 `sampling_active`、`paused`、`stop_requested`、`failed`、扫描任务运行、停止扫描架任务、进度计数和 busy 派生；`MainWindow` 改为通过该状态对象执行扫描流程状态更新，保留原任务调用和 UI 更新顺序；APP 和扫描管理设计文档同步当前实现。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest tests.test_scan_workflow_state`，通过 4 个 `unittest`；运行全量 `python -m uv run python -m unittest discover -s tests`，通过 109 个 `unittest`；主窗口 offscreen 初始化输出 `ok`。
+- 风险：扫描执行任务本身仍由 `MainWindow._tasks.run(self._service.run_scan, ...)` 发起；本阶段先收口状态，后续可进一步抽 scan workflow controller。
+- 后续：继续 P3-08 清理 `InstrumentService` 兼容私有方法，或进入 P4 兼容路径和真实硬件验证治理。
+- 涉及文件：`src/quiet_zone_tester/application/scan_workflow_state.py`、`src/quiet_zone_tester/application/__init__.py`、`src/quiet_zone_tester/ui/main_window.py`、`tests/test_scan_workflow_state.py`、`docs/APP_DESIGN.md`、`docs/SCAN_MANAGEMENT_DESIGN.md`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
+
+### ARCH-TASK-20260710-029 - P3 InstrumentService 兼容私有壳清理
+
+- 目标：完成 P3-08，删除 P2 facade 化后已无调用点的 `InstrumentService` 私有委托壳，保留明确公共 API 和扫描运行服务所需回调。
+- 完成：删除未引用的 `_configure_backends()`、扫描几何委托、轴级运动委托、连续扫描派生委托、位置/轴 helper、旧 positioner scale helper、axis config helper 和 virtual helper；保留公共连接/运动/链路/采样/扫描 API，以及 `ScanRuntimeService` 注入仍使用的回调。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest tests.test_instrument_connection_service tests.test_instrument_controller_factory tests.test_scan_runtime_service tests.test_motion_service`，通过 23 个 `unittest`；对 `InstrumentService` 使用不写 pyc 的源码编译检查，输出 `compile-ok`；运行全量 `python -m uv run python -m unittest discover -s tests`，通过 109 个 `unittest`；主窗口 offscreen 初始化输出 `ok`。
+- 风险：真实硬件环境仍需联调确认扫描停止、暂停和连续运动行为；本阶段只删除静态确认无调用点的私有壳。
+- 后续：P3 当前任务已全部完成；进入 P4 兼容路径、硬件验证、ScanRepository、报告导出和文档/运行说明治理。
+- 涉及文件：`src/quiet_zone_tester/services/instrument_service.py`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
+
+### ARCH-TASK-20260710-030 - P4 旧硬件导入路径 deprecated 标记
+
+- 目标：完成 P4-01，为旧 `drivers/` 和 `instruments/` 兼容 re-export 增加清晰 deprecated 说明，并在硬件适配层设计文档中明确新代码导入规则。
+- 完成：为 `drivers/`、`instruments/` 包入口和兼容模块增加 deprecated docstring；不添加运行时 warning，避免旧脚本导入时产生额外输出或测试噪声；`HARDWARE_ADAPTER_DESIGN.md` 更新为旧路径只保留 deprecated re-export，新实现只进入 `hardware/`。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest tests.test_hardware_migration`，通过 3 个 `unittest`；全量验证后补充最终结果。
+- 风险：旧路径仍可导入；移除旧路径需要等外部脚本迁移完成后单独确认。
+- 后续：继续 P4-02/P4-03，补真实硬件手动验证清单和可跳过集成测试入口。
+- 涉及文件：`src/quiet_zone_tester/drivers/`、`src/quiet_zone_tester/instruments/`、`docs/HARDWARE_ADAPTER_DESIGN.md`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
+
+### ARCH-TASK-20260710-031 - P4 硬件验证清单和集成测试入口
+
+- 目标：完成 P4-02/P4-03，补充真实硬件手动验证清单，并建立默认跳过的硬件集成测试入口。
+- 完成：新增 `HARDWARE_VALIDATION_CHECKLIST.md`，覆盖环境准备、连接验证、VNA、扫描架、开关箱、步进/匀速扫描、暂停/停止和失败恢复；新增 `tests/test_hardware_integration_smoke.py`，仅在 `RUN_HARDWARE_INTEGRATION=1` 时启用，并要求显式配置硬件环境变量；硬件适配层设计文档同步验证入口。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest tests.test_hardware_integration_smoke`，默认无硬件环境通过并跳过 1 个测试；全量验证后补充最终结果。
+- 风险：当前集成入口只验证环境显式配置，不自动执行真实连接和运动，避免误动硬件；真实设备行为仍需按清单人工验证。
+- 后续：继续 P4-04 建立 `ScanRepository`，收口扫描事实写入。
+- 涉及文件：`docs/HARDWARE_VALIDATION_CHECKLIST.md`、`tests/test_hardware_integration_smoke.py`、`docs/HARDWARE_ADAPTER_DESIGN.md`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
+
+### ARCH-TASK-20260710-032 - P4 ScanRepository 建立
+
+- 目标：完成 P4-04，让 `ScanSession`、`TraceRecord`、metadata、trace index 和文件输出具备统一事实写入入口。
+- 完成：新增 `ScanRepository`，封装 `TraceStorage` 并提供 `create_session()`、`save_trace()`、`append_event()`、`finalize()`；创建 session 时写 metadata 和 trace index header，保存 trace 时写 CSV/index 并追加 `TraceRecord`；数据管理设计文档同步当前实现。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest tests.test_scan_repository`，通过 3 个 `unittest`；全量验证后补充最终结果。
+- 风险：现有扫描主流程仍直接使用 `TraceStorage` 保存结果；后续可把 `InstrumentService` 的扫描保存路径切到 `ScanRepository`。
+- 后续：继续 P4-05 增加报告导出服务。
+- 涉及文件：`src/quiet_zone_tester/domains/data_management/scan_repository.py`、`src/quiet_zone_tester/domains/data_management/__init__.py`、`tests/test_scan_repository.py`、`docs/DATA_MANAGEMENT_DESIGN.md`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
+
+### ARCH-TASK-20260710-033 - P4 报告导出服务
+
+- 目标：完成 P4-05，基于扫描事实提供报告导出服务，避免 UI 直接读写结果文件。
+- 完成：新增 `ReportExporter`，支持从 `ScanSession` 导出 Markdown 报告，包含会话概览、扫描范围、trace 记录和事件记录；数据管理设计文档同步当前实现。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest tests.test_report_exporter`，通过 1 个 `unittest`；全量验证后补充最终结果。
+- 风险：当前报告为基础 Markdown 汇总，尚未包含图表、统计指标或模板配置。
+- 后续：继续 P4-06 清理旧 dict 兼容层，或 P4-07 更新 README 和用户运行说明。
+- 涉及文件：`src/quiet_zone_tester/domains/data_management/report_exporter.py`、`src/quiet_zone_tester/domains/data_management/__init__.py`、`tests/test_report_exporter.py`、`docs/DATA_MANAGEMENT_DESIGN.md`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
+
+### ARCH-TASK-20260710-034 - P4 dataclass 边界收口
+
+- 目标：完成 P4-06，让核心 domain service 边界优先接受 dataclass，同时保留 UI/旧调用路径 dict 兼容。
+- 完成：`ScanRuntimeService.run_step_scan()` 和 `run_continuous_scan()` 支持 `ScanSettings | dict`，入口统一通过 `ScanSettings` 规范化；`AcquisitionService.configure_for_scan()` 支持 `ScanSettings`，同时保留只传 sweep 字段 dict 的旧行为；新增测试覆盖 dataclass 入参。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest tests.test_acquisition_service tests.test_scan_runtime_service`，通过 10 个 `unittest`；全量验证后补充最终结果。
+- 风险：UI 层仍以旧 dict signal 作为兼容载荷；这是外部兼容边界，后续大版本可再统一切换。
+- 后续：继续 P4-07 更新 README 和用户运行说明。
+- 涉及文件：`src/quiet_zone_tester/domains/acquisition/acquisition_service.py`、`src/quiet_zone_tester/domains/scan_management/scan_runtime_service.py`、`tests/test_acquisition_service.py`、`tests/test_scan_runtime_service.py`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。

@@ -6,6 +6,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtWidgets import QApplication
 
 from quiet_zone_tester.presentation.modules.connection import (
+    ConnectionState,
     ConnectionViewModel,
     PositionerFormState,
     SwitchBoxFormState,
@@ -75,6 +76,41 @@ class ConnectionViewModelTest(unittest.TestCase):
 
         with self.assertLogs("quiet_zone_tester.presentation.modules.connection.connection_view_model", level="ERROR"):
             self.assertEqual(ConnectionViewModel(serial_port_provider=fail).available_serial_ports(), [])
+
+    def test_panel_state_describes_connection_status_and_buttons(self) -> None:
+        disconnected = ConnectionViewModel.panel_state(
+            connection=ConnectionState(),
+            busy=False,
+        )
+        self.assertEqual(disconnected.state_text, "未连接")
+        self.assertTrue(disconnected.connect_all_enabled)
+        self.assertFalse(disconnected.disconnect_all_enabled)
+        self.assertTrue(disconnected.connect_vna_enabled)
+
+        partial = ConnectionViewModel.panel_state(
+            connection=ConnectionState(vna_connected=True, positioner_connected=True),
+            busy=False,
+        )
+        self.assertEqual(partial.state_text, "已连接：网分、扫描架")
+        self.assertTrue(partial.connect_all_enabled)
+        self.assertTrue(partial.disconnect_vna_enabled)
+        self.assertFalse(partial.connect_vna_enabled)
+
+        all_connected = ConnectionViewModel.panel_state(
+            connection=ConnectionState(vna_connected=True, positioner_connected=True, switch_box_connected=True),
+            busy=False,
+        )
+        self.assertEqual(all_connected.state_text, "全部已连接")
+        self.assertFalse(all_connected.connect_all_enabled)
+        self.assertTrue(all_connected.disconnect_all_enabled)
+
+        busy = ConnectionViewModel.panel_state(
+            connection=ConnectionState(vna_connected=True),
+            busy=True,
+        )
+        self.assertEqual(busy.state_text, "处理中...")
+        self.assertFalse(busy.connect_all_enabled)
+        self.assertFalse(busy.disconnect_all_enabled)
 
     def test_connection_panel_current_config_still_returns_dict(self) -> None:
         _app()

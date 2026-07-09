@@ -50,6 +50,34 @@ class SwitchBoxModelDefaults:
     timeout_ms: int
 
 
+@dataclass(frozen=True)
+class ConnectionState:
+    vna_connected: bool = False
+    positioner_connected: bool = False
+    switch_box_connected: bool = False
+
+    @property
+    def all_connected(self) -> bool:
+        return self.vna_connected and self.positioner_connected and self.switch_box_connected
+
+    @property
+    def has_any_connection(self) -> bool:
+        return self.vna_connected or self.positioner_connected or self.switch_box_connected
+
+
+@dataclass(frozen=True)
+class ConnectionPanelState:
+    state_text: str
+    connect_all_enabled: bool
+    disconnect_all_enabled: bool
+    connect_vna_enabled: bool
+    disconnect_vna_enabled: bool
+    connect_positioner_enabled: bool
+    disconnect_positioner_enabled: bool
+    connect_switch_box_enabled: bool
+    disconnect_switch_box_enabled: bool
+
+
 class ConnectionViewModel:
     DEFAULT_POSITIONER_PULSES_PER_MM = 400.0
     DEFAULT_POSITIONER_X_AXIS = 2
@@ -106,6 +134,37 @@ class ConnectionViewModel:
         except Exception:
             logger.exception("Failed to enumerate serial ports.")
             return []
+
+    @staticmethod
+    def panel_state(*, connection: ConnectionState, busy: bool) -> ConnectionPanelState:
+        busy = bool(busy)
+        if busy:
+            state_text = "处理中..."
+        elif connection.all_connected:
+            state_text = "全部已连接"
+        elif connection.has_any_connection:
+            connected_names = []
+            if connection.vna_connected:
+                connected_names.append("网分")
+            if connection.positioner_connected:
+                connected_names.append("扫描架")
+            if connection.switch_box_connected:
+                connected_names.append("开关箱")
+            state_text = "已连接：" + "、".join(connected_names)
+        else:
+            state_text = "未连接"
+
+        return ConnectionPanelState(
+            state_text=state_text,
+            connect_all_enabled=not busy and not connection.all_connected,
+            disconnect_all_enabled=not busy and connection.has_any_connection,
+            connect_vna_enabled=not busy and not connection.vna_connected,
+            disconnect_vna_enabled=not busy and connection.vna_connected,
+            connect_positioner_enabled=not busy and not connection.positioner_connected,
+            disconnect_positioner_enabled=not busy and connection.positioner_connected,
+            connect_switch_box_enabled=not busy and not connection.switch_box_connected,
+            disconnect_switch_box_enabled=not busy and connection.switch_box_connected,
+        )
 
     @staticmethod
     def vna_resource_name(ip_address: str, port: int) -> str:

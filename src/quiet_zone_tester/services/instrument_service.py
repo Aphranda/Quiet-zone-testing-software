@@ -22,7 +22,6 @@ from quiet_zone_tester.domains.instrument_management import (
 from quiet_zone_tester.domains.link_management import LinkService, LinkServiceError
 from quiet_zone_tester.domains.motion_control import MotionService, MotionServiceError
 from quiet_zone_tester.domains.scan_management import (
-    ScanRuntimeGeometry,
     ScanRuntimeService,
     ScanRuntimeServiceError,
     ScanSettings,
@@ -455,11 +454,6 @@ class InstrumentService:
         finally:
             self._scan_lock.release()
 
-    def _configure_backends(self, config: dict) -> None:
-        self._configure_vna_backend(config.get("vna", {}))
-        self._configure_positioner_backend(config.get("positioner", {}))
-        self._configure_switch_box_backend(config.get("switch_box", {}))
-
     def _configure_vna_backend(self, config: dict) -> None:
         if not self._external_vna:
             self._vna = self._create_vna_controller(config)
@@ -719,21 +713,6 @@ class InstrumentService:
     def _build_scan_volume(settings: dict | ScanSettings) -> ScanVolume:
         return ScanSettings.from_mapping(settings).scan_volume
 
-    def _scan_axis_moves(
-        self,
-        logical_x_mm: float | None,
-        logical_y_mm: float | None,
-        target_x_mm: float,
-        target_y_mm: float,
-    ) -> list[tuple[str, float]]:
-        return ScanRuntimeGeometry.axis_moves(logical_x_mm, logical_y_mm, target_x_mm, target_y_mm)
-
-    def _move_positioner_axis_to(self, axis_name: str, position_mm: float, speed_mm_s: float) -> Position:
-        try:
-            return self._motion_service().move_axis_to(axis_name, position_mm, speed_mm_s)
-        except MotionServiceError as exc:
-            raise InstrumentServiceError(f"扫描架轴向定位失败：{exc}") from exc
-
     def _jog_positioner_axis_until(
         self,
         axis_name: str,
@@ -755,68 +734,6 @@ class InstrumentService:
             )
         except MotionServiceError as exc:
             raise InstrumentServiceError(f"扫描架连续运动失败：{exc}") from exc
-
-    def _next_continuous_motion(
-        self,
-        point_list: list[tuple[float, float]],
-        current_index: int,
-        current_x_mm: float,
-        current_y_mm: float,
-    ) -> tuple[str, int] | None:
-        return ScanRuntimeGeometry.next_continuous_motion(
-            point_list,
-            current_index,
-            current_x_mm,
-            current_y_mm,
-        )
-
-    def _should_stop_before_continuous_sample(
-        self,
-        active_axis_name: str | None,
-        active_direction: int,
-        next_motion: tuple[str, int] | None,
-    ) -> bool:
-        return ScanRuntimeGeometry.should_stop_before_continuous_sample(
-            active_axis_name,
-            active_direction,
-            next_motion,
-        )
-
-    def _stop_positioner_axis_by_name_quietly(self, axis_name: str | None) -> None:
-        if axis_name is None or not self.is_positioner_connected or self._positioner is None:
-            return
-        self._motion_service().stop_axis_by_name_quietly(axis_name)
-
-    def _positioner_timeout_ms(self) -> int:
-        config = getattr(self._positioner, "_config", None)
-        return max(int(getattr(config, "timeout_ms", 1000)), 1000)
-
-    def _position_tolerance_for_axis(self, axis: int) -> float:
-        return self._motion_service().position_tolerance_for_axis(axis)
-
-    @staticmethod
-    def _position_for_axis_name(position: Position, axis_name: str) -> float:
-        return MotionService.position_for_axis_name(position, axis_name)
-
-    @staticmethod
-    def _target_crossed(
-        current_position_mm: float,
-        target_position_mm: float,
-        direction: int,
-        tolerance_mm: float,
-    ) -> bool:
-        return MotionService.target_crossed(current_position_mm, target_position_mm, direction, tolerance_mm)
-
-    @staticmethod
-    def _normalize_axis_name(axis_name: str) -> str:
-        return ScanRuntimeGeometry.normalize_axis_name(axis_name)
-
-    def _axis_for_name(self, axis_name: str) -> int:
-        return self._motion_service().axis_for_name(axis_name)
-
-    @staticmethod
-    def _positions_match(left_mm: float, right_mm: float) -> bool:
-        return ScanRuntimeGeometry.positions_match(left_mm, right_mm)
 
     def _sleep_interruptibly(self, duration_s: float) -> None:
         deadline = time.monotonic() + duration_s
@@ -904,48 +821,11 @@ class InstrumentService:
             raise InstrumentServiceError(str(exc)) from exc
 
     @staticmethod
-    def _positioner_scales_from_config(config: dict) -> tuple[float, float, float]:
-        try:
-            return InstrumentControllerFactory().positioner_scales_from_config(config)
-        except InstrumentControllerFactoryError as exc:
-            raise InstrumentServiceError(str(exc)) from exc
-
-    @staticmethod
-    def _axis_scale_from_config(
-        config: dict,
-        direct_key: str,
-        units_per_turn_key: str,
-        mm_per_turn_key: str,
-        fallback: float,
-    ) -> float:
-        try:
-            return InstrumentControllerFactory.axis_scale_from_config(
-                config,
-                direct_key,
-                units_per_turn_key,
-                mm_per_turn_key,
-                fallback,
-            )
-        except InstrumentControllerFactoryError as exc:
-            raise InstrumentServiceError(str(exc)) from exc
-
-    @staticmethod
     def _create_switch_box_controller(config: dict) -> SwitchBoxController:
         try:
             return InstrumentControllerFactory().create_switch_box(config)
         except InstrumentControllerFactoryError as exc:
             raise InstrumentServiceError(str(exc)) from exc
-
-    @staticmethod
-    def _axis_from_config(config: dict, key: str, default_axis_id: int) -> int:
-        try:
-            return InstrumentControllerFactory.axis_from_config(config, key, default_axis_id)
-        except InstrumentControllerFactoryError as exc:
-            raise InstrumentServiceError(str(exc)) from exc
-
-    @staticmethod
-    def _virtual_enabled(config: dict) -> bool:
-        return InstrumentControllerFactory.virtual_enabled(config)
 
     def _stop_positioner_quietly(self) -> None:
         if not self.is_positioner_connected or self._positioner is None:

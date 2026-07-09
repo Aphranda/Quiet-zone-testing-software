@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 
 from quiet_zone_tester.hardware import InstrumentInfo
 from quiet_zone_tester.presentation.modules.connection import (
+    ConnectionState,
     ConnectionViewModel,
     PositionerFormState,
     SwitchBoxFormState,
@@ -332,35 +333,23 @@ class ConnectionPanel(QGroupBox):
         return group
 
     def _refresh_state(self) -> None:
-        if self._busy:
-            state_text = "处理中..."
-        elif self._vna_connected and self._positioner_connected and self._switch_box_connected:
-            state_text = "全部已连接"
-        elif self._vna_connected or self._positioner_connected or self._switch_box_connected:
-            connected_names = []
-            if self._vna_connected:
-                connected_names.append("网分")
-            if self._positioner_connected:
-                connected_names.append("扫描架")
-            if self._switch_box_connected:
-                connected_names.append("开关箱")
-            state_text = "已连接：" + "、".join(connected_names)
-        else:
-            state_text = "未连接"
-        self._state_value.setText(state_text)
-
-        has_any_connection = self._vna_connected or self._positioner_connected or self._switch_box_connected
-        self._connect_all_button.setEnabled(
-            not self._busy
-            and not (self._vna_connected and self._positioner_connected and self._switch_box_connected)
+        state = self._view_model.panel_state(
+            connection=ConnectionState(
+                vna_connected=self._vna_connected,
+                positioner_connected=self._positioner_connected,
+                switch_box_connected=self._switch_box_connected,
+            ),
+            busy=self._busy,
         )
-        self._disconnect_all_button.setEnabled(not self._busy and has_any_connection)
-        self._connect_vna_button.setEnabled(not self._busy and not self._vna_connected)
-        self._disconnect_vna_button.setEnabled(not self._busy and self._vna_connected)
-        self._connect_positioner_button.setEnabled(not self._busy and not self._positioner_connected)
-        self._disconnect_positioner_button.setEnabled(not self._busy and self._positioner_connected)
-        self._connect_switch_box_button.setEnabled(not self._busy and not self._switch_box_connected)
-        self._disconnect_switch_box_button.setEnabled(not self._busy and self._switch_box_connected)
+        self._state_value.setText(state.state_text)
+        self._connect_all_button.setEnabled(state.connect_all_enabled)
+        self._disconnect_all_button.setEnabled(state.disconnect_all_enabled)
+        self._connect_vna_button.setEnabled(state.connect_vna_enabled)
+        self._disconnect_vna_button.setEnabled(state.disconnect_vna_enabled)
+        self._connect_positioner_button.setEnabled(state.connect_positioner_enabled)
+        self._disconnect_positioner_button.setEnabled(state.disconnect_positioner_enabled)
+        self._connect_switch_box_button.setEnabled(state.connect_switch_box_enabled)
+        self._disconnect_switch_box_button.setEnabled(state.disconnect_switch_box_enabled)
 
     @staticmethod
     def _add_button_row(form: QFormLayout, left: QPushButton, right: QPushButton) -> None:

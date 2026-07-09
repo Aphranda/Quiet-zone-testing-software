@@ -4,6 +4,7 @@ import logging
 from dataclasses import dataclass
 from typing import Callable, Protocol
 
+from quiet_zone_tester.domains.scan_management import ScanSettings
 from quiet_zone_tester.models import SParameterTrace
 
 logger = logging.getLogger(__name__)
@@ -82,7 +83,20 @@ class AcquisitionService:
         )
         self.configure(config, configure_parameter=True)
 
-    def configure_for_scan(self, settings: dict) -> None:
+    def configure_for_scan(self, settings: dict | ScanSettings) -> None:
+        if isinstance(settings, ScanSettings):
+            sweep = settings.sweep
+            config = SweepConfiguration.from_ghz(
+                start_ghz=sweep.start_ghz,
+                stop_ghz=sweep.stop_ghz,
+                points=sweep.points,
+                parameter=sweep.parameter,
+                power_dbm=sweep.vna_power_dbm,
+                if_bandwidth_hz=sweep.if_bandwidth_hz,
+            )
+            self.configure(config, configure_parameter=False)
+            return
+
         config = SweepConfiguration.from_ghz(
             start_ghz=float(settings["start_ghz"]),
             stop_ghz=float(settings["stop_ghz"]),

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import numpy as np
 
-from quiet_zone_tester.domains.scan_management import ScanRuntimeService, ScanRuntimeServiceError
+from quiet_zone_tester.domains.scan_management import ScanRuntimeService, ScanRuntimeServiceError, ScanSettings
 from quiet_zone_tester.hardware import Position
 from quiet_zone_tester.models import SParameterTrace
 
@@ -132,6 +132,14 @@ class ScanRuntimeServiceTest(unittest.TestCase):
             state["progress"],
             [(1, 2, True), (1, 2, False), (2, 2, True), (2, 2, False)],
         )
+
+    def test_step_scan_accepts_scan_settings_dataclass(self) -> None:
+        motion = _Motion()
+        service = self._service(motion)
+
+        traces = service.run_step_scan(ScanSettings.from_mapping(_settings()))
+
+        self.assertEqual(len(traces), 2)
 
     def test_continuous_scan_rejects_zero_speed(self) -> None:
         service = self._service(_Motion())

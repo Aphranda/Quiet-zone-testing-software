@@ -26,6 +26,12 @@ class LinkControlViewModelTest(unittest.TestCase):
         self.assertEqual(view_model.send_command(""), DEFAULT_LINK_COMMANDS[0])
         self.assertEqual(view_model.current_command_text("CONFigure:LINK V,VNA1"), "当前命令：CONFigure:LINK V,VNA1")
 
+    def test_diagram_state_derives_highlighted_tokens(self) -> None:
+        state = LinkControlViewModel().diagram_state(" CONFigure:LINK DUT, AMP1, SA ")
+
+        self.assertEqual(state.selected_command, "CONFigure:LINK DUT, AMP1, SA")
+        self.assertEqual(state.highlighted_tokens, frozenset({"DUT", "AMP1", "SA"}))
+
     def test_invalid_parameter_is_rejected(self) -> None:
         with self.assertRaises(ValueError):
             LinkControlViewModel().route_parameter("S31")

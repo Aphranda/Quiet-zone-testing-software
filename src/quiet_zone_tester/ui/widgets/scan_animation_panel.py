@@ -6,6 +6,7 @@ from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import QComboBox, QGroupBox, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from quiet_zone_tester.models import ScanVolume
+from quiet_zone_tester.presentation.modules.scan_runtime import ScanPointModel
 
 
 DEFAULT_VOLUME = ScanVolume(0.0, 400.0, 0.0, 400.0, 2.5, 2.5)
@@ -18,8 +19,10 @@ class ScanAnimationPanel(QGroupBox):
 
     def __init__(self, parent=None) -> None:
         super().__init__("二维扫描动画", parent)
+        self._point_model = ScanPointModel(parent=self)
         self._canvas = _ScanCanvas()
         self._canvas.set_volume(DEFAULT_VOLUME, scan_active=False)
+        self._point_model.set_volume(DEFAULT_VOLUME)
         self._view_rotation = QComboBox()
         self._view_rotation.addItem("默认视角", 0)
         self._view_rotation.addItem("旋转90°", 90)
@@ -44,6 +47,7 @@ class ScanAnimationPanel(QGroupBox):
         if self._timer.isActive():
             return
         self._canvas.set_volume(volume, scan_active=False)
+        self._point_model.set_volume(volume)
         self.progress_changed.emit(0, self._canvas.point_count())
 
     def set_probe_position_from_settings(self, settings: dict) -> None:
@@ -55,24 +59,33 @@ class ScanAnimationPanel(QGroupBox):
 
     def start_scan(self, volume: ScanVolume) -> None:
         self._canvas.set_volume(volume, scan_active=True)
+        self._point_model.set_volume(volume)
         self.progress_changed.emit(*self._canvas.progress())
 
     def stop_scan(self) -> None:
         self._timer.stop()
         self._canvas.reset_to_preview()
+        self._point_model.set_completed_count(0)
         self.progress_changed.emit(0, self._canvas.point_count())
 
     def set_progress(self, completed_points: int, total_points: int | None = None) -> None:
         self._canvas.set_progress(completed_points, total_points)
+        self._point_model.set_completed_count(completed_points)
         total = self._canvas.point_count() if total_points is None else total_points
         self.progress_changed.emit(completed_points, total)
+
+    @property
+    def point_model(self) -> ScanPointModel:
+        return self._point_model
 
     def _on_view_rotation_changed(self) -> None:
         self._canvas.set_view_rotation(int(self._view_rotation.currentData()))
 
     def _advance(self) -> None:
         has_more_points = self._canvas.advance()
-        self.progress_changed.emit(*self._canvas.progress())
+        completed, total = self._canvas.progress()
+        self._point_model.set_completed_count(completed)
+        self.progress_changed.emit(completed, total)
         if not has_more_points:
             self._timer.stop()
             self.finished.emit()

@@ -10,8 +10,8 @@ Last updated: 2026-07-10
 
 ## TODO 规则
 
-- 任务按 P0/P1/P2 优先级分组。
-- 任务编号使用 `P0-01`、`P1-01`、`P2-01` 格式，编号稳定，不复用。
+- 任务按 P0/P1/P2/P3/P4 优先级分组。
+- 任务编号使用 `P0-01`、`P1-01`、`P2-01`、`P3-01` 格式，编号稳定，不复用。
 - 每条任务必须包含明确验收标准。
 - 完成任务时只把 `[ ]` 改为 `[x]`，不要在 TODO 中堆长篇过程记录。
 - 若任务执行中产生重要结论，追加到 `ARCH_TASK_PROGRESS.md`。
@@ -25,6 +25,8 @@ Last updated: 2026-07-10
 | P0 | 入口职责收口、目标目录骨架建立、扫描事实模型和状态机草案可测试；不改变现有 UI 和硬件流程。 |
 | P1 | 文件命名、TraceStorage、ScanPlanner、LinkRouter、dataclass 配置和日志模型从大类中抽出，并有最小测试覆盖。 |
 | P2 | Widget 逐步迁移到 ViewModel，`InstrumentService` 变成 facade，硬件层迁移到 `hardware/`，文档体系拆分完成。 |
+| P3 | APP 层承接装配、任务运行、全局状态、位置轮询和扫描编排；MainWindow 继续瘦身。 |
+| P4 | 清理旧兼容路径、补齐硬件集成验证、报告导出和发布前文档治理。 |
 
 ## P0 - 入口、目录骨架、事实模型和状态机
 
@@ -81,6 +83,42 @@ Last updated: 2026-07-10
 - `InstrumentService` 不再包含文件命名、路径规划、硬件创建细节。
 - 真实硬件实现和 Mock 实现都通过 `hardware/interfaces.py` 暴露统一接口。
 - 文档主入口、设计文档、TODO、进度记录职责清晰。
+
+## P3 - APP 编排、状态模型和 MainWindow 瘦身
+
+- [x] P3-01 建立 `application/app_context.py` 和 `application/task_runner.py`：应用级依赖由 AppContext 装配，后台任务运行器迁出 `ui/`，旧 `ui.async_task` 仅作为兼容导入。
+- [x] P3-02 抽出应用级扫描工作流：将 `MainWindow` 中扫描启动、暂停、恢复、停止、失败处理和按钮状态派生迁入 application 或 scan presentation controller。
+- [x] P3-03 抽出位置跟踪器：将 `MainWindow` 中扫描架运动期间的位置轮询、轮询任务互斥和位置显示更新迁入运动控制 ViewModel 或 `PositionTracker`。
+- [x] P3-04 建立连接状态模型：为 VNA、扫描架、开关箱连接状态建立结构化 state/model，`ConnectionPanel` 从模型读取状态，不再由 `MainWindow` 拼接状态文本。
+- [x] P3-05 建立链路状态模型：将当前 S 参数、开关箱 profile、路由结果和链路图派生状态迁入链路 ViewModel/model，Widget 只负责绘制。
+- [x] P3-06 建立扫描点/结果 Qt model：扫描动画、进度统计和结果索引共用扫描点 model，避免 UI 各自维护完成点计数。
+- [x] P3-07 收口日志路由：全局错误、任务失败和业务日志统一进入 `LogRecordModel`，文本日志视图只作为展示层。
+- [x] P3-08 收口 `InstrumentService` 兼容私有方法：清理只服务旧测试或旧路径的委托壳，保留明确的 facade 公共 API。
+
+### P3 验收
+
+- `app.py` 不直接创建业务 service 或 UI 依赖，只创建 QApplication 并调用 AppContext。
+- `ui.async_task` 旧路径仍可导入，但实现位于 `application/task_runner.py`。
+- `MainWindow` 不直接管理后台任务细节、位置轮询细节或扫描状态布尔组合。
+- 连接、链路、扫描点和日志至少各有一个结构化 model 或 ViewModel 作为 UI 数据源。
+- 全量 `unittest` 通过，主窗口 offscreen 初始化通过。
+
+## P4 - 兼容清理、集成验证和交付治理
+
+- [x] P4-01 标记旧硬件导入路径 deprecated：为 `drivers/` 和 `instruments/` 兼容 re-export 增加清晰注释或 warning 策略，并在文档中说明迁移期限。
+- [x] P4-02 制定真实硬件手动验证清单：覆盖 VNA 连接、扫描架运动、开关箱路由、步进扫描、匀速扫描、暂停/停止和失败恢复。
+- [x] P4-03 补充硬件集成测试入口：建立可跳过的硬件集成测试或手动脚本入口，默认不影响无硬件 CI/本地单元测试。
+- [x] P4-04 建立 `ScanRepository`：让 `ScanSession`、`TraceRecord`、metadata、trace index 和文件输出形成统一事实写入入口。
+- [x] P4-05 增加报告导出服务：基于扫描事实和 trace index 导出后处理报告，避免 UI 直接读写结果文件。
+- [x] P4-06 清理旧 dict 兼容层：在 ViewModel 和 domain service 边界优先使用 dataclass，旧 dict 仅保留外部兼容入口。
+- [x] P4-07 更新 README 和用户运行说明：记录 uv 环境、启动命令、测试命令、真实/虚拟硬件模式和常见故障处理。
+
+### P4 验收
+
+- 新代码不再从 `quiet_zone_tester.drivers` 或 `quiet_zone_tester.instruments` 导入硬件实现。
+- 无硬件环境下全量 `unittest` 稳定通过；真实硬件环境有明确手动验证清单或可跳过集成测试入口。
+- 扫描事实写入、报告导出和结果索引不依赖 UI 控件。
+- README、设计文档、TODO 和进度记录一致，用户可按文档完成环境创建、启动和测试。
 
 ## 进度记录规则
 

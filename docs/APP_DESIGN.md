@@ -19,9 +19,12 @@ Last updated: 2026-07-10
 ## 当前状态
 
 - 入口已收口到 `quiet_zone_tester.main:main`。
-- `app.py` 仍负责 QApplication 和主窗口启动。
+- `app.py` 仍负责 QApplication 创建、全局样式和主窗口启动。
+- `application/app_context.py` 已开始承接 service、任务运行器和主窗口依赖装配。
+- `application/task_runner.py` 已承接后台任务运行器实现。
+- `application/scan_workflow_state.py` 已承接扫描启动、暂停、停止、失败和忙碌派生状态。
 - `ui/main_window.py` 仍是主窗口装配和顶层路由位置。
-- `ui/async_task.py` 暂时保留，后续可迁到 `application/task_runner.py`。
+- `ui/async_task.py` 暂时保留为兼容 re-export。
 
 ## 目标边界
 
@@ -36,7 +39,5 @@ APP 管理不应直接实现业务流程，也不应直接调用硬件 controlle
 
 ## 后续迁移
 
-- 新增 `application/app_context.py`，集中创建 service、ViewModel 和主窗口依赖。
-- 新增 `application/task_runner.py`，替代当前 UI 侧异步任务 helper。
-- 将 `MainWindow` 中的全局忙碌状态、扫描任务状态和错误路由逐步迁出。
-
+- 继续扩展 `application/app_context.py`，集中创建 service、ViewModel 和主窗口依赖。
+- 将 `MainWindow` 中的剩余全局错误路由和扫描任务执行编排逐步迁出。

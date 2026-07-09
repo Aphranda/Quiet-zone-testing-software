@@ -5,9 +5,9 @@ import sys
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
+from quiet_zone_tester.application.app_context import create_app_context
 from quiet_zone_tester.logging_config import setup_logging
 from quiet_zone_tester.resources import resource_path
-from quiet_zone_tester.ui.main_window import MainWindow
 
 
 def run_app(argv: list[str] | None = None) -> int:
@@ -20,7 +20,8 @@ def run_app(argv: list[str] | None = None) -> int:
     app.setWindowIcon(QIcon(str(resource_path("gtslogo_icon.png"))))
     app.setStyleSheet(_application_style())
 
-    window = MainWindow()
+    app_context = create_app_context()
+    window = app_context.create_main_window()
     window.resize(1280, 820)
     window.show()
     return app.exec()

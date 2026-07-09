@@ -20,6 +20,7 @@ Last updated: 2026-07-10
 - 配置模型：`domains/instrument_management/models.py`
 - controller 创建：`InstrumentControllerFactory`
 - 连接生命周期：`InstrumentConnectionService`
+- UI 连接状态派生：`presentation/modules/connection/connection_view_model.py`
 - facade 入口：`services/instrument_service.py`
 - 硬件接口和实现：`hardware/`
 
@@ -38,10 +39,10 @@ Last updated: 2026-07-10
 - 真实模式拒绝 `MOCK` 资源。
 - 单设备连接失败时清理该设备 controller。
 - `connect_all()` 任一设备失败时清理部分连接。
+- 连接面板整体状态文本和按钮启用规则由 `ConnectionViewModel.panel_state()` 派生。
 - 旧 `drivers/` 和 `instruments/` 导入路径只作为兼容 re-export。
 
 ## 后续迁移
 
 - 可新增 `InstrumentManager` 聚合连接状态和连接快照。
-- 可为连接状态建立 Qt model 或 domain state model，供 UI 显示。
-
+- 可进一步将连接状态快照迁入 `InstrumentManager` 或 Qt model，供更多 UI 复用。

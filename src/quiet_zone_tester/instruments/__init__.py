@@ -1,3 +1,8 @@
+"""Deprecated compatibility re-exports.
+
+New code should import real hardware adapters from `quiet_zone_tester.hardware`.
+"""
+
 from quiet_zone_tester.hardware.positioner import Axis, IclPositionerConfig, IclPositionerController
 from quiet_zone_tester.hardware.switch_box import (
     Lcd74000fSwitchBoxConfig,

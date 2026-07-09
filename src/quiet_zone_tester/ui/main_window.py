@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from enum import Enum
+from collections.abc import Callable
 from functools import partial
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QObject, Qt
 from PySide6.QtGui import QAction, QFont, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QDialog,
@@ -19,9 +19,11 @@ from PySide6.QtWidgets import (
 
 from quiet_zone_tester.hardware import InstrumentInfo, Position
 from quiet_zone_tester.models import SParameterTrace, ScanVolume
+from quiet_zone_tester.application import ScanWorkflowState
+from quiet_zone_tester.presentation.modules.motion_control import PositionTracker
 from quiet_zone_tester.resources import resource_path
 from quiet_zone_tester.services import InstrumentService
-from quiet_zone_tester.ui.async_task import TaskRunner
+from quiet_zone_tester.application.task_runner import TaskRunner
 from quiet_zone_tester.ui.widgets.connection_panel import ConnectionPanel
 from quiet_zone_tester.ui.widgets.live_plot_panel import LivePlotPanel
 from quiet_zone_tester.ui.widgets.positioner_control_panel import PositionerControlPanel
@@ -36,32 +38,29 @@ APP_TITLE = "微波暗室静区测试系统"
 APP_ICON_NAME = "gtslogo_icon.png"
 
 
-class _RunMode(Enum):
-    SCAN = "scan"
-
-
 class MainWindow(QMainWindow):
-    def __init__(self, service: InstrumentService | None = None, parent=None) -> None:
+    def __init__(
+        self,
+        service: InstrumentService | None = None,
+        task_runner_factory: Callable[[QObject | None], TaskRunner] | None = None,
+        parent=None,
+    ) -> None:
         super().__init__(parent)
         self.setWindowTitle(APP_TITLE)
         self.setWindowIcon(QIcon(str(resource_path(APP_ICON_NAME))))
 
         self._service = service or InstrumentService()
-        self._tasks = TaskRunner(self)
-        self._sampling_active = False
-        self._active_mode: _RunMode | None = None
+        self._tasks = (task_runner_factory or TaskRunner)(self)
+        self._scan_workflow = ScanWorkflowState()
         self._latest_trace: SParameterTrace | None = None
-        self._scan_completed_points = 0
-        self._scan_total_points = 0
-        self._scan_stop_requested = False
-        self._scan_paused = False
-        self._scan_failed = False
-        self._scan_task_running = False
-        self._stop_positioner_task_running = False
-        self._positioner_motion_poll_task_running = False
-        self._positioner_motion_poll_timer = QTimer(self)
-        self._positioner_motion_poll_timer.setInterval(1000)
-        self._positioner_motion_poll_timer.timeout.connect(self._poll_positioner_position_during_motion)
+        self._position_tracker = PositionTracker(
+            task_runner=self._tasks,
+            is_connected=lambda: self._service.is_positioner_connected,
+            query_position=self._service.query_positioner_position,
+            parent=self,
+        )
+        self._position_tracker.position_ready.connect(self._on_positioner_motion_poll_ready)
+        self._position_tracker.position_failed.connect(self._on_positioner_motion_poll_failed)
 
         self._connection_panel = ConnectionPanel()
         self._positioner_control_panel = PositionerControlPanel()
@@ -375,26 +374,11 @@ class MainWindow(QMainWindow):
         )
 
     def _start_positioner_motion_polling(self) -> None:
-        self._poll_positioner_position_during_motion()
-        self._positioner_motion_poll_timer.start()
+        self._position_tracker.start()
 
     def _finish_positioner_move(self) -> None:
-        self._positioner_motion_poll_timer.stop()
+        self._position_tracker.stop()
         self._set_busy(False)
-
-    def _poll_positioner_position_during_motion(self) -> None:
-        if self._positioner_motion_poll_task_running:
-            return
-        if not self._service.is_positioner_connected:
-            return
-
-        self._positioner_motion_poll_task_running = True
-        self._tasks.run(
-            lambda: self._service.query_positioner_position(),
-            on_success=self._on_positioner_motion_poll_ready,
-            on_error=self._on_positioner_motion_poll_failed,
-            on_finished=self._finish_positioner_motion_poll,
-        )
 
     def _on_positioner_motion_poll_ready(self, position: object) -> None:
         if isinstance(position, Position):
@@ -402,9 +386,6 @@ class MainWindow(QMainWindow):
 
     def _on_positioner_motion_poll_failed(self, message: str) -> None:
         self._log_panel.append_error(f"扫描架当前位置刷新失败: {self._format_error_message(message)}")
-
-    def _finish_positioner_motion_poll(self) -> None:
-        self._positioner_motion_poll_task_running = False
 
     def _configure_vna_from_control(self, settings: dict) -> None:
         self._set_busy(True)
@@ -491,7 +472,7 @@ class MainWindow(QMainWindow):
         )
 
     def _preview_scan_volume(self, settings: dict) -> None:
-        if self._sampling_active:
+        if self._scan_workflow.sampling_active:
             return
 
         self._plot_panel.set_main_line_from_scan_settings(settings)
@@ -507,8 +488,7 @@ class MainWindow(QMainWindow):
             return
 
         self._latest_trace = None
-        self._scan_completed_points = 1
-        self._scan_total_points = 1
+        self._scan_workflow.begin_preview_sample()
         self._plot_panel.set_polarization_from_parameter(settings["parameter"])
         self._plot_panel.clear()
         self._set_busy(True)
@@ -535,7 +515,7 @@ class MainWindow(QMainWindow):
         )
 
     def _start_scan_flow(self, settings: dict) -> None:
-        if self._scan_task_running or self._stop_positioner_task_running:
+        if self._scan_workflow.task_running or self._scan_workflow.stop_positioner_task_running:
             message = "上一轮扫描正在停止，请等待扫描架停稳后再开始。"
             self.statusBar().showMessage(message)
             self._log_panel.append_info(message)
@@ -551,7 +531,7 @@ class MainWindow(QMainWindow):
         self._plot_panel.set_main_line_from_scan_settings(settings)
         settings["connection_config"] = self._connection_panel.current_config()
         settings["file_flag"] = self._plot_panel.file_flag()
-        self._scan_task_running = True
+        self._scan_workflow.mark_scan_task_running(True)
         self._set_busy(True)
         self._tasks.run(
             self._service.run_scan,
@@ -569,14 +549,8 @@ class MainWindow(QMainWindow):
             self._on_operation_failed("参数错误", str(exc))
             return False
 
-        self._sampling_active = True
-        self._active_mode = _RunMode.SCAN
         self._latest_trace = None
-        self._scan_completed_points = 0
-        self._scan_total_points = volume.point_count
-        self._scan_stop_requested = False
-        self._scan_paused = False
-        self._scan_failed = False
+        self._scan_workflow.begin_scan(volume.point_count)
         self._plot_panel.clear()
         self._test_setup_panel.set_sampling_active(True)
         self._test_setup_panel.set_sampling_paused(False)
@@ -590,41 +564,38 @@ class MainWindow(QMainWindow):
         return True
 
     def _pause_sampling(self) -> None:
-        if not self._sampling_active or self._scan_paused:
+        if not self._scan_workflow.sampling_active or self._scan_workflow.paused:
             return
 
-        self._scan_paused = True
+        self._scan_workflow.pause()
         self._service.request_pause()
         self._test_setup_panel.set_sampling_paused(True)
         self.statusBar().showMessage("正在暂停扫描测试...")
         self._log_panel.append_info("用户请求暂停扫描测试；当前动作完成后将停在安全点。")
 
     def _resume_sampling(self) -> None:
-        if not self._sampling_active or not self._scan_paused:
+        if not self._scan_workflow.sampling_active or not self._scan_workflow.paused:
             return
 
-        self._scan_paused = False
+        self._scan_workflow.resume()
         self._service.resume_scan()
         self._test_setup_panel.set_sampling_paused(False)
         self.statusBar().showMessage("扫描测试继续")
         self._log_panel.append_info("扫描测试继续。")
 
     def _stop_sampling(self) -> None:
-        if not self._sampling_active:
+        if not self._scan_workflow.sampling_active:
             return
 
-        self._scan_stop_requested = True
+        self._scan_workflow.request_stop()
         self._service.request_stop()
-        self._scan_paused = False
-        self._sampling_active = False
-        self._active_mode = None
         self._test_setup_panel.set_sampling_active(False)
         self._test_setup_panel.set_sampling_paused(False)
         self._scan_animation_panel.stop_scan()
         self._set_busy(False)
         self.statusBar().showMessage("正在停止流程...")
         self._log_panel.append_info("用户停止当前流程。")
-        self._stop_positioner_task_running = True
+        self._scan_workflow.set_stop_positioner_task_running(True)
         self._set_busy(False)
         self._tasks.run(
             self._service.stop_positioner,
@@ -638,7 +609,7 @@ class MainWindow(QMainWindow):
         self._log_panel.append_error(f"{title}: {message}")
 
     def _on_stop_positioner_finished(self) -> None:
-        self._stop_positioner_task_running = False
+        self._scan_workflow.set_stop_positioner_task_running(False)
         self._set_busy(False)
 
     def _on_all_connected(self, instruments: object) -> None:
@@ -692,7 +663,7 @@ class MainWindow(QMainWindow):
         self._log_panel.append_info("网分仪已断开。")
 
     def _on_positioner_disconnected(self) -> None:
-        self._positioner_motion_poll_timer.stop()
+        self._position_tracker.stop()
         self._connection_panel.set_positioner_disconnected()
         self._positioner_control_panel.set_positioner_connected(False)
         self.statusBar().showMessage("扫描架已断开")
@@ -740,16 +711,22 @@ class MainWindow(QMainWindow):
             return
 
         completed_points, total_points, trace = payload
-        self._scan_completed_points = int(completed_points)
-        self._scan_total_points = max(int(total_points), 1)
-        self._scan_animation_panel.set_progress(self._scan_completed_points, self._scan_total_points)
+        self._scan_workflow.set_progress(int(completed_points), int(total_points))
+        self._scan_animation_panel.set_progress(
+            self._scan_workflow.completed_points,
+            self._scan_workflow.total_points,
+        )
         if isinstance(trace, SParameterTrace):
             self._latest_trace = trace
             self._plot_panel.set_trace(trace)
-        if self._scan_paused:
-            self.statusBar().showMessage(f"扫描测试暂停中：{self._scan_completed_points}/{self._scan_total_points}")
+        if self._scan_workflow.paused:
+            self.statusBar().showMessage(
+                f"扫描测试暂停中：{self._scan_workflow.completed_points}/{self._scan_workflow.total_points}"
+            )
             return
-        self.statusBar().showMessage(f"扫描测试中：{self._scan_completed_points}/{self._scan_total_points}")
+        self.statusBar().showMessage(
+            f"扫描测试中：{self._scan_workflow.completed_points}/{self._scan_workflow.total_points}"
+        )
 
     def _on_scan_task_finished(self, result: object) -> None:
         if isinstance(result, list) and result:
@@ -759,11 +736,8 @@ class MainWindow(QMainWindow):
                 self._plot_panel.set_trace(trace)
 
     def _on_scan_task_failed(self, message: str) -> None:
-        if self._scan_stop_requested or "已停止" in str(message):
-            self._scan_stop_requested = True
-            self._scan_failed = False
-            self._sampling_active = False
-            self._active_mode = None
+        if self._scan_workflow.stop_requested or "已停止" in str(message):
+            self._scan_workflow.mark_stopped()
             self._test_setup_panel.set_sampling_active(False)
             self._test_setup_panel.set_sampling_paused(False)
             self._scan_animation_panel.stop_scan()
@@ -771,31 +745,24 @@ class MainWindow(QMainWindow):
             self._log_panel.append_info("扫描测试已停止。")
             return
 
-        self._scan_failed = True
-        self._sampling_active = False
-        self._active_mode = None
+        self._scan_workflow.mark_failed()
         self._test_setup_panel.set_sampling_active(False)
         self._test_setup_panel.set_sampling_paused(False)
         self._scan_animation_panel.stop_scan()
         self._on_operation_failed("扫描测试失败", message)
 
     def _on_scan_task_finished_cleanup(self) -> None:
-        stop_requested = self._scan_stop_requested
-        failed = self._scan_failed
-        self._scan_task_running = False
-        self._scan_paused = False
+        stop_requested, failed = self._scan_workflow.begin_finished_cleanup()
 
-        if not self._sampling_active:
+        if not self._scan_workflow.sampling_active:
             self._set_busy(False)
             self._test_setup_panel.set_sampling_paused(False)
             if stop_requested:
                 self.statusBar().showMessage("流程已停止")
-            self._scan_stop_requested = False
-            self._scan_failed = False
+            self._scan_workflow.finish_inactive_cleanup()
             return
 
-        self._sampling_active = False
-        self._active_mode = None
+        self._scan_workflow.finish_success_cleanup()
         self._test_setup_panel.set_sampling_active(False)
         self._test_setup_panel.set_sampling_paused(False)
         self._set_busy(False)
@@ -805,26 +772,14 @@ class MainWindow(QMainWindow):
             scan_output_dir = self._service.last_scan_output_dir
             if scan_output_dir is not None:
                 self._log_panel.append_info(f"扫描数据目录：{scan_output_dir}")
-        self._scan_stop_requested = False
-        self._scan_failed = False
 
     def _on_scan_progress_changed(self, completed_points: int, total_points: int) -> None:
-        self._scan_completed_points = completed_points
-        self._scan_total_points = total_points
+        self._scan_workflow.set_progress(completed_points, total_points)
 
     def _clear_runtime_state(self) -> None:
-        self._sampling_active = False
-        self._active_mode = None
         self._latest_trace = None
-        self._scan_completed_points = 0
-        self._scan_total_points = 0
-        self._scan_stop_requested = False
-        self._scan_paused = False
-        self._scan_failed = False
-        self._scan_task_running = False
-        self._stop_positioner_task_running = False
-        self._positioner_motion_poll_task_running = False
-        self._positioner_motion_poll_timer.stop()
+        self._scan_workflow.reset()
+        self._position_tracker.reset()
         self._test_setup_panel.set_sampling_active(False)
         self._test_setup_panel.set_sampling_paused(False)
         self._positioner_control_panel.set_busy(False)
@@ -882,8 +837,8 @@ class MainWindow(QMainWindow):
         QMessageBox.critical(self, title, message)
 
     def _set_busy(self, busy: bool) -> None:
-        connection_busy = busy or self._sampling_active or self._scan_task_running or self._stop_positioner_task_running
-        test_busy = busy or self._sampling_active
+        connection_busy = self._scan_workflow.connection_busy(busy)
+        test_busy = self._scan_workflow.test_busy(busy)
         self._connection_panel.set_busy(connection_busy)
         self._test_setup_panel.set_busy(test_busy)
         self._positioner_control_panel.set_busy(connection_busy)
