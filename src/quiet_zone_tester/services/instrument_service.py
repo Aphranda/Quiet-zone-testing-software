@@ -10,6 +10,10 @@ from threading import Event, Lock
 from quiet_zone_tester.domains.acquisition import AcquisitionService, AcquisitionServiceError
 from quiet_zone_tester.domains.data_management import TraceStorage
 from quiet_zone_tester.domains.instrument_management import (
+    InstrumentConnectionService,
+    InstrumentConnectionServiceError,
+    InstrumentControllerFactory,
+    InstrumentControllerFactoryError,
     InstrumentConnectionConfig,
     PositionerConnectionConfig,
     SwitchBoxConnectionConfig,
@@ -17,34 +21,23 @@ from quiet_zone_tester.domains.instrument_management import (
 )
 from quiet_zone_tester.domains.link_management import LinkService, LinkServiceError
 from quiet_zone_tester.domains.motion_control import MotionService, MotionServiceError
-from quiet_zone_tester.domains.scan_management import ScanSettings
-from quiet_zone_tester.drivers import (
+from quiet_zone_tester.domains.scan_management import (
+    ScanRuntimeGeometry,
+    ScanRuntimeService,
+    ScanRuntimeServiceError,
+    ScanSettings,
+)
+from quiet_zone_tester.hardware import (
     InstrumentInfo,
-    MockPositionerController,
-    MockSwitchBoxController,
-    MockVnaController,
     Position,
     PositionerController,
     SwitchBoxController,
     VnaController,
 )
 from quiet_zone_tester.models import ScanVolume
-from quiet_zone_tester.instruments import (
-    IclPositionerConfig,
-    IclPositionerController,
-    Lcd74000fSwitchBoxConfig,
-    Lcd74000fSwitchBoxController,
-    ScpiVnaController,
-    Tc500SwitchBoxConfig,
-    Tc500SwitchBoxController,
-    VnaScpiConfig,
-)
 from quiet_zone_tester.models import SParameterTrace
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_STEP_SPEED_MM_S = 20.0
-DEFAULT_SETTLE_DELAY_S = 0.3
 
 
 class InstrumentServiceError(RuntimeError):
@@ -99,9 +92,7 @@ class InstrumentService:
             self._configure_vna_backend(vna_config)
             if self._vna is None:
                 raise InstrumentServiceError("VNA controller is not configured.")
-            if self._vna.is_connected:
-                self._vna.disconnect()
-            return self._vna.connect()
+            return InstrumentConnectionService().connect_controller(self._vna, "VNA")
         except Exception as exc:
             logger.exception("VNA connection failed.")
             self._cleanup_controller("vna")
@@ -119,9 +110,7 @@ class InstrumentService:
             self._configure_positioner_backend(positioner_config)
             if self._positioner is None:
                 raise InstrumentServiceError("Positioner controller is not configured.")
-            if self._positioner.is_connected:
-                self._positioner.disconnect()
-            return self._positioner.connect()
+            return InstrumentConnectionService().connect_controller(self._positioner, "Positioner")
         except Exception as exc:
             logger.exception("Positioner connection failed.")
             self._cleanup_controller("positioner")
@@ -139,9 +128,7 @@ class InstrumentService:
             self._configure_switch_box_backend(switch_box_config)
             if self._switch_box is None:
                 raise InstrumentServiceError("Switch box controller is not configured.")
-            if self._switch_box.is_connected:
-                self._switch_box.disconnect()
-            return self._switch_box.connect()
+            return InstrumentConnectionService().connect_controller(self._switch_box, "Switch box")
         except Exception as exc:
             logger.exception("Switch box connection failed.")
             self._cleanup_controller("switch_box")
@@ -152,19 +139,10 @@ class InstrumentService:
     def disconnect_all(self) -> None:
         self.request_stop_and_stop_positioner()
         logger.info("Disconnecting instrument set.")
-        errors: list[Exception] = []
-        for controller in (self._switch_box, self._positioner, self._vna):
-            if controller is None:
-                continue
-            try:
-                if controller.is_connected:
-                    controller.disconnect()
-            except Exception as exc:  # noqa: BLE001 - service must collect driver failures.
-                logger.exception("Failed to disconnect controller.")
-                errors.append(exc)
-
-        if errors:
-            raise InstrumentServiceError(f"Failed to disconnect {len(errors)} instrument(s).")
+        try:
+            InstrumentConnectionService().disconnect_all([self._switch_box, self._positioner, self._vna])
+        except InstrumentConnectionServiceError as exc:
+            raise InstrumentServiceError(str(exc)) from exc
 
     def disconnect_vna(self) -> None:
         self._disconnect_controller("vna")
@@ -292,24 +270,9 @@ class InstrumentService:
             raise InstrumentServiceError("请先连接扫描架，再更新扫描架配置。")
 
         positioner_config = self._positioner_config_dict(config)
-        legacy_pulses_per_mm, x_pulses_per_mm, y_pulses_per_mm = self._positioner_scales_from_config(
-            positioner_config
-        )
-        updater = getattr(self._positioner, "update_runtime_config", None)
-        if not callable(updater):
-            return
-
         try:
-            updater(
-                x_axis=self._axis_from_config(positioner_config, "x_axis", 2),
-                y_axis=self._axis_from_config(positioner_config, "y_axis", 3),
-                pulses_per_mm=legacy_pulses_per_mm,
-                x_pulses_per_mm=x_pulses_per_mm,
-                y_pulses_per_mm=y_pulses_per_mm,
-                default_speed=float(positioner_config.get("default_speed", 100.0)),
-            )
-        except Exception as exc:
-            logger.exception("Positioner runtime config update failed.")
+            self._motion_service().update_runtime_config(positioner_config)
+        except MotionServiceError as exc:
             raise InstrumentServiceError(f"扫描架配置更新失败：{exc}") from exc
 
     def stop_positioner_axis(self, axis: int) -> None:
@@ -511,22 +474,14 @@ class InstrumentService:
 
     def _disconnect_controller(self, name: str) -> None:
         controller = self._controller_for_name(name)
-        if controller is None:
-            return
         try:
-            if controller.is_connected:
-                controller.disconnect()
-        except Exception as exc:
-            logger.exception("Failed to disconnect %s.", name)
+            InstrumentConnectionService().disconnect_controller(controller, name)
+        except InstrumentConnectionServiceError as exc:
             raise InstrumentServiceError(f"{name} 断开失败：{exc}") from exc
 
     def _cleanup_controller(self, name: str) -> None:
         controller = self._controller_for_name(name)
-        if controller is not None:
-            try:
-                controller.disconnect()
-            except Exception:
-                logger.exception("Failed to clean up %s after connection failure.", name)
+        InstrumentConnectionService().cleanup_controller(controller, name)
 
         if name == "vna" and not self._external_vna:
             self._vna = None
@@ -536,13 +491,7 @@ class InstrumentService:
             self._switch_box = None
 
     def _cleanup_after_failed_connect(self) -> None:
-        for controller in (self._switch_box, self._positioner, self._vna):
-            if controller is None:
-                continue
-            try:
-                controller.disconnect()
-            except Exception:
-                logger.exception("Failed to clean up controller after connection failure.")
+        InstrumentConnectionService().cleanup_after_failed_connect([self._switch_box, self._positioner, self._vna])
 
         if not self._external_vna:
             self._vna = None
@@ -578,292 +527,32 @@ class InstrumentService:
         settings: dict,
         on_progress: Callable[[int, int, SParameterTrace | None], None] | None,
     ) -> list[SParameterTrace]:
-        volume = self._build_scan_volume(settings)
-        points = volume.scan_points()
-        total = int(points.shape[0])
-        settle_delay_s = max(float(settings.get("settle_delay_s", DEFAULT_SETTLE_DELAY_S)), 0.0)
-        speed_mm_s = max(
-            abs(float(settings.get("step_speed_mm_s", settings.get("default_speed", DEFAULT_STEP_SPEED_MM_S)))),
-            0.001,
-        )
-
-        self._configure_vna_for_scan(settings)
-        results: list[SParameterTrace] = []
         try:
-            if total <= 0:
-                return results
-
-            assert self._positioner is not None
-            self._scan_checkpoint()
-            physical_origin = self._positioner.position
-            logical_origin_x_mm = float(points[0][0])
-            logical_origin_y_mm = float(points[0][1])
-            logger.info(
-                (
-                    "Step scan physical origin: logical x=%.3f mm, y=%.3f mm "
-                    "maps to current position x=%.3f mm, y=%.3f mm."
-                ),
-                logical_origin_x_mm,
-                logical_origin_y_mm,
-                physical_origin.x_mm,
-                physical_origin.y_mm,
-            )
-
-            logical_x_mm: float | None = None
-            logical_y_mm: float | None = None
-            for index, point in enumerate(points, start=1):
-                self._scan_checkpoint()
-                target_x_mm = float(point[0])
-                target_y_mm = float(point[1])
-                physical_target_x_mm = physical_origin.x_mm + target_x_mm - logical_origin_x_mm
-                physical_target_y_mm = physical_origin.y_mm + target_y_mm - logical_origin_y_mm
-                logger.info(
-                    (
-                        "Step scan point %s/%s: logical target x=%.3f mm, y=%.3f mm "
-                        "(physical x=%.3f mm, y=%.3f mm) at %.3f mm/s."
-                    ),
-                    index,
-                    total,
-                    target_x_mm,
-                    target_y_mm,
-                    physical_target_x_mm,
-                    physical_target_y_mm,
-                    speed_mm_s,
-                )
-
-                for axis_name, logical_axis_target_mm in self._scan_axis_moves(
-                    logical_x_mm,
-                    logical_y_mm,
-                    target_x_mm,
-                    target_y_mm,
-                ):
-                    self._scan_checkpoint()
-                    physical_axis_target_mm = (
-                        physical_target_y_mm if axis_name.strip().upper() == "Y" else physical_target_x_mm
-                    )
-                    logger.info(
-                        (
-                            "Step scan point %s/%s: moving %s axis to logical %.3f mm "
-                            "(physical %.3f mm)."
-                        ),
-                        index,
-                        total,
-                        axis_name,
-                        logical_axis_target_mm,
-                        physical_axis_target_mm,
-                    )
-                    position = self._move_positioner_axis_to(axis_name, physical_axis_target_mm, speed_mm_s)
-                    self._scan_checkpoint()
-                    logger.info(
-                        (
-                            "Step scan point %s/%s: %s axis stopped; "
-                            "physical actual x=%.3f mm, y=%.3f mm."
-                        ),
-                        index,
-                        total,
-                        axis_name,
-                        position.x_mm,
-                        position.y_mm,
-                    )
-
-                logical_x_mm = target_x_mm
-                logical_y_mm = target_y_mm
-                self._scan_checkpoint()
-                logger.info(
-                    "Step scan point %s/%s: logical position settled at x=%.3f mm, y=%.3f mm.",
-                    index,
-                    total,
-                    target_x_mm,
-                    target_y_mm,
-                )
-                if on_progress is not None:
-                    on_progress(index, total, None)
-                self._sleep_interruptibly(settle_delay_s)
-                self._scan_checkpoint()
-                logger.info("Step scan point %s/%s: reading VNA trace.", index, total)
-                trace = self._measure_scan_trace(settings)
-                logger.info("Step scan point %s/%s: VNA trace received.", index, total)
-                self._save_trace_csv(
-                    trace,
-                    position_mm=(target_x_mm, target_y_mm),
-                    scan_mode="step",
-                    file_flag=str(settings.get("file_flag", "")),
-                    filename_tag=self._probe_offset_filename_tag(settings),
-                    point_index=index,
-                    output_dir=self._scan_output_dir(settings),
-                )
-                results.append(trace)
-                if on_progress is not None:
-                    on_progress(index, total, trace)
+            return self._scan_runtime_service().run_step_scan(settings, on_progress)
         except InstrumentServiceError:
             self._stop_positioner_quietly()
             if self._stop_event.is_set():
                 logger.info("Step scan stopped by user request.")
-                return results
+                return []
             raise
-        except Exception as exc:
-            self._stop_positioner_quietly()
-            if self._stop_event.is_set():
-                logger.info("Step scan stopped by user request: %s", exc)
-                return results
-            raise InstrumentServiceError(f"步进扫描失败，扫描架已停机：{exc}") from exc
-
-        return results
+        except ScanRuntimeServiceError as exc:
+            raise InstrumentServiceError(str(exc)) from exc
 
     def _run_continuous_scan(
         self,
         settings: dict,
         on_progress: Callable[[int, int, SParameterTrace | None], None] | None,
     ) -> list[SParameterTrace]:
-        speed_mm_s = float(settings.get("continuous_speed_mm_s", settings.get("step_speed_mm_s", 100.0)))
-        if abs(speed_mm_s) <= 1e-9:
-            raise InstrumentServiceError("匀速测试速度不能为 0。")
-        speed_mm_s = abs(speed_mm_s)
-        volume = self._build_scan_volume(settings)
-        points = volume.scan_points()
-        total = int(points.shape[0])
-
-        self._configure_vna_for_scan(settings)
-        results: list[SParameterTrace] = []
-
-        active_axis_name: str | None = None
-        active_direction = 0
         try:
-            if total <= 0:
-                return results
-
-            assert self._positioner is not None
-            self._scan_checkpoint()
-            physical_origin = self._positioner.position
-            logical_origin_x_mm = float(points[0][0])
-            logical_origin_y_mm = float(points[0][1])
-            logger.info(
-                (
-                    "Continuous scan physical origin: logical x=%.3f mm, y=%.3f mm "
-                    "maps to current position x=%.3f mm, y=%.3f mm."
-                ),
-                logical_origin_x_mm,
-                logical_origin_y_mm,
-                physical_origin.x_mm,
-                physical_origin.y_mm,
-            )
-
-            logical_x_mm = logical_origin_x_mm
-            logical_y_mm = logical_origin_y_mm
-            if on_progress is not None:
-                on_progress(1, total, None)
-            self._scan_checkpoint()
-            trace = self._measure_scan_trace(settings)
-            self._save_trace_csv(
-                trace,
-                position_mm=(logical_x_mm, logical_y_mm),
-                scan_mode="continuous",
-                file_flag=str(settings.get("file_flag", "")),
-                filename_tag=self._probe_offset_filename_tag(settings),
-                point_index=1,
-                output_dir=self._scan_output_dir(settings),
-            )
-            results.append(trace)
-            if on_progress is not None:
-                on_progress(1, total, trace)
-
-            point_list = [(float(point[0]), float(point[1])) for point in points]
-            for index, (target_x_mm, target_y_mm) in enumerate(point_list[1:], start=2):
-                self._scan_checkpoint()
-                physical_target_x_mm = physical_origin.x_mm + target_x_mm - logical_origin_x_mm
-                physical_target_y_mm = physical_origin.y_mm + target_y_mm - logical_origin_y_mm
-                logger.info(
-                    (
-                        "Continuous scan point %s/%s: logical target x=%.3f mm, y=%.3f mm "
-                        "(physical x=%.3f mm, y=%.3f mm) at %.3f mm/s."
-                    ),
-                    index,
-                    total,
-                    target_x_mm,
-                    target_y_mm,
-                    physical_target_x_mm,
-                    physical_target_y_mm,
-                    speed_mm_s,
-                )
-
-                for axis_name, logical_axis_target_mm in self._scan_axis_moves(
-                    logical_x_mm,
-                    logical_y_mm,
-                    target_x_mm,
-                    target_y_mm,
-                ):
-                    physical_axis_target_mm = (
-                        physical_target_y_mm if axis_name.strip().upper() == "Y" else physical_target_x_mm
-                    )
-                    active_axis_name, active_direction = self._jog_positioner_axis_until(
-                        axis_name=axis_name,
-                        target_position_mm=physical_axis_target_mm,
-                        speed_mm_s=speed_mm_s,
-                        active_axis_name=active_axis_name,
-                        active_direction=active_direction,
-                    )
-                    logger.info(
-                        (
-                            "Continuous scan point %s/%s: %s axis crossed logical %.3f mm "
-                            "(physical %.3f mm)."
-                        ),
-                        index,
-                        total,
-                        axis_name,
-                        logical_axis_target_mm,
-                        physical_axis_target_mm,
-                    )
-
-                next_motion = self._next_continuous_motion(point_list, index - 1, target_x_mm, target_y_mm)
-                if self._should_stop_before_continuous_sample(active_axis_name, active_direction, next_motion):
-                    self._stop_positioner_axis_by_name_quietly(active_axis_name)
-                    active_axis_name = None
-                    active_direction = 0
-
-                if on_progress is not None:
-                    on_progress(index, total, None)
-                if not self._resume_event.is_set() and active_axis_name is not None:
-                    self._stop_positioner_axis_by_name_quietly(active_axis_name)
-                    active_axis_name = None
-                    active_direction = 0
-                self._scan_checkpoint()
-                trace = self._measure_scan_trace(settings)
-                if not self._resume_event.is_set() and active_axis_name is not None:
-                    self._stop_positioner_axis_by_name_quietly(active_axis_name)
-                    active_axis_name = None
-                    active_direction = 0
-                    self._scan_checkpoint()
-                self._save_trace_csv(
-                    trace,
-                    position_mm=(target_x_mm, target_y_mm),
-                    scan_mode="continuous",
-                    file_flag=str(settings.get("file_flag", "")),
-                    filename_tag=self._probe_offset_filename_tag(settings),
-                    point_index=index,
-                    output_dir=self._scan_output_dir(settings),
-                )
-                results.append(trace)
-                if on_progress is not None:
-                    on_progress(index, total, trace)
-                logical_x_mm = target_x_mm
-                logical_y_mm = target_y_mm
+            return self._scan_runtime_service().run_continuous_scan(settings, on_progress)
         except InstrumentServiceError:
             self._stop_positioner_quietly()
             if self._stop_event.is_set():
                 logger.info("Continuous scan stopped by user request.")
-                return results
+                return []
             raise
-        except Exception as exc:
-            self._stop_positioner_quietly()
-            if self._stop_event.is_set():
-                logger.info("Continuous scan stopped by user request: %s", exc)
-                return results
-            raise InstrumentServiceError(f"匀速扫描失败，扫描架已停机：{exc}") from exc
-        finally:
-            if active_axis_name is not None:
-                self._stop_positioner_axis_by_name_quietly(active_axis_name)
-
-        return results
+        except ScanRuntimeServiceError as exc:
+            raise InstrumentServiceError(str(exc)) from exc
 
     def _configure_vna_for_scan(self, settings: dict) -> None:
         self._select_switch_box_path(str(settings["parameter"]))
@@ -899,6 +588,23 @@ class InstrumentService:
         if self._positioner is None:
             raise InstrumentServiceError("Positioner controller is not configured.")
         return MotionService(self._positioner)
+
+    def _scan_runtime_service(self) -> ScanRuntimeService:
+        return ScanRuntimeService(
+            motion=self._motion_service(),
+            configure_vna_for_scan=self._configure_vna_for_scan,
+            measure_trace=self._measure_scan_trace,
+            save_trace=self._save_trace_csv,
+            checkpoint=self._scan_checkpoint,
+            sleep_interruptibly=self._sleep_interruptibly,
+            wait_if_paused=self._wait_if_paused,
+            raise_if_stopped=self._raise_if_stopped,
+            is_paused=lambda: not self._resume_event.is_set(),
+            stop_requested=self._stop_event.is_set,
+            stop_positioner_quietly=self._stop_positioner_quietly,
+            probe_offset_filename_tag=self._probe_offset_filename_tag,
+            scan_output_dir=self._scan_output_dir,
+        )
 
     def _save_trace_csv(
         self,
@@ -991,7 +697,7 @@ class InstrumentService:
         if not self.is_positioner_connected or self._positioner is None:
             return None
         try:
-            position = self._positioner.position
+            position = self._motion_service().query_position()
         except Exception:
             logger.exception("Failed to query position for trace filename.")
             return None
@@ -1020,27 +726,13 @@ class InstrumentService:
         target_x_mm: float,
         target_y_mm: float,
     ) -> list[tuple[str, float]]:
-        if logical_x_mm is None or logical_y_mm is None:
-            return [("Y", target_y_mm), ("X", target_x_mm)]
-
-        moves: list[tuple[str, float]] = []
-        if not self._positions_match(logical_y_mm, target_y_mm):
-            moves.append(("Y", target_y_mm))
-        if not self._positions_match(logical_x_mm, target_x_mm):
-            moves.append(("X", target_x_mm))
-        return moves
+        return ScanRuntimeGeometry.axis_moves(logical_x_mm, logical_y_mm, target_x_mm, target_y_mm)
 
     def _move_positioner_axis_to(self, axis_name: str, position_mm: float, speed_mm_s: float) -> Position:
-        assert self._positioner is not None
-        axis = self._axis_for_name(axis_name)
-        move_axis_to = getattr(self._positioner, "move_axis_to", None)
-        if callable(move_axis_to):
-            return move_axis_to(axis, position_mm, speed_mm_s)
-
-        current = self._positioner.position
-        if axis_name.strip().upper() == "Y":
-            return self._positioner.move_to(current.x_mm, position_mm, speed_mm_s)
-        return self._positioner.move_to(position_mm, current.y_mm, speed_mm_s)
+        try:
+            return self._motion_service().move_axis_to(axis_name, position_mm, speed_mm_s)
+        except MotionServiceError as exc:
+            raise InstrumentServiceError(f"扫描架轴向定位失败：{exc}") from exc
 
     def _jog_positioner_axis_until(
         self,
@@ -1050,67 +742,19 @@ class InstrumentService:
         active_axis_name: str | None,
         active_direction: int,
     ) -> tuple[str | None, int]:
-        assert self._positioner is not None
-        normalized_axis_name = self._normalize_axis_name(axis_name)
-        axis = self._axis_for_name(normalized_axis_name)
-        speed = max(abs(speed_mm_s), 0.001)
-        tolerance_mm = self._position_tolerance_for_axis(axis)
-
-        position = self._positioner.position
-        current_position_mm = self._position_for_axis_name(position, normalized_axis_name)
-        if (
-            active_axis_name is not None
-            and self._normalize_axis_name(active_axis_name) == normalized_axis_name
-            and active_direction != 0
-            and self._target_crossed(current_position_mm, target_position_mm, active_direction, tolerance_mm)
-        ):
-            return active_axis_name, active_direction
-
-        distance_mm = target_position_mm - current_position_mm
-        if abs(distance_mm) <= tolerance_mm:
-            return active_axis_name, active_direction
-
-        direction = 1 if distance_mm > 0 else -1
-        if active_axis_name is not None and (
-            self._normalize_axis_name(active_axis_name) != normalized_axis_name
-            or active_direction != direction
-        ):
-            self._stop_positioner_axis_by_name_quietly(active_axis_name)
-            active_axis_name = None
-            active_direction = 0
-            position = self._positioner.position
-            current_position_mm = self._position_for_axis_name(position, normalized_axis_name)
-            distance_mm = target_position_mm - current_position_mm
-            if abs(distance_mm) <= tolerance_mm:
-                return None, 0
-            direction = 1 if distance_mm > 0 else -1
-
-        if active_axis_name is None:
-            self._positioner.jog_axis(axis, speed * direction)
-            active_axis_name = normalized_axis_name
-            active_direction = direction
-
-        while True:
-            if not self._resume_event.is_set():
-                self._stop_positioner_axis_by_name_quietly(active_axis_name)
-                active_axis_name = None
-                active_direction = 0
-                self._wait_if_paused()
-                position = self._positioner.position
-                current_position_mm = self._position_for_axis_name(position, normalized_axis_name)
-                if self._target_crossed(current_position_mm, target_position_mm, direction, tolerance_mm):
-                    return active_axis_name, active_direction
-                if active_axis_name is None:
-                    self._positioner.jog_axis(axis, speed * direction)
-                    active_axis_name = normalized_axis_name
-                    active_direction = direction
-
-            self._raise_if_stopped()
-            position = self._positioner.position
-            current_position_mm = self._position_for_axis_name(position, normalized_axis_name)
-            if self._target_crossed(current_position_mm, target_position_mm, direction, tolerance_mm):
-                return active_axis_name, active_direction
-            time.sleep(0.03)
+        try:
+            return self._motion_service().jog_axis_until(
+                axis_name=axis_name,
+                target_position_mm=target_position_mm,
+                speed_mm_s=speed_mm_s,
+                active_axis_name=active_axis_name,
+                active_direction=active_direction,
+                wait_if_paused=self._wait_if_paused,
+                raise_if_stopped=self._raise_if_stopped,
+                is_paused=lambda: not self._resume_event.is_set(),
+            )
+        except MotionServiceError as exc:
+            raise InstrumentServiceError(f"扫描架连续运动失败：{exc}") from exc
 
     def _next_continuous_motion(
         self,
@@ -1119,20 +763,12 @@ class InstrumentService:
         current_x_mm: float,
         current_y_mm: float,
     ) -> tuple[str, int] | None:
-        if current_index + 1 >= len(point_list):
-            return None
-
-        next_x_mm, next_y_mm = point_list[current_index + 1]
-        moves = self._scan_axis_moves(current_x_mm, current_y_mm, next_x_mm, next_y_mm)
-        if not moves:
-            return None
-
-        axis_name, target_mm = moves[0]
-        current_axis_mm = current_y_mm if axis_name.strip().upper() == "Y" else current_x_mm
-        delta_mm = target_mm - current_axis_mm
-        if abs(delta_mm) <= 1e-9:
-            return None
-        return self._normalize_axis_name(axis_name), 1 if delta_mm > 0 else -1
+        return ScanRuntimeGeometry.next_continuous_motion(
+            point_list,
+            current_index,
+            current_x_mm,
+            current_y_mm,
+        )
 
     def _should_stop_before_continuous_sample(
         self,
@@ -1140,37 +776,27 @@ class InstrumentService:
         active_direction: int,
         next_motion: tuple[str, int] | None,
     ) -> bool:
-        if active_axis_name is None:
-            return False
-        if next_motion is None:
-            return True
-        next_axis_name, next_direction = next_motion
-        return self._normalize_axis_name(active_axis_name) != next_axis_name or active_direction != next_direction
+        return ScanRuntimeGeometry.should_stop_before_continuous_sample(
+            active_axis_name,
+            active_direction,
+            next_motion,
+        )
 
     def _stop_positioner_axis_by_name_quietly(self, axis_name: str | None) -> None:
         if axis_name is None or not self.is_positioner_connected or self._positioner is None:
             return
-        try:
-            self._positioner.stop_axis(self._axis_for_name(axis_name))
-        except Exception:
-            logger.exception("Failed to stop positioner axis %s.", axis_name)
+        self._motion_service().stop_axis_by_name_quietly(axis_name)
 
     def _positioner_timeout_ms(self) -> int:
         config = getattr(self._positioner, "_config", None)
         return max(int(getattr(config, "timeout_ms", 1000)), 1000)
 
     def _position_tolerance_for_axis(self, axis: int) -> float:
-        tolerance = getattr(self._positioner, "_position_tolerance_mm", None)
-        if callable(tolerance):
-            try:
-                return max(float(tolerance(axis)), 0.001)
-            except Exception:
-                logger.debug("Positioner-specific tolerance lookup failed.", exc_info=True)
-        return 0.05
+        return self._motion_service().position_tolerance_for_axis(axis)
 
     @staticmethod
     def _position_for_axis_name(position: Position, axis_name: str) -> float:
-        return position.y_mm if axis_name.strip().upper() == "Y" else position.x_mm
+        return MotionService.position_for_axis_name(position, axis_name)
 
     @staticmethod
     def _target_crossed(
@@ -1179,23 +805,18 @@ class InstrumentService:
         direction: int,
         tolerance_mm: float,
     ) -> bool:
-        if direction > 0:
-            return current_position_mm >= target_position_mm - tolerance_mm
-        return current_position_mm <= target_position_mm + tolerance_mm
+        return MotionService.target_crossed(current_position_mm, target_position_mm, direction, tolerance_mm)
 
     @staticmethod
     def _normalize_axis_name(axis_name: str) -> str:
-        return "Y" if axis_name.strip().upper() == "Y" else "X"
+        return ScanRuntimeGeometry.normalize_axis_name(axis_name)
 
     def _axis_for_name(self, axis_name: str) -> int:
-        config = getattr(self._positioner, "_config", None)
-        if axis_name.strip().upper() == "Y":
-            return int(getattr(config, "y_axis", 3))
-        return int(getattr(config, "x_axis", 2))
+        return self._motion_service().axis_for_name(axis_name)
 
     @staticmethod
     def _positions_match(left_mm: float, right_mm: float) -> bool:
-        return abs(left_mm - right_mm) <= 1e-9
+        return ScanRuntimeGeometry.positions_match(left_mm, right_mm)
 
     def _sleep_interruptibly(self, duration_s: float) -> None:
         deadline = time.monotonic() + duration_s
@@ -1270,88 +891,24 @@ class InstrumentService:
 
     @staticmethod
     def _create_vna_controller(config: dict) -> VnaController:
-        if InstrumentService._virtual_enabled(config):
-            return MockVnaController(timeout_ms=int(config.get("timeout_ms", 5000)))
-
-        ip_address = str(config.get("ip_address", "")).strip()
-        port = int(config.get("port", 5025))
-        if ip_address:
-            resource_name = f"TCPIP0::{ip_address}::{port}::SOCKET"
-        else:
-            resource_name = str(config.get("resource_name", "")).strip()
-
-        if not resource_name:
-            raise InstrumentServiceError("VNA VISA 资源不能为空，真实测试模式需要填写仪器资源。")
-        if resource_name.upper().startswith("MOCK"):
-            raise InstrumentServiceError("当前为真实测试模式，VNA 不能使用 MOCK 资源。")
-
-        return ScpiVnaController(
-            VnaScpiConfig(
-                resource_name=resource_name,
-                timeout_ms=int(config.get("timeout_ms", 5000)),
-                retries=int(config.get("retries", 2)),
-                retry_delay_s=float(config.get("retry_delay_s", 0.2)),
-            )
-        )
+        try:
+            return InstrumentControllerFactory().create_vna(config)
+        except InstrumentControllerFactoryError as exc:
+            raise InstrumentServiceError(str(exc)) from exc
 
     @staticmethod
     def _create_positioner_controller(config: dict) -> PositionerController:
-        if InstrumentService._virtual_enabled(config):
-            return MockPositionerController(
-                x_axis=InstrumentService._axis_from_config(config, "x_axis", 2),
-                y_axis=InstrumentService._axis_from_config(config, "y_axis", 3),
-            )
-
-        port_name = str(config.get("port_name") or config.get("resource_name") or "").strip()
-        if not port_name:
-            raise InstrumentServiceError("扫描架串口不能为空，真实测试模式需要填写 COM 口。")
-        if port_name.upper().startswith("MOCK"):
-            raise InstrumentServiceError("当前为真实测试模式，扫描架不能使用 MOCK 资源。")
-
-        legacy_pulses_per_mm, x_pulses_per_mm, y_pulses_per_mm = (
-            InstrumentService._positioner_scales_from_config(config)
-        )
-
-        return IclPositionerController(
-            IclPositionerConfig(
-                port=port_name,
-                baudrate=int(config.get("baudrate", 115200)),
-                bytesize=int(config.get("bytesize", 8)),
-                parity=str(config.get("parity", "N")).strip().upper() or "N",
-                stopbits=int(config.get("stopbits", 1)),
-                timeout_ms=int(config.get("timeout_ms", 1000)),
-                retries=int(config.get("retries", 2)),
-                retry_delay_s=float(config.get("retry_delay_s", 0.05)),
-                x_axis=InstrumentService._axis_from_config(config, "x_axis", 2),
-                y_axis=InstrumentService._axis_from_config(config, "y_axis", 3),
-                pulses_per_mm=legacy_pulses_per_mm,
-                x_pulses_per_mm=x_pulses_per_mm,
-                y_pulses_per_mm=y_pulses_per_mm,
-                default_speed=float(config.get("default_speed", 100.0)),
-            )
-        )
+        try:
+            return InstrumentControllerFactory().create_positioner(config)
+        except InstrumentControllerFactoryError as exc:
+            raise InstrumentServiceError(str(exc)) from exc
 
     @staticmethod
     def _positioner_scales_from_config(config: dict) -> tuple[float, float, float]:
-        legacy_pulses_per_mm = float(config.get("pulses_per_mm", config.get("pulses_per_degree", 1.0)))
-        x_pulses_per_mm = InstrumentService._axis_scale_from_config(
-            config,
-            "x_pulses_per_mm",
-            "x_units_per_turn",
-            "x_mm_per_turn",
-            legacy_pulses_per_mm,
-        )
-        y_pulses_per_mm = InstrumentService._axis_scale_from_config(
-            config,
-            "y_pulses_per_mm",
-            "y_units_per_turn",
-            "y_mm_per_turn",
-            legacy_pulses_per_mm,
-        )
-        legacy_pulses_per_mm = x_pulses_per_mm
-        if legacy_pulses_per_mm <= 0 or x_pulses_per_mm <= 0 or y_pulses_per_mm <= 0:
-            raise InstrumentServiceError("扫描架每毫米电机单位必须大于 0。")
-        return legacy_pulses_per_mm, x_pulses_per_mm, y_pulses_per_mm
+        try:
+            return InstrumentControllerFactory().positioner_scales_from_config(config)
+        except InstrumentControllerFactoryError as exc:
+            raise InstrumentServiceError(str(exc)) from exc
 
     @staticmethod
     def _axis_scale_from_config(
@@ -1361,91 +918,36 @@ class InstrumentService:
         mm_per_turn_key: str,
         fallback: float,
     ) -> float:
-        if units_per_turn_key in config and mm_per_turn_key in config:
-            units_per_turn = float(config[units_per_turn_key])
-            mm_per_turn = float(config[mm_per_turn_key])
-            if mm_per_turn <= 0:
-                raise InstrumentServiceError("扫描架每圈距离必须大于 0。")
-            return units_per_turn / mm_per_turn
-        return float(config.get(direct_key, fallback))
+        try:
+            return InstrumentControllerFactory.axis_scale_from_config(
+                config,
+                direct_key,
+                units_per_turn_key,
+                mm_per_turn_key,
+                fallback,
+            )
+        except InstrumentControllerFactoryError as exc:
+            raise InstrumentServiceError(str(exc)) from exc
 
     @staticmethod
     def _create_switch_box_controller(config: dict) -> SwitchBoxController:
-        if InstrumentService._virtual_enabled(config):
-            return MockSwitchBoxController()
-
-        model = str(config.get("model", "LCD74000F")).strip().upper()
-        connection_type = str(config.get("connection_type", "TCP/IP")).strip() or "TCP/IP"
-        normalized_type = connection_type.upper()
-        if normalized_type in {"SERIAL", "串口", "RS232", "RS485"}:
-            serial_port = str(config.get("serial_port") or config.get("port_name") or "").strip()
-            if not serial_port:
-                raise InstrumentServiceError("开关箱串口不能为空，串口模式需要填写 COM 口。")
-            if serial_port.upper().startswith("MOCK"):
-                raise InstrumentServiceError("当前为真实测试模式，开关箱不能使用 MOCK 资源。")
-        else:
-            ip_address = str(config.get("ip_address", "")).strip()
-            if not ip_address:
-                raise InstrumentServiceError("开关箱 TCP/IP 地址不能为空。")
-            serial_port = str(config.get("serial_port", "COM3")).strip()
-
-        if model == "LCD74000F":
-            return Lcd74000fSwitchBoxController(
-                Lcd74000fSwitchBoxConfig(
-                    connection_type=connection_type,
-                    ip_address=str(config.get("ip_address", "192.168.1.113")).strip(),
-                    tcp_port=int(config.get("tcp_port", config.get("port", 7))),
-                    serial_port=serial_port,
-                    baudrate=int(config.get("baudrate", 115200)),
-                    timeout_ms=int(config.get("timeout_ms", 2000)),
-                    command_terminator=str(config.get("command_terminator", "\n")),
-                    identify_command=str(config.get("identify_command", "*IDN?")).strip(),
-                    s11_command=str(config.get("s11_command", "CONFigure:LINK H,VNA1")).strip(),
-                    s21_command=str(config.get("s21_command", "CONFigure:LINK H,VNA1")).strip(),
-                    s12_command=str(config.get("s12_command", "CONFigure:LINK V,VNA1")).strip(),
-                    s22_command=str(config.get("s22_command", "CONFigure:LINK V,VNA1")).strip(),
-                    retries=int(config.get("retries", 1)),
-                    retry_delay_s=float(config.get("retry_delay_s", 0.2)),
-                )
-            )
-
-        return Tc500SwitchBoxController(
-            Tc500SwitchBoxConfig(
-                connection_type=connection_type,
-                ip_address=str(config.get("ip_address", "192.168.1.120")).strip(),
-                tcp_port=int(config.get("tcp_port", config.get("port", 35))),
-                serial_port=serial_port,
-                baudrate=int(config.get("baudrate", 115200)),
-                timeout_ms=int(config.get("timeout_ms", 1500)),
-                command_terminator=str(config.get("command_terminator", "\r\n")),
-                identify_command=str(config.get("identify_command", "PASSIVE")).strip().upper(),
-                s11_command=str(config.get("s11_command", "PASSIVE")).strip().upper(),
-                s21_command=str(config.get("s21_command", "PASSIVE")).strip().upper(),
-                s12_command=str(config.get("s12_command", "PASSIVE")).strip().upper(),
-                s22_command=str(config.get("s22_command", "PASSIVE")).strip().upper(),
-                retries=int(config.get("retries", 1)),
-                retry_delay_s=float(config.get("retry_delay_s", 0.2)),
-            )
-        )
+        try:
+            return InstrumentControllerFactory().create_switch_box(config)
+        except InstrumentControllerFactoryError as exc:
+            raise InstrumentServiceError(str(exc)) from exc
 
     @staticmethod
     def _axis_from_config(config: dict, key: str, default_axis_id: int) -> int:
-        raw_value = int(config.get(key, default_axis_id))
-        if 0 <= raw_value <= 247:
-            return raw_value
-        raise InstrumentServiceError(f"扫描架轴号超出范围：{key}={raw_value}，有效范围为 0-247。")
+        try:
+            return InstrumentControllerFactory.axis_from_config(config, key, default_axis_id)
+        except InstrumentControllerFactoryError as exc:
+            raise InstrumentServiceError(str(exc)) from exc
 
     @staticmethod
     def _virtual_enabled(config: dict) -> bool:
-        value = config.get("virtual_enabled", False)
-        if isinstance(value, str):
-            return value.strip().lower() in {"1", "true", "yes", "y", "on", "虚拟连接", "虚拟"}
-        return bool(value)
+        return InstrumentControllerFactory.virtual_enabled(config)
 
     def _stop_positioner_quietly(self) -> None:
         if not self.is_positioner_connected or self._positioner is None:
             return
-        try:
-            self._positioner.stop_all()
-        except Exception:
-            logger.exception("Failed to stop positioner.")
+        self._motion_service().stop_all_quietly()

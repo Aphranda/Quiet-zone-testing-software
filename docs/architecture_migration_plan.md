@@ -3,8 +3,8 @@
 Status: Active
 Domain: ARCH
 Canonical: `docs/architecture_migration_plan.md`
-Related: `README.md`, `docs/ARCH_MIGRATION_TODO.md`
-Last updated: 2026-07-09
+Related: `README.md`, `docs/ARCH_MIGRATION_TODO.md`, `docs/ARCH_TASK_PROGRESS.md`
+Last updated: 2026-07-10
 
 本文档定义静区测试软件的架构迁移方向。迁移目标不是一次性重写，而是在保持现有功能可运行的前提下，先建立清晰目录骨架，再逐步把 `MainWindow` 和 `InstrumentService` 中的职责拆入稳定业务域。
 
@@ -14,6 +14,22 @@ Last updated: 2026-07-09
 - `main.py` 是唯一程序主入口，`run.py` 只作为开发期便捷启动脚本。
 - MVVM 管 UI，状态机管流程，数据管理管事实，硬件适配层管协议。
 - 新架构借鉴 HAOFV 的边界治理方式，但使用 Qt 原生机制实现，不照搬嵌入式 Active Object。
+
+## 文档入口
+
+本文档作为架构迁移主入口，负责说明总体方向、边界原则和阶段策略。具体设计、任务清单和实施记录拆分到以下文档：
+
+| 文档 | 职责 |
+|---|---|
+| [APP_DESIGN.md](APP_DESIGN.md) | 应用入口、QApplication 生命周期、主窗口装配和全局任务边界。 |
+| [INSTRUMENT_MANAGEMENT_DESIGN.md](INSTRUMENT_MANAGEMENT_DESIGN.md) | VNA、扫描架、开关箱的连接生命周期、controller 创建和连接配置边界。 |
+| [LINK_MANAGEMENT_DESIGN.md](LINK_MANAGEMENT_DESIGN.md) | S 参数链路路由、开关箱 profile 和链路控制边界。 |
+| [MOTION_CONTROL_DESIGN.md](MOTION_CONTROL_DESIGN.md) | 扫描架手动运动、轴级运动、运行时配置和位置显示边界。 |
+| [SCAN_MANAGEMENT_DESIGN.md](SCAN_MANAGEMENT_DESIGN.md) | 扫描配置、路径规划、状态机和扫描运行边界。 |
+| [DATA_MANAGEMENT_DESIGN.md](DATA_MANAGEMENT_DESIGN.md) | 扫描事实、trace 文件、metadata、trace index 和文件命名边界。 |
+| [HARDWARE_ADAPTER_DESIGN.md](HARDWARE_ADAPTER_DESIGN.md) | 硬件接口、Mock 实现、真实协议实现和旧导入兼容策略。 |
+| [ARCH_MIGRATION_TODO.md](ARCH_MIGRATION_TODO.md) | 稳定任务清单和验收标准。 |
+| [ARCH_TASK_PROGRESS.md](ARCH_TASK_PROGRESS.md) | 已完成任务的实施记录、验证结果、风险和后续事项。 |
 
 ## 1. 当前架构判断
 
@@ -780,23 +796,30 @@ tests/
 | 目录大搬家导致历史混乱 | 第一阶段只建骨架，新代码进新目录，旧代码逐步迁移 |
 | 状态机过度复杂 | 先用轻量 QObject 状态类，复杂后再引入 QStateMachine |
 
-## 15. 文档治理建议
-
-参考 HAOFV 文档体系，后续建议拆出：
+## 15. 文档治理
 
 ```text
-docs/ARCH_MIGRATION_PLAN.md
-docs/APP_STATE_MACHINE_DESIGN.md
+docs/architecture_migration_plan.md
+docs/APP_DESIGN.md
 docs/INSTRUMENT_MANAGEMENT_DESIGN.md
 docs/LINK_MANAGEMENT_DESIGN.md
 docs/MOTION_CONTROL_DESIGN.md
-docs/SCAN_SESSION_DESIGN.md
+docs/SCAN_MANAGEMENT_DESIGN.md
 docs/DATA_MANAGEMENT_DESIGN.md
+docs/HARDWARE_ADAPTER_DESIGN.md
 docs/ARCH_MIGRATION_TODO.md
 docs/ARCH_TASK_PROGRESS.md
 ```
 
-本文档继续作为架构迁移主入口。具体实现细节、任务清单、进度记录不长期堆在本文档里。
+参考 HAOFV 文档体系，架构迁移文档已拆分为主入口、业务域设计、任务清单和进度记录四类。
+
+治理规则：
+
+- `architecture_migration_plan.md` 只保留总体架构方向、迁移原则和入口索引。
+- `*_DESIGN.md` 记录业务域职责、边界、当前实现和后续迁移。
+- `ARCH_MIGRATION_TODO.md` 记录稳定任务清单和验收标准，不堆实施过程。
+- `ARCH_TASK_PROGRESS.md` 记录每个任务的完成内容、验证结果、风险和后续事项。
+- 新增跨域设计时，先判断是否需要独立设计文档，再更新本文档入口索引。
 
 ## 16. 近期最小可落地版本
 

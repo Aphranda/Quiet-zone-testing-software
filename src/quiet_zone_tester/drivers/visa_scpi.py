@@ -1,4 +1,4 @@
-from quiet_zone_tester.instruments.visa_scpi import (
+from quiet_zone_tester.hardware.transport.visa_scpi import (
     ScpiCommunicationError,
     ScpiConnectionConfig,
     VisaScpiSession,

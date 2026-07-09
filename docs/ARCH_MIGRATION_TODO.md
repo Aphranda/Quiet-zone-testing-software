@@ -4,7 +4,7 @@ Status: Active
 Domain: ARCH
 Canonical: `docs/ARCH_MIGRATION_TODO.md`
 Related: `docs/architecture_migration_plan.md`
-Last updated: 2026-07-09
+Last updated: 2026-07-10
 
 本文档跟踪静区测试软件架构迁移任务。TODO 只记录尚未完成或需要持续跟踪的事项；已经发生的实施过程、验证结果、风险和决策，应记录到后续 `ARCH_TASK_PROGRESS.md`，避免任务清单变成流水账。
 
@@ -70,9 +70,9 @@ Last updated: 2026-07-09
 - [x] P2-02 `TestSetupPanel` 迁移到 ViewModel：扫描参数校验、探头位置、默认值和预览配置进入 ViewModel。
 - [x] P2-03 `PositionerControlPanel` 迁移到运动控制域：手动运动命令、当前位置显示、轮询逻辑由 Motion ViewModel 和 MotionService 管理。
 - [x] P2-04 `SwitchBoxControlPanel` 迁移到链路管理域：链路控制 UI 使用 LinkViewModel 和 LinkService，不直接拼命令。
-- [ ] P2-05 `InstrumentService` 变成 facade：连接、运动、链路、扫描、采样、数据保存都委托到独立 domain service。
-- [ ] P2-06 硬件层目录迁移：当前 `drivers/` 和 `instruments/` 迁移到 `hardware/`，并保持兼容导入或一次性更新引用。
-- [ ] P2-07 文档体系拆分：从主迁移方案拆出 APP、仪表、链路、运动、扫描、数据管理设计文档。
+- [x] P2-05 `InstrumentService` 变成 facade：连接、运动、链路、扫描、采样、数据保存都委托到独立 domain service。
+- [x] P2-06 硬件层目录迁移：当前 `drivers/` 和 `instruments/` 迁移到 `hardware/`，并保持兼容导入或一次性更新引用。
+- [x] P2-07 文档体系拆分：从主迁移方案拆出 APP、仪表、链路、运动、扫描、数据管理设计文档。
 
 ### P2 验收
 

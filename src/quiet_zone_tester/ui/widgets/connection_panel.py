@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from quiet_zone_tester.drivers import InstrumentInfo
+from quiet_zone_tester.hardware import InstrumentInfo
 from quiet_zone_tester.presentation.modules.connection import (
     ConnectionViewModel,
     PositionerFormState,

@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from quiet_zone_tester.drivers import Position
+from quiet_zone_tester.hardware import Position
 from quiet_zone_tester.presentation.modules.motion_control import MotionControlViewModel
 
 

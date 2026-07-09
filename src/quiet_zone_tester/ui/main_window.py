@@ -17,8 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from quiet_zone_tester.drivers import InstrumentInfo
-from quiet_zone_tester.drivers.base import Position
+from quiet_zone_tester.hardware import InstrumentInfo, Position
 from quiet_zone_tester.models import SParameterTrace, ScanVolume
 from quiet_zone_tester.resources import resource_path
 from quiet_zone_tester.services import InstrumentService

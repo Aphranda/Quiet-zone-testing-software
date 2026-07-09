@@ -25,11 +25,25 @@ from quiet_zone_tester.domains.scan_management.scan_planner import (
     plan_scan_points,
     point_count_from_volume,
 )
+from quiet_zone_tester.domains.scan_management.scan_runtime_geometry import (
+    PhysicalOrigin,
+    PhysicalTarget,
+    ScanRuntimeGeometry,
+)
+from quiet_zone_tester.domains.scan_management.scan_runtime_service import (
+    ScanRuntimeService,
+    ScanRuntimeServiceError,
+)
 
 __all__ = [
+    "PhysicalOrigin",
+    "PhysicalTarget",
     "PlannedScanPoint",
     "ScanPlan",
     "ScanPlanner",
+    "ScanRuntimeGeometry",
+    "ScanRuntimeService",
+    "ScanRuntimeServiceError",
     "ProbeOffset",
     "ScanEvent",
     "ScanPoint",

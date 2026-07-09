@@ -4,7 +4,7 @@ Status: Active
 Domain: ARCH
 Canonical: `docs/ARCH_TASK_PROGRESS.md`
 Related: `docs/architecture_migration_plan.md`, `docs/ARCH_MIGRATION_TODO.md`
-Last updated: 2026-07-09
+Last updated: 2026-07-10
 
 本文档记录架构迁移过程中已经发生的重要实施、验证、风险和决策。待办事项仍维护在 `docs/ARCH_MIGRATION_TODO.md`。
 
@@ -133,3 +133,66 @@ Last updated: 2026-07-09
 - 风险：连续扫描中的轴级运动编排仍留在 `InstrumentService`；本阶段只覆盖 UI 手动运动命令和停止命令。后续抽扫描运行服务时再统一处理轴级扫描运动。
 - 后续：继续 P2-05，优先抽扫描运行编排服务或连接创建工厂，逐步降低 `InstrumentService` 的私有方法体量。
 - 涉及文件：`src/quiet_zone_tester/domains/motion_control/motion_service.py`、`src/quiet_zone_tester/domains/motion_control/__init__.py`、`src/quiet_zone_tester/services/instrument_service.py`、`tests/test_motion_service.py`。
+
+### ARCH-TASK-20260710-015 - P2 InstrumentService facade 硬件创建工厂抽取
+
+- 目标：继续 `InstrumentService` facade 化，把 VNA、扫描架和开关箱 controller 创建细节从 service 中移出。
+- 完成：新增 `InstrumentControllerFactory` 和 `InstrumentControllerFactoryError`；VNA、扫描架、开关箱的虚拟/真实 controller 创建、真实模式 MOCK 拒绝、必填连接参数校验、扫描架轴号校验和每毫米单位换算迁入仪表管理域；`InstrumentService` 保留原私有创建/校验方法签名，但内部委托工厂，兼容现有调用。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest discover -s tests`，通过 69 个 `unittest`；对 `InstrumentControllerFactory`、`instrument_management/__init__.py`、`InstrumentService` 和新测试使用不写 pyc 的源码编译检查，输出 `compile-ok`。
+- 风险：旧 `drivers/` 与 `instruments/` 目录尚未迁入 `hardware/`，本阶段只减少 `InstrumentService` 的硬件创建细节；后续 P2-06 仍需处理硬件层目录和统一接口。
+- 后续：继续 P2-05，优先抽扫描运行编排服务，把步进/匀速扫描流程从 `InstrumentService` 中拆出。
+- 涉及文件：`src/quiet_zone_tester/domains/instrument_management/controller_factory.py`、`src/quiet_zone_tester/domains/instrument_management/__init__.py`、`src/quiet_zone_tester/services/instrument_service.py`、`tests/test_instrument_controller_factory.py`。
+
+### ARCH-TASK-20260710-016 - P2 InstrumentService facade 扫描架运行时配置抽取
+
+- 目标：继续收口运动控制职责，把扫描架运行时配置更新从 `InstrumentService` 下沉到运动控制域。
+- 完成：`MotionService.update_runtime_config()` 接管 `update_runtime_config` controller 调用、轴号校验、每毫米单位换算和默认速度传递；`InstrumentService.update_positioner_runtime_config()` 保留原 API，但只负责把旧连接配置/dataclass 适配为 dict 并委托 `MotionService`。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest discover -s tests`，通过 71 个 `unittest`；对 `MotionService`、`InstrumentControllerFactory`、`InstrumentService` 和相关测试使用不写 pyc 的源码编译检查，输出 `compile-ok`。
+- 风险：扫描流程内部的连续运动控制仍留在 `InstrumentService`；本阶段只迁出运行时配置更新，不改变扫描运动执行顺序。
+- 后续：继续 P2-05，优先抽扫描运行编排服务，处理 `_run_step_scan()`、`_run_continuous_scan()` 和相关轴级运动 helper。
+- 涉及文件：`src/quiet_zone_tester/domains/motion_control/motion_service.py`、`src/quiet_zone_tester/services/instrument_service.py`、`tests/test_motion_service.py`。
+
+### ARCH-TASK-20260710-017 - P2 InstrumentService facade 扫描运行几何和轴级运动抽取
+
+- 目标：继续拆分扫描运行职责，把扫描点物理坐标映射、轴移动决策和轴级运动执行从 `InstrumentService` 中移出。
+- 完成：新增 `ScanRuntimeGeometry`、`PhysicalOrigin` 和 `PhysicalTarget`，接管逻辑点到物理目标映射、扫描轴移动顺序、连续扫描下一段运动判断和采样前停轴判断；`MotionService` 新增 `move_axis_to()`、`jog_axis_until()`、`stop_axis_by_name_quietly()`、`axis_for_name()` 等轴级运动能力；`InstrumentService` 保留扫描编排和暂停/停止回调，相关私有 helper 改为委托。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest discover -s tests`，通过 79 个 `unittest`；对 `ScanRuntimeGeometry`、`MotionService`、`InstrumentService` 和相关测试使用不写 pyc 的源码编译检查，输出 `compile-ok`。
+- 风险：`_run_step_scan()` 和 `_run_continuous_scan()` 的主循环仍在 `InstrumentService` 中，本阶段降低 helper 复杂度但尚未完成扫描运行服务抽取。
+- 后续：继续 P2-05，优先抽 `ScanRuntimeService`，让 `InstrumentService.run_scan()` 只负责准备依赖、创建输出目录和调用扫描运行服务。
+- 涉及文件：`src/quiet_zone_tester/domains/scan_management/scan_runtime_geometry.py`、`src/quiet_zone_tester/domains/scan_management/__init__.py`、`src/quiet_zone_tester/domains/motion_control/motion_service.py`、`src/quiet_zone_tester/services/instrument_service.py`、`tests/test_scan_runtime_geometry.py`、`tests/test_motion_service.py`。
+
+### ARCH-TASK-20260710-018 - P2 InstrumentService facade 扫描主循环抽取
+
+- 目标：继续 P2-05，把步进扫描和匀速扫描主循环从 `InstrumentService` 中移到扫描管理域。
+- 完成：新增 `ScanRuntimeService` 和 `ScanRuntimeServiceError`；步进/匀速扫描的路径遍历、进度回调、运动调用、采样调用、trace 保存调用、暂停/停止检查和部分结果返回逻辑迁入扫描运行服务；`InstrumentService._run_step_scan()` 与 `_run_continuous_scan()` 保留兼容私有方法，但内部只构造依赖并委托 `ScanRuntimeService`。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest discover -s tests`，通过 82 个 `unittest`；对 `ScanRuntimeService`、`scan_management/__init__.py`、`InstrumentService` 和新测试使用不写 pyc 的源码编译检查，输出 `compile-ok`。
+- 风险：连接生命周期仍由 `InstrumentService.connect_*()` 和 `disconnect_*()` 直接编排；因此 P2-05 暂不勾选。后续应抽 `InstrumentConnectionService` 或类似服务收口连接/断开/清理流程。
+- 后续：继续 P2-05，优先抽仪器连接生命周期服务，完成后再评估是否可勾选 P2-05。
+- 涉及文件：`src/quiet_zone_tester/domains/scan_management/scan_runtime_service.py`、`src/quiet_zone_tester/domains/scan_management/__init__.py`、`src/quiet_zone_tester/services/instrument_service.py`、`tests/test_scan_runtime_service.py`。
+
+### ARCH-TASK-20260710-019 - P2 InstrumentService facade 连接生命周期抽取并完成 P2-05
+
+- 目标：完成 P2-05，把连接、运动、链路、扫描、采样和数据保存职责都委托到独立 domain service 或工厂。
+- 完成：新增 `InstrumentConnectionService` 和 `InstrumentConnectionServiceError`，接管 controller 重连前断开、单设备断开、全部断开、连接失败清理和单 controller 清理；`InstrumentService.connect_*()`、`disconnect_*()`、`disconnect_all()` 和清理方法保留原 API，但连接生命周期委托到 `InstrumentConnectionService`；扫描架静默停机和保存文件名前的位置查询也改为委托 `MotionService`。至此，`InstrumentService` 已成为 facade：连接生命周期委托 `InstrumentConnectionService`，硬件创建委托 `InstrumentControllerFactory`，运动委托 `MotionService`，链路委托 `LinkService`，扫描运行委托 `ScanRuntimeService`，采样委托 `AcquisitionService`，数据保存委托 `TraceStorage`。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest discover -s tests`，通过 88 个 `unittest`；对 `InstrumentConnectionService`、`ScanRuntimeService`、`MotionService`、`InstrumentService` 和相关测试使用不写 pyc 的源码编译检查，输出 `compile-ok`。
+- 风险：`InstrumentService` 仍保留若干兼容私有方法作为旧测试和旧调用路径的委托壳，后续可在 P2-06/P2-07 之后再逐步清理；真实硬件联调仍需在设备环境确认连接、扫描和停止流程。
+- 后续：进入 P2-06，迁移 `drivers/` 和 `instruments/` 到 `hardware/`，并设计兼容导入或一次性更新引用。
+- 涉及文件：`src/quiet_zone_tester/domains/instrument_management/connection_service.py`、`src/quiet_zone_tester/domains/instrument_management/__init__.py`、`src/quiet_zone_tester/domains/motion_control/motion_service.py`、`src/quiet_zone_tester/services/instrument_service.py`、`tests/test_instrument_connection_service.py`、`tests/test_motion_service.py`、`docs/ARCH_MIGRATION_TODO.md`。
+
+### ARCH-TASK-20260710-020 - P2 硬件层目录迁移
+
+- 目标：完成 P2-06，把旧 `drivers/` 和 `instruments/` 的硬件接口、Mock 实现、真实设备实现和通信 transport 迁移到 `hardware/`，并保持旧导入路径兼容。
+- 完成：新增 `hardware/interfaces.py`、`hardware/mock/`、`hardware/vna/`、`hardware/positioner/`、`hardware/switch_box/`、`hardware/transport/`；业务层、UI 和测试改为从 `quiet_zone_tester.hardware` 导入硬件接口和 controller；旧 `drivers/` 与 `instruments/` 改为兼容 re-export，保留旧导入路径可用；新增硬件迁移测试确认新旧导入导出同一批类。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest discover -s tests`，通过 91 个 `unittest`；对新 `hardware/` 层、旧兼容入口、`InstrumentService` 和硬件迁移测试使用不写 pyc 的源码编译检查，输出 `compile-ok`；主窗口 offscreen 初始化输出 `ok`。
+- 风险：`hardware/__init__.py` 当前会导出常用真实硬件类，运行环境仍需要现有串口/VISA 依赖可导入；真实设备通信行为未在无硬件环境验证。
+- 后续：进入 P2-07，拆分文档体系，补 APP、仪表、链路、运动、扫描、数据管理设计文档，并保留主文档入口。
+- 涉及文件：`src/quiet_zone_tester/hardware/`、`src/quiet_zone_tester/drivers/`、`src/quiet_zone_tester/instruments/`、`src/quiet_zone_tester/domains/instrument_management/controller_factory.py`、`src/quiet_zone_tester/ui/`、`tests/test_hardware_migration.py`、`docs/ARCH_MIGRATION_TODO.md`。
+
+### ARCH-TASK-20260710-021 - P2 文档体系拆分
+
+- 目标：完成 P2-07，从主迁移方案拆出 APP、仪表、链路、运动、扫描、数据管理设计文档，并让主迁移方案回到架构入口职责。
+- 完成：新增 `APP_DESIGN.md`、`INSTRUMENT_MANAGEMENT_DESIGN.md`、`LINK_MANAGEMENT_DESIGN.md`、`MOTION_CONTROL_DESIGN.md`、`SCAN_MANAGEMENT_DESIGN.md`、`DATA_MANAGEMENT_DESIGN.md` 和 `HARDWARE_ADAPTER_DESIGN.md`；每个设计文档记录职责、当前实现、边界、关键规则和后续迁移；`architecture_migration_plan.md` 增加文档入口索引，并将“文档治理建议”更新为当前文档治理规则；`ARCH_MIGRATION_TODO.md` 勾选 P2-07。
+- 验证：本阶段仅修改文档；使用 uv 环境运行 `python -m uv run python -m unittest discover -s tests`，通过 91 个 `unittest`。
+- 风险：设计文档仍是当前架构快照，后续继续迁移 `application/`、Qt Model/View 或硬件集成测试时需要同步更新对应 `*_DESIGN.md`。
+- 后续：P2 当前任务已全部完成；下一阶段可基于业务域文档继续拆 `MainWindow` 顶层路由、应用上下文和剩余兼容壳。
+- 涉及文件：`docs/architecture_migration_plan.md`、`docs/APP_DESIGN.md`、`docs/INSTRUMENT_MANAGEMENT_DESIGN.md`、`docs/LINK_MANAGEMENT_DESIGN.md`、`docs/MOTION_CONTROL_DESIGN.md`、`docs/SCAN_MANAGEMENT_DESIGN.md`、`docs/DATA_MANAGEMENT_DESIGN.md`、`docs/HARDWARE_ADAPTER_DESIGN.md`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
