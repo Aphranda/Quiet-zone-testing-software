@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from quiet_zone_tester.domains.data_management.filename_policy import FilenamePolicy
+from quiet_zone_tester.domains.scan_management import ScanSettings
 from quiet_zone_tester.models import SParameterTrace, ScanVolume
 
 
@@ -74,11 +75,12 @@ class TraceStorage:
     def create_scan_output_dir(
         self,
         *,
-        settings: dict,
+        settings: dict | ScanSettings,
         scan_mode: str,
         timestamp: datetime | None = None,
     ) -> Path:
         timestamp = timestamp or datetime.now()
+        settings = self._settings_dict(settings)
         folder_name = self.filename_policy.scan_folder_name(
             settings=settings,
             scan_mode=scan_mode,
@@ -99,10 +101,11 @@ class TraceStorage:
     def write_scan_metadata(
         self,
         output_dir: Path,
-        settings: dict,
+        settings: dict | ScanSettings,
         scan_mode: str,
         timestamp: datetime,
     ) -> None:
+        settings = self._settings_dict(settings)
         volume = self._build_scan_volume(settings)
         connection_config = settings.get("connection_config")
         metadata = {
@@ -256,12 +259,9 @@ class TraceStorage:
                 )
 
     @staticmethod
-    def _build_scan_volume(settings: dict) -> ScanVolume:
-        return ScanVolume(
-            x_start_mm=float(settings["x_start_mm"]),
-            x_stop_mm=float(settings["x_stop_mm"]),
-            y_start_mm=float(settings["y_start_mm"]),
-            y_stop_mm=float(settings["y_stop_mm"]),
-            step_x_mm=float(settings["step_x_mm"]),
-            step_y_mm=float(settings["step_y_mm"]),
-        )
+    def _settings_dict(settings: dict | ScanSettings) -> dict:
+        return ScanSettings.from_mapping(settings).to_dict()
+
+    @staticmethod
+    def _build_scan_volume(settings: dict | ScanSettings) -> ScanVolume:
+        return ScanSettings.from_mapping(settings).scan_volume

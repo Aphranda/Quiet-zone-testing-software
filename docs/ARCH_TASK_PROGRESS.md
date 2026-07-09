@@ -25,3 +25,48 @@ Last updated: 2026-07-09
 - 风险：本阶段仍保留 `InstrumentService` 的兼容私有方法，后续拆 facade 时再删除旧壳；pytest 仍未安装，当前使用标准库 `unittest`。
 - 后续：进入 P1-03，抽出 `ScanPlanner`，让二维动画和扫描执行逐步共用同一份路径规划。
 - 涉及文件：`src/quiet_zone_tester/domains/data_management/`、`src/quiet_zone_tester/services/instrument_service.py`、`tests/test_filename_policy.py`、`tests/test_trace_storage.py`。
+
+### ARCH-TASK-20260709-003 - P1 ScanPlanner 抽取
+
+- 目标：把 X 线段、Y 线段、二维蛇形路径和反向扫描路径规划从共享模型中抽到扫描管理域。
+- 完成：新增 `ScanPlanner`、`ScanPlan`、`PlannedScanPoint`；`ScanVolume.point_count()` 和 `ScanVolume.scan_points()` 保留兼容 API 并委托 planner；`scan_points_from_volume()` 改为使用 planner 输出。现有步进扫描、匀速扫描和动画预览仍通过 `volume.scan_points()` 获取同一规划结果。
+- 验证：当前 PATH Python 为 `D:\Microsoft\Miniconda3\python.exe`；设置 `PYTHONPATH=src` 后，`python -m unittest discover -s tests` 通过 16 个测试；相关文件 `py_compile` 通过。
+- 风险：文档中 `D:\Microsoft\Miniconda\envs\TEST\python.exe` 在当前机器不存在，当前 PATH Python 未安装 PySide6，主窗口 offscreen 初始化因 `ModuleNotFoundError: No module named 'PySide6'` 未能执行；`conda env list` 被系统拒绝访问。
+- 后续：进入 P1-04，抽出 `LinkRouter`，将 S 参数到开关箱命令/profile 的映射从驱动或 service 逻辑中独立出来。
+- 涉及文件：`src/quiet_zone_tester/domains/scan_management/scan_planner.py`、`src/quiet_zone_tester/models/scan_config.py`、`src/quiet_zone_tester/domains/scan_management/models.py`、`tests/test_scan_planner.py`、`tests/test_scan_points.py`。
+
+### ARCH-TASK-20260709-004 - P1 LinkRouter 抽取
+
+- 目标：把 `S11/S21/S12/S22` 到开关箱命令的映射抽到链路管理域，并支持 LCD74000F、TC500 和 Mock profile。
+- 完成：新增 `SwitchBoxProfile`、`LinkRouter`、`LinkRoute` 和默认 profile；Mock、TC500、LCD74000F 的 `select_s_parameter()` 保持原签名，但内部统一委托 router 解析命令；自定义 `s11_command/s21_command/s12_command/s22_command` 仍通过 profile 覆盖生效。
+- 验证：设置 `PYTHONPATH=src` 后，`python -m unittest discover -s tests` 通过 20 个测试；`link_management`、开关箱驱动和 `InstrumentService` 相关文件 `py_compile` 通过。
+- 风险：旧硬件 controller 暂时仍暴露 `select_s_parameter()` 兼容接口，后续 P2 硬件层迁移时可进一步收口为 `send_command()` + domain `LinkService`；当前 Python 仍缺少 PySide6，未重复执行主窗口 offscreen 初始化。
+- 后续：进入 P1-05，引入连接配置 dataclass，并保留旧 `dict` API 适配。
+- 涉及文件：`src/quiet_zone_tester/domains/link_management/`、`src/quiet_zone_tester/drivers/mock_switch_box.py`、`src/quiet_zone_tester/instruments/switch_box_tc500.py`、`src/quiet_zone_tester/instruments/switch_box_lcd74000f.py`、`tests/test_link_router.py`。
+
+### ARCH-TASK-20260709-005 - P1 连接配置 dataclass 引入
+
+- 目标：为 VNA、扫描架和开关箱连接配置建立 typed dataclass，并让旧 `dict` API 可继续工作。
+- 完成：新增 `VnaConnectionConfig`、`PositionerConnectionConfig`、`SwitchBoxConnectionConfig`、`InstrumentConnectionConfig`；支持从当前 UI 嵌套 dict 和单设备 dict 构造，并可输出兼容旧 service/controller 的 dict；`InstrumentService.connect_all/connect_vna/connect_positioner/connect_switch_box/update_positioner_runtime_config` 入口开始接受 dataclass 或旧 dict。
+- 验证：设置 `PYTHONPATH=src` 后，`python -m unittest discover -s tests` 通过 24 个测试；`instrument_management` 和 `InstrumentService` 相关文件 `py_compile` 通过。
+- 风险：当前 PATH Python 缺少 `pyvisa`，`InstrumentService` 实际导入检查停在 `ModuleNotFoundError: No module named 'pyvisa'`；当前 Python 也缺少 PySide6，仍无法执行主窗口 offscreen 初始化。真实运行环境恢复后需要补一次完整导入和 UI 初始化检查。
+- 后续：进入 P1-06，引入扫描配置 dataclass，逐步替代扫描设置散乱 dict 字段。
+- 涉及文件：`src/quiet_zone_tester/domains/instrument_management/models.py`、`src/quiet_zone_tester/domains/instrument_management/__init__.py`、`src/quiet_zone_tester/services/instrument_service.py`、`tests/test_connection_config.py`。
+
+### ARCH-TASK-20260709-006 - P1 扫描配置 dataclass 引入
+
+- 目标：为扫描设置建立 typed dataclass，减少 UI、扫描执行和数据保存之间散落的 `dict` 字段。
+- 完成：新增 `SweepSettings`、`ProbeOffset`、`ScanSettings`；支持从当前 UI 的扁平 settings dict 构造，并通过 `to_dict()` 输出兼容旧流程的字段形状；`InstrumentService.run_scan` 和 `TraceStorage` 开始接受 `ScanSettings` 或旧 `dict`。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest discover -s tests`，通过 29 个 `unittest`；相关扫描管理、数据管理和 service 文件 `py_compile` 通过。
+- 风险：本阶段仍保留旧 `dict` 作为主要 UI 信号载荷，后续 ViewModel 迁移时再把 Widget 输出切换为 dataclass；`ScanSettings.to_dict()` 会保留未知 extra 字段以降低兼容风险。
+- 后续：进入 P1-07，建立结构化 `LogRecordModel`，保留当前日志视图行为。
+- 涉及文件：`src/quiet_zone_tester/domains/scan_management/models.py`、`src/quiet_zone_tester/domains/scan_management/__init__.py`、`src/quiet_zone_tester/domains/data_management/trace_storage.py`、`src/quiet_zone_tester/services/instrument_service.py`、`tests/test_scan_settings.py`。
+
+### ARCH-TASK-20260709-007 - P1 结构化日志模型
+
+- 目标：把运行日志从纯文本追加逐步迁移为结构化 Qt Model，同时保留现有日志面板显示行为。
+- 完成：新增 `LogRecord` 和 `LogRecordModel(QAbstractTableModel)`，包含时间、等级、来源、消息四列；`StatusLogPanel` 继续使用 `QPlainTextEdit` 显示旧格式文本，同时每条日志写入结构化 model；修复 `presentation/modules/logs/__init__.py` 为本地可读文件并导出日志模型。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest discover -s tests`，通过 32 个 `unittest`；日志 model、状态日志面板、扫描配置和 service 相关文件 `py_compile` 通过。
+- 风险：当前日志视图仍是文本控件，后续 P2/ViewModel 阶段可再切换到 `QTableView` 或过滤视图；本阶段只建立结构化数据源，不改变用户可见日志格式。
+- 后续：P1 任务已完成，进入 P2 时优先选择低风险 ViewModel 迁移项，例如 `ConnectionPanel` 或 `TestSetupPanel`。
+- 涉及文件：`src/quiet_zone_tester/presentation/modules/logs/log_record_model.py`、`src/quiet_zone_tester/presentation/modules/logs/__init__.py`、`src/quiet_zone_tester/ui/widgets/status_log_panel.py`、`tests/test_log_record_model.py`。

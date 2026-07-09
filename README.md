@@ -101,6 +101,25 @@ src/quiet_zone_tester/
 
 ## 运行方式
 
+推荐使用 uv 管理虚拟环境和依赖：
+
+```powershell
+python -m pip install --user uv
+$env:UV_CACHE_DIR='.uv-cache'
+python -m uv sync
+python -m uv run python -m quiet_zone_tester
+```
+
+如果本机 `uv` 命令已经在 PATH 中，也可以直接使用：
+
+```powershell
+$env:UV_CACHE_DIR='.uv-cache'
+uv sync
+uv run python -m quiet_zone_tester
+```
+
+传统 venv/pip 方式仍可作为备用：
+
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1

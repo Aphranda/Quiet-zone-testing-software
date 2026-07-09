@@ -49,11 +49,11 @@ Last updated: 2026-07-09
 
 - [x] P1-01 抽出 `FilenamePolicy`：文件名清洗、探头偏置 tag、trace 文件名规则从 `InstrumentService` 移出并可单元测试。
 - [x] P1-02 抽出 `TraceStorage`：CSV 保存、trace index、metadata 输出从 `InstrumentService` 移出；原扫描输出不回归。
-- [ ] P1-03 抽出 `ScanPlanner`：X 线段、Y 线段、二维蛇形路径统一由 planner 输出，动画和扫描执行共用同一规划结果。
-- [ ] P1-04 抽出 `LinkRouter`：`S11/S21/S12/S22` 到开关箱命令映射独立成模块，支持 LCD74000F/TC500 profile。
-- [ ] P1-05 引入连接配置 dataclass：VNA、扫描架、开关箱连接配置从 `dict` 逐步迁移到 dataclass，保留旧 API 适配。
-- [ ] P1-06 引入扫描配置 dataclass：`ScanSettings`、`ProbeOffset`、`SweepSettings` 替代散落 `dict` 字段。
-- [ ] P1-07 建立 `LogRecordModel`：运行日志从纯文本追加迁移为结构化 Qt Model，保留当前日志视图行为。
+- [x] P1-03 抽出 `ScanPlanner`：X 线段、Y 线段、二维蛇形路径统一由 planner 输出，动画和扫描执行共用同一规划结果。
+- [x] P1-04 抽出 `LinkRouter`：`S11/S21/S12/S22` 到开关箱命令映射独立成模块，支持 LCD74000F/TC500 profile。
+- [x] P1-05 引入连接配置 dataclass：VNA、扫描架、开关箱连接配置从 `dict` 逐步迁移到 dataclass，保留旧 API 适配。
+- [x] P1-06 引入扫描配置 dataclass：`ScanSettings`、`ProbeOffset`、`SweepSettings` 替代散落 `dict` 字段。
+- [x] P1-07 建立 `LogRecordModel`：运行日志从纯文本追加迁移为结构化 Qt Model，保留当前日志视图行为。
 
 ### P1 验收
 

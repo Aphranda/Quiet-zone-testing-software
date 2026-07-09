@@ -8,6 +8,13 @@ from pathlib import Path
 from threading import Event, Lock
 
 from quiet_zone_tester.domains.data_management import TraceStorage
+from quiet_zone_tester.domains.instrument_management import (
+    InstrumentConnectionConfig,
+    PositionerConnectionConfig,
+    SwitchBoxConnectionConfig,
+    VnaConnectionConfig,
+)
+from quiet_zone_tester.domains.scan_management import ScanSettings
 from quiet_zone_tester.drivers import (
     InstrumentInfo,
     MockPositionerController,
@@ -67,12 +74,13 @@ class InstrumentService:
     def last_scan_output_dir(self) -> Path | None:
         return self._last_scan_output_dir
 
-    def connect_all(self, config: dict | None = None) -> list[InstrumentInfo]:
-        logger.info("Connecting instrument set with config: %s", config or {})
+    def connect_all(self, config: dict | InstrumentConnectionConfig | None = None) -> list[InstrumentInfo]:
+        connection_config = self._connection_config_from(config)
+        logger.info("Connecting instrument set with config: %s", connection_config.to_dict())
         try:
-            vna_info = self.connect_vna(config or {})
-            positioner_info = self.connect_positioner(config or {})
-            switch_box_info = self.connect_switch_box(config or {})
+            vna_info = self.connect_vna(connection_config.vna)
+            positioner_info = self.connect_positioner(connection_config.positioner)
+            switch_box_info = self.connect_switch_box(connection_config.switch_box)
         except Exception as exc:
             logger.exception("Instrument connection failed; cleaning up partial connections.")
             self._cleanup_after_failed_connect()
@@ -81,10 +89,11 @@ class InstrumentService:
             raise InstrumentServiceError(f"仪器连接失败：{exc}") from exc
         return [vna_info, positioner_info, switch_box_info]
 
-    def connect_vna(self, config: dict | None = None) -> InstrumentInfo:
-        logger.info("Connecting VNA with config: %s", config or {})
+    def connect_vna(self, config: dict | InstrumentConnectionConfig | VnaConnectionConfig | None = None) -> InstrumentInfo:
+        vna_config = self._vna_config_dict(config)
+        logger.info("Connecting VNA with config: %s", vna_config)
         try:
-            self._configure_vna_backend((config or {}).get("vna", config or {}))
+            self._configure_vna_backend(vna_config)
             if self._vna is None:
                 raise InstrumentServiceError("VNA controller is not configured.")
             if self._vna.is_connected:
@@ -97,10 +106,14 @@ class InstrumentService:
                 raise
             raise InstrumentServiceError(f"VNA 连接失败：{exc}") from exc
 
-    def connect_positioner(self, config: dict | None = None) -> InstrumentInfo:
-        logger.info("Connecting positioner with config: %s", config or {})
+    def connect_positioner(
+        self,
+        config: dict | InstrumentConnectionConfig | PositionerConnectionConfig | None = None,
+    ) -> InstrumentInfo:
+        positioner_config = self._positioner_config_dict(config)
+        logger.info("Connecting positioner with config: %s", positioner_config)
         try:
-            self._configure_positioner_backend((config or {}).get("positioner", config or {}))
+            self._configure_positioner_backend(positioner_config)
             if self._positioner is None:
                 raise InstrumentServiceError("Positioner controller is not configured.")
             if self._positioner.is_connected:
@@ -113,10 +126,14 @@ class InstrumentService:
                 raise
             raise InstrumentServiceError(f"扫描架连接失败：{exc}") from exc
 
-    def connect_switch_box(self, config: dict | None = None) -> InstrumentInfo:
-        logger.info("Connecting switch box with config: %s", config or {})
+    def connect_switch_box(
+        self,
+        config: dict | InstrumentConnectionConfig | SwitchBoxConnectionConfig | None = None,
+    ) -> InstrumentInfo:
+        switch_box_config = self._switch_box_config_dict(config)
+        logger.info("Connecting switch box with config: %s", switch_box_config)
         try:
-            self._configure_switch_box_backend((config or {}).get("switch_box", config or {}))
+            self._configure_switch_box_backend(switch_box_config)
             if self._switch_box is None:
                 raise InstrumentServiceError("Switch box controller is not configured.")
             if self._switch_box.is_connected:
@@ -253,11 +270,14 @@ class InstrumentService:
             logger.exception("Positioner relative move failed.")
             raise InstrumentServiceError(f"扫描架相对定位失败：{exc}") from exc
 
-    def update_positioner_runtime_config(self, config: dict | None = None) -> None:
+    def update_positioner_runtime_config(
+        self,
+        config: dict | InstrumentConnectionConfig | PositionerConnectionConfig | None = None,
+    ) -> None:
         if not self.is_positioner_connected or self._positioner is None:
             raise InstrumentServiceError("请先连接扫描架，再更新扫描架配置。")
 
-        positioner_config = (config or {}).get("positioner", config or {})
+        positioner_config = self._positioner_config_dict(config)
         legacy_pulses_per_mm, x_pulses_per_mm, y_pulses_per_mm = self._positioner_scales_from_config(
             positioner_config
         )
@@ -425,13 +445,14 @@ class InstrumentService:
 
     def run_scan(
         self,
-        settings: dict,
+        settings: dict | ScanSettings,
         on_progress: Callable[[int, int, SParameterTrace | None], None] | None = None,
     ) -> list[SParameterTrace]:
         if not self._scan_lock.acquire(blocking=False):
             raise InstrumentServiceError("已有扫描流程正在运行，请等待当前流程结束后再开始。")
 
         try:
+            settings = self._scan_settings_dict(settings)
             self.reset_stop_request()
             connection_config = settings.get("connection_config")
             if connection_config is not None:
@@ -972,15 +993,12 @@ class InstrumentService:
         return TraceStorage().filename_policy.safe_part(value)
 
     @staticmethod
-    def _build_scan_volume(settings: dict) -> ScanVolume:
-        return ScanVolume(
-            x_start_mm=float(settings["x_start_mm"]),
-            x_stop_mm=float(settings["x_stop_mm"]),
-            y_start_mm=float(settings["y_start_mm"]),
-            y_stop_mm=float(settings["y_stop_mm"]),
-            step_x_mm=float(settings["step_x_mm"]),
-            step_y_mm=float(settings["step_y_mm"]),
-        )
+    def _scan_settings_dict(settings: dict | ScanSettings) -> dict:
+        return ScanSettings.from_mapping(settings).to_dict()
+
+    @staticmethod
+    def _build_scan_volume(settings: dict | ScanSettings) -> ScanVolume:
+        return ScanSettings.from_mapping(settings).scan_volume
 
     def _scan_axis_moves(
         self,
@@ -1199,6 +1217,43 @@ class InstrumentService:
         if name == "switch_box":
             return self._switch_box
         raise InstrumentServiceError(f"未知仪器类型：{name}")
+
+    @staticmethod
+    def _connection_config_from(config: dict | InstrumentConnectionConfig | None) -> InstrumentConnectionConfig:
+        if isinstance(config, InstrumentConnectionConfig):
+            return config
+        return InstrumentConnectionConfig.from_dict(config)
+
+    @staticmethod
+    def _vna_config_dict(config: dict | InstrumentConnectionConfig | VnaConnectionConfig | None) -> dict:
+        if isinstance(config, VnaConnectionConfig):
+            return config.to_dict()
+        if isinstance(config, InstrumentConnectionConfig):
+            return config.vna.to_dict()
+        config = config or {}
+        return VnaConnectionConfig.from_dict(config.get("vna", config)).to_dict()
+
+    @staticmethod
+    def _positioner_config_dict(
+        config: dict | InstrumentConnectionConfig | PositionerConnectionConfig | None,
+    ) -> dict:
+        if isinstance(config, PositionerConnectionConfig):
+            return config.to_dict()
+        if isinstance(config, InstrumentConnectionConfig):
+            return config.positioner.to_dict()
+        config = config or {}
+        return PositionerConnectionConfig.from_dict(config.get("positioner", config)).to_dict()
+
+    @staticmethod
+    def _switch_box_config_dict(
+        config: dict | InstrumentConnectionConfig | SwitchBoxConnectionConfig | None,
+    ) -> dict:
+        if isinstance(config, SwitchBoxConnectionConfig):
+            return config.to_dict()
+        if isinstance(config, InstrumentConnectionConfig):
+            return config.switch_box.to_dict()
+        config = config or {}
+        return SwitchBoxConnectionConfig.from_dict(config.get("switch_box", config)).to_dict()
 
     @staticmethod
     def _create_vna_controller(config: dict) -> VnaController:

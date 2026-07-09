@@ -13,6 +13,7 @@ htmlcov/
 venv/
 env/
 ENV/
+.uv-cache/
 
 # Build and packaging output
 build/

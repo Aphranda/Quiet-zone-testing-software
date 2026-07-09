@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import serial
 
 from quiet_zone_tester.drivers.base import InstrumentInfo
+from quiet_zone_tester.domains.link_management import LinkRouter, switch_box_profile_from_commands
 
 logger = logging.getLogger(__name__)
 
@@ -283,16 +284,14 @@ class Lcd74000fSwitchBoxController:
         return b"".join(chunks).decode("utf-8", errors="replace").strip()
 
     def _command_for_parameter(self, parameter: str) -> str:
-        command_map = {
-            "S11": self._config.s11_command,
-            "S21": self._config.s21_command,
-            "S12": self._config.s12_command,
-            "S22": self._config.s22_command,
-        }
-        try:
-            return command_map[parameter]
-        except KeyError as exc:
-            raise ValueError(f"Unsupported S-parameter for LCD74000F switch box: {parameter}") from exc
+        profile = switch_box_profile_from_commands(
+            "LCD74000F",
+            s11_command=self._config.s11_command,
+            s21_command=self._config.s21_command,
+            s12_command=self._config.s12_command,
+            s22_command=self._config.s22_command,
+        )
+        return LinkRouter(profile).resolve(parameter).command
 
     def _ensure_connected(self) -> None:
         if not self.is_connected:

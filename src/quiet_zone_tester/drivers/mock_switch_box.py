@@ -4,6 +4,7 @@ import logging
 import time
 
 from quiet_zone_tester.drivers.base import InstrumentInfo
+from quiet_zone_tester.domains.link_management import LinkRouter
 
 logger = logging.getLogger(__name__)
 
@@ -38,14 +39,11 @@ class MockSwitchBoxController:
 
     def select_s_parameter(self, parameter: str) -> str:
         self._ensure_connected()
-        parameter = parameter.upper()
-        command_map = {"S11": "PASSIVE", "S21": "PASSIVE", "S12": "PASSIVE", "S22": "PASSIVE"}
-        if parameter not in command_map:
-            raise ValueError(f"Unsupported S-parameter for switch box: {parameter}")
+        route = LinkRouter.for_model("MOCK").resolve(parameter)
 
         time.sleep(0.08)
-        self._selected_parameter = parameter
-        self._selected_command = command_map[parameter]
+        self._selected_parameter = route.parameter
+        self._selected_command = route.command
         logger.info(
             "Mock switch box selected %s with command %s.",
             self._selected_parameter,
