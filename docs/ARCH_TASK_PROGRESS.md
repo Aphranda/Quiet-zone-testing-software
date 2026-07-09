@@ -70,3 +70,21 @@ Last updated: 2026-07-09
 - 风险：当前日志视图仍是文本控件，后续 P2/ViewModel 阶段可再切换到 `QTableView` 或过滤视图；本阶段只建立结构化数据源，不改变用户可见日志格式。
 - 后续：P1 任务已完成，进入 P2 时优先选择低风险 ViewModel 迁移项，例如 `ConnectionPanel` 或 `TestSetupPanel`。
 - 涉及文件：`src/quiet_zone_tester/presentation/modules/logs/log_record_model.py`、`src/quiet_zone_tester/presentation/modules/logs/__init__.py`、`src/quiet_zone_tester/ui/widgets/status_log_panel.py`、`tests/test_log_record_model.py`。
+
+### ARCH-TASK-20260709-008 - P2 ConnectionPanel ViewModel 迁移
+
+- 目标：把连接面板中的连接配置拼装、串口刷新、开关箱型号默认值逻辑迁入 ViewModel，保留现有 UI 行为和信号载荷。
+- 完成：新增 `ConnectionViewModel`、`VnaFormState`、`PositionerFormState`、`SwitchBoxFormState`、`SwitchBoxModelDefaults`；`ConnectionPanel.current_config()` 委托 ViewModel 输出旧 dict 形状；VNA VISA 资源名、串口枚举、开关箱 LCD74000F/TC500 默认连接参数和串口/TCP 显示判断都由 ViewModel 提供。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest discover -s tests`，通过 36 个 `unittest`；由于 OneDrive/权限导致 `py_compile` 写入 `__pycache__` 失败，改用 `compile(Path(...).read_text(...), file, 'exec')` 对相关文件完成不写 pyc 的源码编译检查，输出 `compile-ok`。
+- 风险：`ConnectionPanel` 仍负责控件创建、显示状态和按钮 enable 逻辑，本阶段只迁出纯配置/默认值/串口枚举逻辑；后续可继续把连接状态派生和命令对象迁入 ViewModel。
+- 后续：进入 P2-02，迁移 `TestSetupPanel` 到 ViewModel，优先抽出扫描参数默认值、探头位置和预览配置。
+- 涉及文件：`src/quiet_zone_tester/presentation/modules/connection/connection_view_model.py`、`src/quiet_zone_tester/presentation/modules/connection/__init__.py`、`src/quiet_zone_tester/ui/widgets/connection_panel.py`、`tests/test_connection_view_model.py`。
+
+### ARCH-TASK-20260709-009 - P2 TestSetupPanel ViewModel 迁移
+
+- 目标：把测试参数面板中的扫描设置构造、探头位置预设、步进距离和圈数换算迁入 ViewModel，保留现有 UI 信号和 settings dict。
+- 完成：新增 `ScanSetupViewModel`、`ScanSetupFormState`、`ProbeOffsetPreset` 和扫描参数默认值；`TestSetupPanel.current_settings()` 委托 ViewModel 输出兼容旧流程的 settings dict；探头预设、连续模式步距计算、步进距离到圈数换算由 ViewModel 提供。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest discover -s tests`，通过 41 个 `unittest`；对 `ScanSetupViewModel`、`scan_setup/__init__.py`、`TestSetupPanel` 使用不写 pyc 的源码编译检查，输出 `compile-ok`。
+- 风险：`TestSetupPanel` 仍负责控件创建、布局、可见性和按钮状态，本阶段只迁出纯参数逻辑；后续可继续将模式可见性和按钮状态派生迁入 ViewModel。
+- 后续：进入 P2-03，迁移 `PositionerControlPanel` 到运动控制域，优先抽出手动运动命令和位置显示模型。
+- 涉及文件：`src/quiet_zone_tester/presentation/modules/scan_setup/scan_setup_view_model.py`、`src/quiet_zone_tester/presentation/modules/scan_setup/__init__.py`、`src/quiet_zone_tester/ui/widgets/test_setup_panel.py`、`tests/test_scan_setup_view_model.py`。

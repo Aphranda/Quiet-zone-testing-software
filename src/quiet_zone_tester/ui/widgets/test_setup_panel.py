@@ -14,18 +14,18 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
-DEFAULT_SWEEP_POINTS = 801
-DEFAULT_START_GHZ = 10.0
-DEFAULT_STOP_GHZ = 17.0
-DEFAULT_IF_BANDWIDTH_HZ = 1000.0
-DEFAULT_STEP_MM = 2.5
-DEFAULT_DISTANCE_PER_TURN_MM = 24.0
-DEFAULT_STEP_SPEED_MM_S = 20.0
-DEFAULT_SETTLE_DELAY_S = 0.3
-DEFAULT_PROBE_OFFSET_MM = 0.0
-DEFAULT_PROBE_POINT_SPACING_MM = 123.0
-DEFAULT_PROBE_POINT_HALF_SPACING_MM = DEFAULT_PROBE_POINT_SPACING_MM / 2.0
+from quiet_zone_tester.presentation.modules.scan_setup import (
+    DEFAULT_DISTANCE_PER_TURN_MM,
+    DEFAULT_IF_BANDWIDTH_HZ,
+    DEFAULT_PROBE_OFFSET_MM,
+    DEFAULT_SETTLE_DELAY_S,
+    DEFAULT_START_GHZ,
+    DEFAULT_STEP_MM,
+    DEFAULT_STEP_SPEED_MM_S,
+    DEFAULT_STOP_GHZ,
+    ScanSetupFormState,
+    ScanSetupViewModel,
+)
 
 
 class NoWheelComboBox(QComboBox):
@@ -48,6 +48,7 @@ class TestSetupPanel(QGroupBox):
 
     def __init__(self, parent=None) -> None:
         super().__init__("测试参数", parent)
+        self._view_model = ScanSetupViewModel()
         self._busy = False
         self._sampling_active = False
         self._sampling_paused = False
@@ -150,35 +151,7 @@ class TestSetupPanel(QGroupBox):
         self._refresh_action_buttons()
 
     def current_settings(self) -> dict:
-        is_step_mode = self._scan_mode.currentData() == "step"
-        step_x_mm = self._step_x_mm.value() if is_step_mode else self._computed_step_distance_mm("X")
-        step_y_mm = self._step_y_mm.value() if is_step_mode else self._computed_step_distance_mm("Y")
-        return {
-            "start_ghz": self._start_ghz.value(),
-            "stop_ghz": self._stop_ghz.value(),
-            "points": DEFAULT_SWEEP_POINTS,
-            "vna_power_dbm": self._vna_power_dbm.value(),
-            "if_bandwidth_hz": self._if_bandwidth_hz.value(),
-            "parameter": self._parameter.currentText(),
-            "scan_mode": self._scan_mode.currentData(),
-            "x_start_mm": self._x_start_mm.value(),
-            "x_stop_mm": self._x_stop_mm.value(),
-            "y_start_mm": self._y_start_mm.value(),
-            "y_stop_mm": self._y_stop_mm.value(),
-            "step_input_mode": "bidirectional",
-            "step_x_mm": step_x_mm,
-            "step_y_mm": step_y_mm,
-            "step_x_turns": self._step_x_turns.value(),
-            "step_y_turns": self._step_y_turns.value(),
-            "x_mm_per_turn": self._x_mm_per_turn.value(),
-            "y_mm_per_turn": self._y_mm_per_turn.value(),
-            "step_speed_mm_s": self._step_speed_mm_s.value(),
-            "settle_delay_s": self._settle_delay_s.value(),
-            "probe_offset_preset": self._probe_offset_preset.currentText(),
-            "probe_x_offset_mm": self._probe_x_offset_mm.value(),
-            "probe_y_offset_mm": self._probe_y_offset_mm.value(),
-            "continuous_speed_mm_s": self._continuous_speed_mm_s.value(),
-        }
+        return self._view_model.build_settings(self._form_state())
 
     def set_positioner_default_speed(self, speed_mm_s: float) -> None:
         self._set_speed_without_noise(self._step_speed_mm_s, speed_mm_s)
@@ -333,16 +306,8 @@ class TestSetupPanel(QGroupBox):
             self.config_changed.emit(self.current_settings())
 
     def _populate_probe_offset_presets(self) -> None:
-        offset = DEFAULT_PROBE_POINT_HALF_SPACING_MM
-        presets = (
-            ("右上", (-offset, -offset)),
-            ("左上", (-offset, offset)),
-            ("右下", (offset, -offset)),
-            ("左下", (offset, offset)),
-            ("自定义", None),
-        )
-        for label, value in presets:
-            self._probe_offset_preset.addItem(label, value)
+        for preset in self._view_model.probe_offset_presets():
+            self._probe_offset_preset.addItem(preset.label, preset.offset_mm)
 
     def _apply_probe_offset_preset(self) -> None:
         preset = self._probe_offset_preset.currentData()
@@ -372,19 +337,45 @@ class TestSetupPanel(QGroupBox):
             return
 
         if axis.upper() == "Y":
-            self._set_turns_without_noise(self._step_y_turns, self._step_y_mm.value() / self._y_mm_per_turn.value())
+            self._set_turns_without_noise(
+                self._step_y_turns,
+                self._view_model.turns_from_step_distance(self._step_y_mm.value(), self._y_mm_per_turn.value()),
+            )
             return
 
-        self._set_turns_without_noise(self._step_x_turns, self._step_x_mm.value() / self._x_mm_per_turn.value())
+        self._set_turns_without_noise(
+            self._step_x_turns,
+            self._view_model.turns_from_step_distance(self._step_x_mm.value(), self._x_mm_per_turn.value()),
+        )
 
     def _computed_step_distance_mm(self, axis: str) -> float:
-        if axis.upper() == "Y":
-            if self._scan_mode.currentData() == "continuous":
-                return self._y_mm_per_turn.value()
-            return self._step_y_turns.value() * self._y_mm_per_turn.value()
-        if self._scan_mode.currentData() == "continuous":
-            return self._x_mm_per_turn.value()
-        return self._step_x_turns.value() * self._x_mm_per_turn.value()
+        return self._view_model.computed_step_distance_mm(self._form_state(), axis)
+
+    def _form_state(self) -> ScanSetupFormState:
+        return ScanSetupFormState(
+            start_ghz=self._start_ghz.value(),
+            stop_ghz=self._stop_ghz.value(),
+            vna_power_dbm=self._vna_power_dbm.value(),
+            if_bandwidth_hz=self._if_bandwidth_hz.value(),
+            parameter=self._parameter.currentText(),
+            scan_mode=str(self._scan_mode.currentData()),
+            x_start_mm=self._x_start_mm.value(),
+            x_stop_mm=self._x_stop_mm.value(),
+            y_start_mm=self._y_start_mm.value(),
+            y_stop_mm=self._y_stop_mm.value(),
+            step_x_mm=self._step_x_mm.value(),
+            step_y_mm=self._step_y_mm.value(),
+            step_x_turns=self._step_x_turns.value(),
+            step_y_turns=self._step_y_turns.value(),
+            x_mm_per_turn=self._x_mm_per_turn.value(),
+            y_mm_per_turn=self._y_mm_per_turn.value(),
+            step_speed_mm_s=self._step_speed_mm_s.value(),
+            settle_delay_s=self._settle_delay_s.value(),
+            probe_offset_preset=self._probe_offset_preset.currentText(),
+            probe_x_offset_mm=self._probe_x_offset_mm.value(),
+            probe_y_offset_mm=self._probe_y_offset_mm.value(),
+            continuous_speed_mm_s=self._continuous_speed_mm_s.value(),
+        )
 
     @staticmethod
     def _set_speed_without_noise(spinbox: QDoubleSpinBox, speed_mm_s: float) -> None:

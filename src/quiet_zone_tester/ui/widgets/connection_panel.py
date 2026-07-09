@@ -19,9 +19,14 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from serial.tools import list_ports
 
 from quiet_zone_tester.drivers import InstrumentInfo
+from quiet_zone_tester.presentation.modules.connection import (
+    ConnectionViewModel,
+    PositionerFormState,
+    SwitchBoxFormState,
+    VnaFormState,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -67,6 +72,7 @@ class ConnectionPanel(QGroupBox):
 
     def __init__(self, parent=None) -> None:
         super().__init__("仪器连接", parent)
+        self._view_model = ConnectionViewModel()
         self._busy = False
         self._vna_connected = False
         self._positioner_connected = False
@@ -89,7 +95,7 @@ class ConnectionPanel(QGroupBox):
         self._vna_ip.textChanged.connect(lambda _text: self._sync_vna_resource())
         self._vna_port.valueChanged.connect(lambda _value: self._sync_vna_resource())
 
-        self._positioner_port_name = self._serial_port_combobox()
+        self._positioner_port_name = self._init_serial_port_combobox()
         self._positioner_port_field = self._serial_port_field(self._positioner_port_name)
         self._positioner_baudrate = self._baudrate_spinbox(115200)
         self._positioner_default_speed = self._positive_double_spinbox(100.0, " mm/s")
@@ -105,7 +111,7 @@ class ConnectionPanel(QGroupBox):
         self._switch_box_connection_type.addItems(["TCP/IP", "Serial"])
         self._switch_box_ip = QLineEdit("192.168.1.113")
         self._switch_box_tcp_port = self._port_spinbox(7)
-        self._switch_box_serial_port = self._serial_port_combobox()
+        self._switch_box_serial_port = self._init_serial_port_combobox()
         self._switch_box_serial_port_field = self._serial_port_field(self._switch_box_serial_port)
         self._switch_box_baudrate = self._baudrate_spinbox(115200)
         self._switch_box_timeout_ms = self._timeout_spinbox(2000)
@@ -155,38 +161,33 @@ class ConnectionPanel(QGroupBox):
 
     def current_config(self) -> dict:
         self._sync_vna_resource()
-        positioner_pulses_per_mm = self.DEFAULT_POSITIONER_PULSES_PER_MM
-        return {
-            "vna": {
-                "virtual_enabled": bool(self._vna_connection_mode.currentData()),
-                "ip_address": self._vna_ip.text().strip(),
-                "port": self._vna_port.value(),
-                "resource_name": self._vna_resource.text().strip(),
-                "timeout_ms": self._vna_timeout_ms.value(),
-            },
-            "positioner": {
-                "port_name": self._combo_text(self._positioner_port_name),
-                "resource_name": self._combo_text(self._positioner_port_name),
-                "baudrate": self._positioner_baudrate.value(),
-                "x_axis": self.DEFAULT_POSITIONER_X_AXIS,
-                "y_axis": self.DEFAULT_POSITIONER_Y_AXIS,
-                "pulses_per_mm": positioner_pulses_per_mm,
-                "x_pulses_per_mm": positioner_pulses_per_mm,
-                "y_pulses_per_mm": positioner_pulses_per_mm,
-                "default_speed": self._positioner_default_speed.value(),
-                "timeout_ms": self._positioner_timeout_ms.value(),
-            },
-            "switch_box": {
-                "virtual_enabled": bool(self._switch_box_connection_mode.currentData()),
-                "model": self._switch_box_model.currentText(),
-                "connection_type": self._switch_box_connection_type.currentText(),
-                "ip_address": self._switch_box_ip.text().strip(),
-                "tcp_port": self._switch_box_tcp_port.value(),
-                "serial_port": self._combo_text(self._switch_box_serial_port),
-                "baudrate": self._switch_box_baudrate.value(),
-                "timeout_ms": self._switch_box_timeout_ms.value(),
-            },
-        }
+        return self._view_model.build_config(
+            vna=VnaFormState(
+                virtual_enabled=bool(self._vna_connection_mode.currentData()),
+                ip_address=self._vna_ip.text(),
+                port=self._vna_port.value(),
+                timeout_ms=self._vna_timeout_ms.value(),
+            ),
+            positioner=PositionerFormState(
+                port_name=self._combo_text(self._positioner_port_name),
+                baudrate=self._positioner_baudrate.value(),
+                default_speed=self._positioner_default_speed.value(),
+                timeout_ms=self._positioner_timeout_ms.value(),
+                x_axis=self.DEFAULT_POSITIONER_X_AXIS,
+                y_axis=self.DEFAULT_POSITIONER_Y_AXIS,
+                pulses_per_mm=self.DEFAULT_POSITIONER_PULSES_PER_MM,
+            ),
+            switch_box=SwitchBoxFormState(
+                virtual_enabled=bool(self._switch_box_connection_mode.currentData()),
+                model=self._switch_box_model.currentText(),
+                connection_type=self._switch_box_connection_type.currentText(),
+                ip_address=self._switch_box_ip.text(),
+                tcp_port=self._switch_box_tcp_port.value(),
+                serial_port=self._combo_text(self._switch_box_serial_port),
+                baudrate=self._switch_box_baudrate.value(),
+                timeout_ms=self._switch_box_timeout_ms.value(),
+            ),
+        )
 
     def set_busy(self, busy: bool) -> None:
         self._busy = busy
@@ -260,10 +261,9 @@ class ConnectionPanel(QGroupBox):
         return group
 
     def _sync_vna_resource(self) -> None:
-        ip_address = self._vna_ip.text().strip()
-        port = self._vna_port.value()
-        resource_name = f"TCPIP0::{ip_address}::{port}::SOCKET" if ip_address else ""
-        self._vna_resource.setText(resource_name)
+        self._vna_resource.setText(
+            self._view_model.vna_resource_name(self._vna_ip.text(), self._vna_port.value())
+        )
 
     def _build_positioner_group(self) -> QGroupBox:
         group = QGroupBox("扫描架配置")
@@ -422,18 +422,17 @@ class ConnectionPanel(QGroupBox):
     def _serial_port_combobox() -> NoWheelComboBox:
         combobox = NoWheelComboBox()
         combobox.setEditable(True)
-        combobox._refresh_before_popup = lambda: ConnectionPanel._refresh_serial_ports(combobox)
-        ConnectionPanel._refresh_serial_ports(combobox)
         return combobox
 
-    @staticmethod
-    def _refresh_serial_ports(combobox: QComboBox) -> None:
+    def _init_serial_port_combobox(self) -> NoWheelComboBox:
+        combobox = self._serial_port_combobox()
+        combobox._refresh_before_popup = lambda: self._refresh_serial_ports(combobox)
+        self._refresh_serial_ports(combobox)
+        return combobox
+
+    def _refresh_serial_ports(self, combobox: QComboBox) -> None:
         current_text = combobox.currentText().strip()
-        try:
-            ports = [port.device for port in list_ports.comports()]
-        except Exception:
-            logger.exception("Failed to enumerate serial ports.")
-            ports = []
+        ports = self._view_model.available_serial_ports()
 
         blocked = combobox.blockSignals(True)
         try:
@@ -453,24 +452,18 @@ class ConnectionPanel(QGroupBox):
         return combobox.currentText().strip()
 
     def _on_switch_box_model_changed(self, model: str) -> None:
-        if model.upper() == "LCD74000F":
-            self._switch_box_connection_type.setCurrentText("TCP/IP")
-            self._switch_box_ip.setText("192.168.1.113")
-            self._switch_box_tcp_port.setValue(7)
-            self._switch_box_timeout_ms.setValue(2000)
-        else:
-            self._switch_box_connection_type.setCurrentText("Serial")
-            self._switch_box_ip.setText("192.168.1.120")
-            self._switch_box_tcp_port.setValue(35)
-            self._switch_box_timeout_ms.setValue(1500)
+        defaults = self._view_model.switch_box_defaults(model)
+        self._switch_box_connection_type.setCurrentText(defaults.connection_type)
+        self._switch_box_ip.setText(defaults.ip_address)
+        self._switch_box_tcp_port.setValue(defaults.tcp_port)
+        self._switch_box_timeout_ms.setValue(defaults.timeout_ms)
         self._refresh_switch_box_config_fields()
 
     def _refresh_switch_box_config_fields(self) -> None:
         if not hasattr(self, "_switch_box_tcp_group") or not hasattr(self, "_switch_box_serial_group"):
             return
 
-        connection_type = self._switch_box_connection_type.currentText().strip().upper()
-        is_serial = connection_type in {"SERIAL", "串口", "RS232", "RS485"}
+        is_serial = self._view_model.is_serial_connection(self._switch_box_connection_type.currentText())
         self._switch_box_tcp_group.setVisible(not is_serial)
         self._switch_box_serial_group.setVisible(is_serial)
 

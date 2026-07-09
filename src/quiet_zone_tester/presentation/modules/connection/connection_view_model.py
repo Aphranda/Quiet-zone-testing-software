@@ -1,0 +1,139 @@
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass
+from typing import Callable
+
+from serial.tools import list_ports
+
+from quiet_zone_tester.domains.instrument_management import InstrumentConnectionConfig
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class VnaFormState:
+    virtual_enabled: bool = False
+    ip_address: str = "192.168.1.10"
+    port: int = 5025
+    timeout_ms: int = 5000
+
+
+@dataclass(frozen=True)
+class PositionerFormState:
+    port_name: str = ""
+    baudrate: int = 115200
+    default_speed: float = 100.0
+    timeout_ms: int = 1000
+    x_axis: int = 2
+    y_axis: int = 3
+    pulses_per_mm: float = 400.0
+
+
+@dataclass(frozen=True)
+class SwitchBoxFormState:
+    virtual_enabled: bool = False
+    model: str = "LCD74000F"
+    connection_type: str = "TCP/IP"
+    ip_address: str = "192.168.1.113"
+    tcp_port: int = 7
+    serial_port: str = ""
+    baudrate: int = 115200
+    timeout_ms: int = 2000
+
+
+@dataclass(frozen=True)
+class SwitchBoxModelDefaults:
+    connection_type: str
+    ip_address: str
+    tcp_port: int
+    timeout_ms: int
+
+
+class ConnectionViewModel:
+    DEFAULT_POSITIONER_PULSES_PER_MM = 400.0
+    DEFAULT_POSITIONER_X_AXIS = 2
+    DEFAULT_POSITIONER_Y_AXIS = 3
+
+    def __init__(self, serial_port_provider: Callable[[], list[str]] | None = None) -> None:
+        self._serial_port_provider = serial_port_provider or self.enumerate_serial_ports
+
+    def build_config(
+        self,
+        *,
+        vna: VnaFormState,
+        positioner: PositionerFormState,
+        switch_box: SwitchBoxFormState,
+    ) -> dict:
+        config = InstrumentConnectionConfig.from_dict(
+            {
+                "vna": {
+                    "virtual_enabled": vna.virtual_enabled,
+                    "ip_address": vna.ip_address.strip(),
+                    "port": vna.port,
+                    "resource_name": self.vna_resource_name(vna.ip_address, vna.port),
+                    "timeout_ms": vna.timeout_ms,
+                },
+                "positioner": {
+                    "port_name": positioner.port_name.strip(),
+                    "resource_name": positioner.port_name.strip(),
+                    "baudrate": positioner.baudrate,
+                    "x_axis": positioner.x_axis,
+                    "y_axis": positioner.y_axis,
+                    "pulses_per_mm": positioner.pulses_per_mm,
+                    "x_pulses_per_mm": positioner.pulses_per_mm,
+                    "y_pulses_per_mm": positioner.pulses_per_mm,
+                    "default_speed": positioner.default_speed,
+                    "timeout_ms": positioner.timeout_ms,
+                },
+                "switch_box": {
+                    "virtual_enabled": switch_box.virtual_enabled,
+                    "model": switch_box.model.strip(),
+                    "connection_type": switch_box.connection_type.strip(),
+                    "ip_address": switch_box.ip_address.strip(),
+                    "tcp_port": switch_box.tcp_port,
+                    "serial_port": switch_box.serial_port.strip(),
+                    "baudrate": switch_box.baudrate,
+                    "timeout_ms": switch_box.timeout_ms,
+                },
+            }
+        )
+        return config.to_dict()
+
+    def available_serial_ports(self) -> list[str]:
+        try:
+            return list(self._serial_port_provider())
+        except Exception:
+            logger.exception("Failed to enumerate serial ports.")
+            return []
+
+    @staticmethod
+    def vna_resource_name(ip_address: str, port: int) -> str:
+        ip_address = str(ip_address).strip()
+        if not ip_address:
+            return ""
+        return f"TCPIP0::{ip_address}::{int(port)}::SOCKET"
+
+    @staticmethod
+    def switch_box_defaults(model: str) -> SwitchBoxModelDefaults:
+        if str(model).strip().upper() == "LCD74000F":
+            return SwitchBoxModelDefaults(
+                connection_type="TCP/IP",
+                ip_address="192.168.1.113",
+                tcp_port=7,
+                timeout_ms=2000,
+            )
+        return SwitchBoxModelDefaults(
+            connection_type="Serial",
+            ip_address="192.168.1.120",
+            tcp_port=35,
+            timeout_ms=1500,
+        )
+
+    @staticmethod
+    def is_serial_connection(connection_type: str) -> bool:
+        return str(connection_type).strip().upper() in {"SERIAL", "串口", "RS232", "RS485"}
+
+    @staticmethod
+    def enumerate_serial_ports() -> list[str]:
+        return [port.device for port in list_ports.comports()]

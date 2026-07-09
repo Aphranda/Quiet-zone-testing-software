@@ -66,8 +66,8 @@ Last updated: 2026-07-09
 
 ## P2 - ViewModel、Facade 和硬件层迁移
 
-- [ ] P2-01 `ConnectionPanel` 迁移到 ViewModel：Widget 只负责显示和发信号；连接配置、串口刷新、开关箱型号逻辑进入 ViewModel。
-- [ ] P2-02 `TestSetupPanel` 迁移到 ViewModel：扫描参数校验、探头位置、默认值和预览配置进入 ViewModel。
+- [x] P2-01 `ConnectionPanel` 迁移到 ViewModel：Widget 只负责显示和发信号；连接配置、串口刷新、开关箱型号逻辑进入 ViewModel。
+- [x] P2-02 `TestSetupPanel` 迁移到 ViewModel：扫描参数校验、探头位置、默认值和预览配置进入 ViewModel。
 - [ ] P2-03 `PositionerControlPanel` 迁移到运动控制域：手动运动命令、当前位置显示、轮询逻辑由 Motion ViewModel 和 MotionService 管理。
 - [ ] P2-04 `SwitchBoxControlPanel` 迁移到链路管理域：链路控制 UI 使用 LinkViewModel 和 LinkService，不直接拼命令。
 - [ ] P2-05 `InstrumentService` 变成 facade：连接、运动、链路、扫描、采样、数据保存都委托到独立 domain service。
