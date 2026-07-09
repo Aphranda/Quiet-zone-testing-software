@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import csv
-import json
 import logging
 import time
 from collections.abc import Callable
@@ -9,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from threading import Event, Lock
 
+from quiet_zone_tester.domains.data_management import TraceStorage
 from quiet_zone_tester.drivers import (
     InstrumentInfo,
     MockPositionerController,
@@ -62,6 +61,7 @@ class InstrumentService:
         self._resume_event.set()
         self._scan_lock = Lock()
         self._last_scan_output_dir: Path | None = None
+        self._trace_storage = TraceStorage()
 
     @property
     def last_scan_output_dir(self) -> Path | None:
@@ -876,77 +876,16 @@ class InstrumentService:
         point_index: int | None = None,
         output_dir: Path | None = None,
     ) -> Path:
-        timestamp = datetime.now()
-        timestamp_text = timestamp.strftime("%Y%m%d_%H%M%S_%f")
-        x_text, y_text = self._position_filename_parts(position_mm)
-        flag_text = self._safe_filename_part(file_flag) or "NOFLAG"
-        tag_text = self._safe_filename_part(filename_tag)
-        mode_text = self._safe_filename_part(scan_mode) or "test"
-        parameter_text = self._safe_filename_part(trace.parameter) or "S"
-        point_text = f"_P{point_index:04d}" if point_index is not None else ""
-        tag_part = f"_{tag_text}" if tag_text else ""
-        filename = (
-            f"{flag_text}{tag_part}_{x_text}_{y_text}_{timestamp_text}_{mode_text}_{parameter_text}{point_text}.csv"
-        )
-
-        should_write_index = output_dir is not None
-        output_dir = output_dir or Path.cwd() / "test_results"
         try:
-            output_dir.mkdir(parents=True, exist_ok=True)
-            path = output_dir / filename
-            x_mm = "" if position_mm is None else f"{position_mm[0]:.6f}"
-            y_mm = "" if position_mm is None else f"{position_mm[1]:.6f}"
-            with path.open("w", newline="", encoding="utf-8-sig") as csv_file:
-                writer = csv.writer(csv_file)
-                writer.writerow(
-                    [
-                        "timestamp",
-                        "flag",
-                        "scan_mode",
-                        "point_index",
-                        "x_mm",
-                        "y_mm",
-                        "parameter",
-                        "frequency_hz",
-                        "real",
-                        "imag",
-                        "magnitude_db",
-                        "phase_deg",
-                    ]
-                )
-                for frequency_hz, value, magnitude_db, phase_deg in zip(
-                    trace.frequency_hz,
-                    trace.complex_values,
-                    trace.magnitude_db,
-                    trace.phase_deg,
-                ):
-                    writer.writerow(
-                        [
-                            timestamp.isoformat(timespec="microseconds"),
-                            file_flag,
-                            scan_mode,
-                            "" if point_index is None else point_index,
-                            x_mm,
-                            y_mm,
-                            trace.parameter,
-                            f"{float(frequency_hz):.12g}",
-                            f"{float(value.real):.12g}",
-                            f"{float(value.imag):.12g}",
-                            f"{float(magnitude_db):.12g}",
-                            f"{float(phase_deg):.12g}",
-                        ]
-                    )
-            if should_write_index:
-                self._append_trace_index(
-                    output_dir=output_dir,
-                    trace_path=path,
-                    timestamp=timestamp,
-                    trace=trace,
-                    position_mm=position_mm,
-                    scan_mode=scan_mode,
-                    file_flag=file_flag,
-                    point_index=point_index,
-                )
+            path = self._trace_storage.save_trace_csv(
+                trace,
+                position_mm=position_mm,
+                scan_mode=scan_mode,
+                file_flag=file_flag,
+                filename_tag=filename_tag,
+                point_index=point_index,
+                output_dir=output_dir,
+            )
         except Exception as exc:
             logger.exception("Failed to save VNA trace CSV.")
             raise InstrumentServiceError(f"测试数据保存失败：{exc}") from exc
@@ -956,25 +895,12 @@ class InstrumentService:
 
     def _create_scan_output_dir(self, settings: dict, scan_mode: str) -> Path:
         timestamp = datetime.now()
-        timestamp_text = timestamp.strftime("%Y%m%d_%H%M%S")
-        flag_text = self._safe_filename_part(str(settings.get("file_flag", ""))) or "NOFLAG"
-        probe_text = self._safe_filename_part(self._probe_offset_filename_tag(settings))
-        mode_text = self._safe_filename_part(scan_mode) or "scan"
-        parameter_text = self._safe_filename_part(str(settings.get("parameter", ""))) or "S"
-        probe_part = f"_{probe_text}" if probe_text else ""
-        folder_name = f"{timestamp_text}_{flag_text}{probe_part}_{mode_text}_{parameter_text}"
-
-        root_dir = Path.cwd() / "test_results"
-        output_dir = root_dir / folder_name
-        suffix = 1
-        while output_dir.exists():
-            suffix += 1
-            output_dir = root_dir / f"{folder_name}_{suffix:02d}"
-
-        output_dir.mkdir(parents=True, exist_ok=False)
+        output_dir = self._trace_storage.create_scan_output_dir(
+            settings=settings,
+            scan_mode=scan_mode,
+            timestamp=timestamp,
+        )
         self._last_scan_output_dir = output_dir
-        self._write_scan_metadata(output_dir, settings, scan_mode, timestamp)
-        self._write_trace_index_header(output_dir)
         logger.info("Created scan output directory: %s", output_dir)
         return output_dir
 
@@ -985,59 +911,10 @@ class InstrumentService:
         scan_mode: str,
         timestamp: datetime,
     ) -> None:
-        volume = self._build_scan_volume(settings)
-        connection_config = settings.get("connection_config")
-        metadata = {
-            "created_at": timestamp.isoformat(timespec="seconds"),
-            "scan_mode": scan_mode,
-            "file_flag": str(settings.get("file_flag", "")),
-            "parameter": str(settings.get("parameter", "")),
-            "frequency": {
-                "start_ghz": float(settings.get("start_ghz", 0.0)),
-                "stop_ghz": float(settings.get("stop_ghz", 0.0)),
-                "points": int(settings.get("points", 0)),
-                "if_bandwidth_hz": float(settings.get("if_bandwidth_hz", 0.0)),
-                "vna_power_dbm": float(settings.get("vna_power_dbm", 0.0)),
-            },
-            "scan_volume": {
-                "x_start_mm": volume.x_start_mm,
-                "x_stop_mm": volume.x_stop_mm,
-                "y_start_mm": volume.y_start_mm,
-                "y_stop_mm": volume.y_stop_mm,
-                "step_x_mm": volume.step_x_mm,
-                "step_y_mm": volume.step_y_mm,
-                "point_count": volume.point_count,
-            },
-            "motion": {
-                "step_speed_mm_s": float(settings.get("step_speed_mm_s", 0.0)),
-                "continuous_speed_mm_s": float(settings.get("continuous_speed_mm_s", 0.0)),
-                "settle_delay_s": float(settings.get("settle_delay_s", 0.0)),
-            },
-            "connection": self._metadata_safe_value(connection_config),
-        }
-        (output_dir / "scan_metadata.json").write_text(
-            json.dumps(metadata, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        self._trace_storage.write_scan_metadata(output_dir, settings, scan_mode, timestamp)
 
     def _write_trace_index_header(self, output_dir: Path) -> None:
-        with (output_dir / "trace_index.csv").open("w", newline="", encoding="utf-8-sig") as index_file:
-            writer = csv.writer(index_file)
-            writer.writerow(
-                [
-                    "saved_at",
-                    "flag",
-                    "scan_mode",
-                    "point_index",
-                    "x_mm",
-                    "y_mm",
-                    "parameter",
-                    "frequency_start_hz",
-                    "frequency_stop_hz",
-                    "frequency_points",
-                    "filename",
-                ]
-            )
+        self._trace_storage.write_trace_index_header(output_dir)
 
     def _append_trace_index(
         self,
@@ -1050,29 +927,16 @@ class InstrumentService:
         file_flag: str,
         point_index: int | None,
     ) -> None:
-        index_path = output_dir / "trace_index.csv"
-        if not index_path.exists():
-            self._write_trace_index_header(output_dir)
-
-        x_mm = "" if position_mm is None else f"{position_mm[0]:.6f}"
-        y_mm = "" if position_mm is None else f"{position_mm[1]:.6f}"
-        with index_path.open("a", newline="", encoding="utf-8-sig") as index_file:
-            writer = csv.writer(index_file)
-            writer.writerow(
-                [
-                    timestamp.isoformat(timespec="microseconds"),
-                    file_flag,
-                    scan_mode,
-                    "" if point_index is None else point_index,
-                    x_mm,
-                    y_mm,
-                    trace.parameter,
-                    f"{float(trace.frequency_hz[0]):.12g}",
-                    f"{float(trace.frequency_hz[-1]):.12g}",
-                    int(trace.frequency_hz.size),
-                    trace_path.name,
-                ]
-            )
+        self._trace_storage.append_trace_index(
+            output_dir=output_dir,
+            trace_path=trace_path,
+            timestamp=timestamp,
+            trace=trace,
+            position_mm=position_mm,
+            scan_mode=scan_mode,
+            file_flag=file_flag,
+            point_index=point_index,
+        )
 
     @staticmethod
     def _scan_output_dir(settings: dict) -> Path | None:
@@ -1083,21 +947,11 @@ class InstrumentService:
 
     @staticmethod
     def _probe_offset_filename_tag(settings: dict) -> str:
-        if "probe_x_offset_mm" not in settings and "probe_y_offset_mm" not in settings:
-            return ""
-
-        preset = str(settings.get("probe_offset_preset", "")).strip() or "custom"
-        x_offset_mm = float(settings.get("probe_x_offset_mm", 0.0))
-        y_offset_mm = float(settings.get("probe_y_offset_mm", 0.0))
-        return f"probe_{preset}_X{x_offset_mm:+.3f}_Y{y_offset_mm:+.3f}"
+        return TraceStorage().filename_policy.probe_offset_tag_from_settings(settings)
 
     @staticmethod
     def _metadata_safe_value(value):
-        try:
-            json.dumps(value)
-        except TypeError:
-            return str(value)
-        return value
+        return TraceStorage.metadata_safe_value(value)
 
     def _current_position_tuple(self) -> tuple[float, float] | None:
         if not self.is_positioner_connected or self._positioner is None:
@@ -1111,19 +965,11 @@ class InstrumentService:
 
     @staticmethod
     def _position_filename_parts(position_mm: tuple[float, float] | None) -> tuple[str, str]:
-        if position_mm is None:
-            return "Xunknown", "Yunknown"
-        return f"X{position_mm[0]:.3f}", f"Y{position_mm[1]:.3f}"
+        return TraceStorage().filename_policy.position_parts(position_mm)
 
     @staticmethod
     def _safe_filename_part(value: str) -> str:
-        text = str(value or "").strip()
-        if not text:
-            return ""
-        invalid = '<>:"/\\|?*'
-        cleaned = "".join("_" if char in invalid or char.isspace() else char for char in text)
-        cleaned = cleaned.strip("._")
-        return cleaned[:80]
+        return TraceStorage().filename_policy.safe_part(value)
 
     @staticmethod
     def _build_scan_volume(settings: dict) -> ScanVolume:
