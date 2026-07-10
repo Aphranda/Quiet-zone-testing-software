@@ -8,6 +8,8 @@ from typing import Any
 import pyvisa
 from pyvisa import VisaIOError
 
+from quiet_zone_tester.shared.instrument_defaults import DEFAULT_VNA_TIMEOUT_MS
+
 logger = logging.getLogger(__name__)
 
 
@@ -18,7 +20,7 @@ class ScpiCommunicationError(RuntimeError):
 @dataclass(frozen=True)
 class ScpiConnectionConfig:
     resource_name: str
-    timeout_ms: int = 5000
+    timeout_ms: int = DEFAULT_VNA_TIMEOUT_MS
     read_termination: str = "\n"
     write_termination: str = "\n"
     retries: int = 2

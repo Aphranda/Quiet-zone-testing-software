@@ -39,6 +39,24 @@ class LinkServiceTest(unittest.TestCase):
         self.assertEqual(response, "OK CONFigure:LINK H,VNA1")
         self.assertEqual(switch_box.sent_commands, ["CONFigure:LINK H,VNA1"])
 
+    def test_select_polarization_sends_link_command(self) -> None:
+        switch_box = _SwitchBox()
+
+        response = LinkService(switch_box).select_polarization("v")
+
+        self.assertEqual(response, "OK CONFigure:LINK V, VNA1")
+        self.assertEqual(switch_box.sent_commands, ["CONFigure:LINK V, VNA1"])
+        self.assertEqual(switch_box.selected_parameters, [])
+
+    def test_select_dut_path_sends_link_command(self) -> None:
+        switch_box = _SwitchBox()
+
+        response = LinkService(switch_box).select_dut_path("sa")
+
+        self.assertEqual(response, "OK CONFigure:LINK DUT, AMP1, SA")
+        self.assertEqual(switch_box.sent_commands, ["CONFigure:LINK DUT, AMP1, SA"])
+        self.assertEqual(switch_box.selected_parameters, [])
+
     def test_rejects_unconnected_controller(self) -> None:
         service = LinkService(_SwitchBox(connected=False))
 
@@ -54,6 +72,10 @@ class LinkServiceTest(unittest.TestCase):
             service.select_s_parameter("S31")
         with self.assertRaises(LinkServiceError):
             service.send_command("  ")
+        with self.assertRaises(LinkServiceError):
+            service.select_polarization("X")
+        with self.assertRaises(LinkServiceError):
+            service.select_dut_path("VNA1")
 
 
 if __name__ == "__main__":

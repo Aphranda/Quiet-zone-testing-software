@@ -12,6 +12,7 @@ from quiet_zone_tester.domains.instrument_management import (
 )
 from quiet_zone_tester.domains.scan_management import ScanRuntimeGeometry
 from quiet_zone_tester.hardware import Position
+from quiet_zone_tester.shared.instrument_defaults import DEFAULT_POSITIONER_SPEED_MM_S
 
 logger = logging.getLogger(__name__)
 
@@ -199,7 +200,7 @@ class MotionService:
                 pulses_per_mm=legacy_pulses_per_mm,
                 x_pulses_per_mm=x_pulses_per_mm,
                 y_pulses_per_mm=y_pulses_per_mm,
-                default_speed=float(config.get("default_speed", 20.0)),
+                default_speed=float(config.get("default_speed", DEFAULT_POSITIONER_SPEED_MM_S)),
             )
         except InstrumentControllerFactoryError as exc:
             raise MotionServiceError(str(exc)) from exc

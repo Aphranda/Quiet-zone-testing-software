@@ -5,6 +5,7 @@ from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QButtonGroup, QComboBox, QGroupBox, QHBoxLayout, QLabel, QPushButton, QTabWidget, QVBoxLayout
 
 from quiet_zone_tester.models import SParameterTrace
+from quiet_zone_tester.presentation.modules.scan_runtime import ScanFlagModel
 
 
 class NoWheelComboBox(QComboBox):
@@ -57,7 +58,7 @@ class LivePlotPanel(QGroupBox):
         layout = QVBoxLayout(self)
         header = QHBoxLayout()
         header.addStretch(1)
-        header.addWidget(QLabel("FLAG"))
+        header.addWidget(QLabel("标签"))
         header.addWidget(QLabel("DUT"))
         header.addWidget(self._dut_vna_button)
         header.addWidget(self._dut_sa_button)
@@ -83,87 +84,13 @@ class LivePlotPanel(QGroupBox):
         return self._polarization.currentText().strip().upper()
 
     def set_main_line_from_scan_settings(self, settings: dict) -> None:
-        try:
-            x_start = float(settings["x_start_mm"])
-            x_stop = float(settings["x_stop_mm"])
-            y_start = float(settings["y_start_mm"])
-            y_stop = float(settings["y_stop_mm"])
-        except (KeyError, TypeError, ValueError):
+        flag_state = ScanFlagModel.from_scan_settings(settings)
+        if flag_state is None:
             return
 
-        x_moving = abs(x_start - x_stop) > 1e-9
-        y_moving = abs(y_start - y_stop) > 1e-9
-        if x_moving:
-            self._main_line.setCurrentText("X")
-            if y_moving:
-                self._position_mark.setCurrentText("M")
-            else:
-                self._position_mark.setCurrentText(self._x_line_position_mark(y_start, x_start, x_stop, y_start, y_stop))
-        elif y_moving:
-            self._main_line.setCurrentText("Y")
-            self._position_mark.setCurrentText(self._y_line_position_mark(x_start, x_start, x_stop, y_start, y_stop))
-        else:
-            self._position_mark.setCurrentText("M")
-
-    @classmethod
-    def _x_line_position_mark(
-        cls,
-        y_mm: float,
-        x_start_mm: float,
-        x_stop_mm: float,
-        y_start_mm: float,
-        y_stop_mm: float,
-    ) -> str:
-        return cls._position_mark_by_quarter(
-            value_mm=y_mm,
-            x_start_mm=x_start_mm,
-            x_stop_mm=x_stop_mm,
-            y_start_mm=y_start_mm,
-            y_stop_mm=y_stop_mm,
-            low_mark="R",
-            high_mark="L",
-        )
-
-    @classmethod
-    def _y_line_position_mark(
-        cls,
-        x_mm: float,
-        x_start_mm: float,
-        x_stop_mm: float,
-        y_start_mm: float,
-        y_stop_mm: float,
-    ) -> str:
-        return cls._position_mark_by_quarter(
-            value_mm=x_mm,
-            x_start_mm=x_start_mm,
-            x_stop_mm=x_stop_mm,
-            y_start_mm=y_start_mm,
-            y_stop_mm=y_stop_mm,
-            low_mark="U",
-            high_mark="D",
-        )
-
-    @classmethod
-    def _position_mark_by_quarter(
-        cls,
-        value_mm: float,
-        x_start_mm: float,
-        x_stop_mm: float,
-        y_start_mm: float,
-        y_stop_mm: float,
-        low_mark: str,
-        high_mark: str,
-    ) -> str:
-        view_limit = cls._view_limit_mm(x_start_mm, x_stop_mm, y_start_mm, y_stop_mm)
-        if value_mm <= view_limit * 0.25:
-            return low_mark
-        if value_mm >= view_limit * 0.75:
-            return high_mark
-        return "M"
-
-    @staticmethod
-    def _view_limit_mm(x_start_mm: float, x_stop_mm: float, y_start_mm: float, y_stop_mm: float) -> float:
-        return max(x_start_mm, x_stop_mm, y_start_mm, y_stop_mm, 1.0)
+        if flag_state.main_line is not None:
+            self._main_line.setCurrentText(flag_state.main_line)
+        self._position_mark.setCurrentText(flag_state.position_mark)
 
     def set_trace(self, trace: SParameterTrace) -> None:
         self._trace = trace

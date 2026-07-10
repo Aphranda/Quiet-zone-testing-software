@@ -106,6 +106,16 @@ class InstrumentServiceLinkRoutingTest(unittest.TestCase):
         self.assertEqual(switch_box.selected_parameters, [])
         self.assertEqual(vna.measured_parameters, ["S21"])
 
+    def test_dut_path_routes_without_ui_command_string(self) -> None:
+        switch_box = _SwitchBox()
+        service = InstrumentService(vna=_Vna(), positioner=_Positioner(), switch_box=switch_box)
+
+        response = service.select_switch_box_dut_path("sa")
+
+        self.assertEqual(response, "CONFigure:LINK DUT, AMP1, SA")
+        self.assertEqual(switch_box.sent_commands, ["CONFigure:LINK DUT, AMP1, SA"])
+        self.assertEqual(switch_box.selected_parameters, [])
+
 
 if __name__ == "__main__":
     unittest.main()

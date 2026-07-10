@@ -7,6 +7,7 @@ import numpy as np
 
 from quiet_zone_tester.hardware.interfaces import InstrumentInfo
 from quiet_zone_tester.models import SParameterTrace
+from quiet_zone_tester.shared.instrument_defaults import DEFAULT_VNA_TIMEOUT_MS
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 class MockVnaController:
     """Mock VNA that waits for timeout and returns zeroed traces."""
 
-    def __init__(self, timeout_ms: int = 5000) -> None:
+    def __init__(self, timeout_ms: int = DEFAULT_VNA_TIMEOUT_MS) -> None:
         self._connected = False
         self._start_hz = 10.0e9
         self._stop_hz = 17.0e9

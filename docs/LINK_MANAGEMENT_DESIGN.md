@@ -6,12 +6,13 @@ Canonical: `docs/LINK_MANAGEMENT_DESIGN.md`
 Related: `docs/architecture_migration_plan.md`, `docs/INSTRUMENT_MANAGEMENT_DESIGN.md`
 Last updated: 2026-07-10
 
-本文档定义 S 参数链路路由、开关箱 profile 和链路控制 UI/ViewModel 的边界。
+本文档定义开关箱链路操作、历史 S 参数兼容路由、开关箱 profile 和链路控制 UI/ViewModel 的边界。
 
 ## 职责
 
-- 规范化 `S11/S21/S12/S22`。
-- 将 S 参数解析为开关箱命令。
+- 按极化切换源端链路：`H,VNA1`、`V,VNA1`。
+- 按 DUT 目标切换仪表链路：`DUT,AMP1,VNA2`、`DUT,AMP1,SA`。
+- 保留 `S11/S21/S12/S22` 到开关箱命令的历史兼容路由，但 S 参数不再作为主链路事实。
 - 支持 LCD74000F、TC500 和 Mock profile。
 - 执行开关箱链路切换和原始命令发送。
 
@@ -32,6 +33,7 @@ Last updated: 2026-07-10
 ## 关键规则
 
 - Widget 不直接拼接业务命令。
+- S 参数只属于 VNA 测量；开关箱主链路操作使用极化、DUT 目标或原始命令。
 - `LinkRouter` 可独立测试，不依赖真实开关箱。
 - `LinkService` 只依赖开关箱 controller 协议。
 - 链路图高亮 token 由 `LinkControlViewModel.diagram_state()` 派生，Widget 只负责绘制。

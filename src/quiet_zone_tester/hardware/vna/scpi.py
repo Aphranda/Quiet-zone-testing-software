@@ -13,6 +13,7 @@ from quiet_zone_tester.hardware.transport.visa_scpi import (
     VisaScpiSession,
 )
 from quiet_zone_tester.models import SParameterTrace
+from quiet_zone_tester.shared.instrument_defaults import DEFAULT_VNA_TIMEOUT_MS
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class VnaScpiConfig:
     resource_name: str
-    timeout_ms: int = 5000
+    timeout_ms: int = DEFAULT_VNA_TIMEOUT_MS
     retries: int = 2
     retry_delay_s: float = 0.2
 

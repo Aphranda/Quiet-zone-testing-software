@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 from quiet_zone_tester.hardware import InstrumentInfo, Position
 from quiet_zone_tester.models import SParameterTrace, ScanVolume
 from quiet_zone_tester.application import ScanWorkflowState
+from quiet_zone_tester.presentation.modules.app_feedback import MainWindowFeedback
 from quiet_zone_tester.presentation.modules.motion_control import PositionTracker
 from quiet_zone_tester.resources import resource_path
 from quiet_zone_tester.services import InstrumentService
@@ -73,13 +74,21 @@ class MainWindow(QMainWindow):
         self._scan_animation_panel = ScanAnimationPanel()
         self._plot_panel = LivePlotPanel()
         self._log_panel = StatusLogPanel()
+        self._feedback = MainWindowFeedback(
+            show_status=self.statusBar().showMessage,
+            append_info=self._log_panel.append_info,
+            append_error=self._log_panel.append_error,
+            show_error_dialog=lambda title, message: QMessageBox.critical(self, title, message),
+        )
 
         self._build_menu_bar()
         self._build_layout()
         self._connect_signals()
         self._preview_scan_volume(self._test_setup_panel.current_settings())
-        self.statusBar().showMessage("就绪")
-        self._log_panel.append_info("应用已启动。真实测试模式下，网分仪、扫描架和开关箱全部连接后才能开始测试。")
+        self._feedback.info(
+            "就绪",
+            "应用已启动。真实测试模式下，网分仪、扫描架和开关箱全部连接后才能开始测试。",
+        )
 
     def _build_menu_bar(self) -> None:
         vna_menu = self.menuBar().addMenu("网分仪")
@@ -146,18 +155,19 @@ class MainWindow(QMainWindow):
         header.setObjectName("appHeader")
 
         layout = QHBoxLayout(header)
-        layout.setContentsMargins(8, 4, 8, 4)
+        layout.setContentsMargins(8, 2, 8, 2)
         layout.setSpacing(12)
 
         icon_label = QLabel()
-        icon_label.setFixedSize(54, 54)
+        icon_label.setFixedSize(64, 64)
         icon_label.setAlignment(Qt.AlignCenter)
         icon = QPixmap(str(resource_path(APP_ICON_NAME)))
         if not icon.isNull():
-            icon_label.setPixmap(icon.scaled(46, 46, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            icon_label.setPixmap(icon.scaled(56, 56, Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
         title_label = QLabel(APP_TITLE)
-        title_font = QFont("Microsoft YaHei UI", 24, QFont.Bold)
+        title_label.setObjectName("appTitle")
+        title_font = QFont("SimHei", 42, QFont.Bold)
         title_label.setFont(title_font)
         title_label.setStyleSheet("color: #000000; font-weight: 800;")
 
@@ -252,8 +262,7 @@ class MainWindow(QMainWindow):
 
     def _connect_all(self, config: dict) -> None:
         self._set_busy(True)
-        self.statusBar().showMessage("正在连接全部仪器...")
-        self._log_panel.append_info("开始连接网分仪、扫描架和开关箱。")
+        self._feedback.info("正在连接全部仪器...", "开始连接网分仪、扫描架和开关箱。")
         self._tasks.run(
             lambda: self._service.connect_all(config),
             on_success=self._on_all_connected,
@@ -263,8 +272,7 @@ class MainWindow(QMainWindow):
 
     def _connect_vna(self, config: dict) -> None:
         self._set_busy(True)
-        self.statusBar().showMessage("正在连接网分仪...")
-        self._log_panel.append_info("开始连接网分仪。")
+        self._feedback.info("正在连接网分仪...", "开始连接网分仪。")
         self._tasks.run(
             lambda: self._service.connect_vna(config),
             on_success=self._on_vna_connected,
@@ -274,8 +282,7 @@ class MainWindow(QMainWindow):
 
     def _connect_positioner(self, config: dict) -> None:
         self._set_busy(True)
-        self.statusBar().showMessage("正在连接扫描架...")
-        self._log_panel.append_info("开始连接扫描架。")
+        self._feedback.info("正在连接扫描架...", "开始连接扫描架。")
         self._tasks.run(
             lambda: self._service.connect_positioner(config),
             on_success=self._on_positioner_connected,
@@ -285,8 +292,7 @@ class MainWindow(QMainWindow):
 
     def _connect_switch_box(self, config: dict) -> None:
         self._set_busy(True)
-        self.statusBar().showMessage("正在连接开关箱...")
-        self._log_panel.append_info("开始连接开关箱。")
+        self._feedback.info("正在连接开关箱...", "开始连接开关箱。")
         self._tasks.run(
             lambda: self._service.connect_switch_box(config),
             on_success=self._on_switch_box_connected,
@@ -298,8 +304,10 @@ class MainWindow(QMainWindow):
         axis = self._axis_id_from_config(config, axis_name)
         speed = float(config.get("positioner", {}).get("default_speed", 20.0))
         self._set_busy(True)
-        self.statusBar().showMessage(f"正在运动{axis_name}轴...")
-        self._log_panel.append_info(f"扫描架手动运动：{axis_name} 轴，速度 {speed:.3f} mm/s。")
+        self._feedback.info(
+            f"正在运动{axis_name}轴...",
+            f"扫描架手动运动：{axis_name} 轴，速度 {speed:.3f} mm/s。",
+        )
         self._tasks.run(
             lambda: self._service.jog_positioner_axis(axis, speed, config),
             on_error=partial(self._on_operation_failed, "扫描架运动失败"),
@@ -308,8 +316,7 @@ class MainWindow(QMainWindow):
 
     def _stop_positioner_axis(self, config: dict, axis_name: str) -> None:
         axis = self._axis_id_from_config(config, axis_name)
-        self.statusBar().showMessage(f"正在停止{axis_name}轴...")
-        self._log_panel.append_info(f"扫描架手动停止：{axis_name} 轴。")
+        self._feedback.info(f"正在停止{axis_name}轴...", f"扫描架手动停止：{axis_name} 轴。")
         self._tasks.run(
             lambda: self._service.stop_positioner_axis(axis),
             on_error=partial(self._on_operation_failed, "扫描架停止失败"),
@@ -317,8 +324,7 @@ class MainWindow(QMainWindow):
 
     def _query_positioner_position(self) -> None:
         self._set_busy(True)
-        self.statusBar().showMessage("正在查询扫描架当前位置...")
-        self._log_panel.append_info("查询扫描架当前位置。")
+        self._feedback.info("正在查询扫描架当前位置...", "查询扫描架当前位置。")
         self._tasks.run(
             lambda: self._service.query_positioner_position(self._connection_panel.current_config()),
             on_success=self._on_positioner_position_ready,
@@ -332,8 +338,10 @@ class MainWindow(QMainWindow):
         speed_mm_s = float(command["speed_mm_s"])
         self._set_busy(True)
         self._start_positioner_motion_polling()
-        self.statusBar().showMessage("正在执行扫描架绝对定位...")
-        self._log_panel.append_info(f"扫描架绝对定位：X={x_mm:.3f} mm，Y={y_mm:.3f} mm，速度 {speed_mm_s:.3f} mm/s。")
+        self._feedback.info(
+            "正在执行扫描架绝对定位...",
+            f"扫描架绝对定位：X={x_mm:.3f} mm，Y={y_mm:.3f} mm，速度 {speed_mm_s:.3f} mm/s。",
+        )
         self._tasks.run(
             lambda: self._service.move_positioner_absolute(
                 x_mm,
@@ -352,9 +360,9 @@ class MainWindow(QMainWindow):
         speed_mm_s = float(command["speed_mm_s"])
         self._set_busy(True)
         self._start_positioner_motion_polling()
-        self.statusBar().showMessage("正在执行扫描架相对定位...")
-        self._log_panel.append_info(
-            f"扫描架相对定位：ΔX={delta_x_mm:.3f} mm，ΔY={delta_y_mm:.3f} mm，速度 {speed_mm_s:.3f} mm/s。"
+        self._feedback.info(
+            "正在执行扫描架相对定位...",
+            f"扫描架相对定位：ΔX={delta_x_mm:.3f} mm，ΔY={delta_y_mm:.3f} mm，速度 {speed_mm_s:.3f} mm/s。",
         )
         self._tasks.run(
             lambda: self._service.move_positioner_relative(
@@ -369,8 +377,7 @@ class MainWindow(QMainWindow):
         )
 
     def _stop_positioner_from_control(self) -> None:
-        self.statusBar().showMessage("正在停止扫描架...")
-        self._log_panel.append_info("扫描架控制页面请求停止。")
+        self._feedback.info("正在停止扫描架...", "扫描架控制页面请求停止。")
         self._tasks.run(
             self._service.stop_positioner,
             on_error=partial(self._on_operation_failed, "扫描架停止失败"),
@@ -379,8 +386,7 @@ class MainWindow(QMainWindow):
 
     def _refresh_scan_animation_probe_position(self) -> None:
         self._set_busy(True)
-        self.statusBar().showMessage("正在刷新探头当前位置...")
-        self._log_panel.append_info("刷新扫描动画探头当前位置。")
+        self._feedback.info("正在刷新探头当前位置...", "刷新扫描动画探头当前位置。")
         self._tasks.run(
             lambda: self._service.query_positioner_position(self._connection_panel.current_config()),
             on_success=self._on_scan_animation_probe_position_ready,
@@ -394,8 +400,10 @@ class MainWindow(QMainWindow):
             return
 
         self._scan_animation_panel.set_probe_center_position(position.x_mm, position.y_mm)
-        self.statusBar().showMessage("探头位置已刷新")
-        self._log_panel.append_info(f"探头当前位置：X={position.x_mm:.3f} mm，Y={position.y_mm:.3f} mm。")
+        self._feedback.info(
+            "探头位置已刷新",
+            f"探头当前位置：X={position.x_mm:.3f} mm，Y={position.y_mm:.3f} mm。",
+        )
 
     def _start_positioner_motion_polling(self) -> None:
         self._position_tracker.start()
@@ -409,18 +417,18 @@ class MainWindow(QMainWindow):
             self._positioner_control_panel.set_current_position(position)
 
     def _on_positioner_motion_poll_failed(self, message: str) -> None:
-        self._log_panel.append_error(f"扫描架当前位置刷新失败: {self._format_error_message(message)}")
+        self._feedback.error("扫描架当前位置刷新失败", message, dialog=False)
 
     def _configure_vna_from_control(self, settings: dict) -> None:
         self._set_busy(True)
-        self.statusBar().showMessage("正在配置网分仪...")
-        self._log_panel.append_info(
+        self._feedback.info(
+            "正在配置网分仪...",
             "网分仪独立配置："
             f"{settings['parameter']}，"
             f"{settings['start_ghz']:.3f}-{settings['stop_ghz']:.3f} GHz，"
             f"{settings['points']} 点，"
             f"功率 {settings['vna_power_dbm']:.1f} dBm，"
-            f"中频带宽 {settings['if_bandwidth_hz']:.0f} Hz。"
+            f"中频带宽 {settings['if_bandwidth_hz']:.0f} Hz。",
         )
         self._tasks.run(
             self._service.configure_vna_trace,
@@ -439,8 +447,7 @@ class MainWindow(QMainWindow):
         self._latest_trace = None
         self._plot_panel.clear()
         self._set_busy(True)
-        self.statusBar().showMessage("正在执行网分仪独立采样...")
-        self._log_panel.append_info(f"网分仪独立采样：{settings['parameter']}。")
+        self._feedback.info("正在执行网分仪独立采样...", f"网分仪独立采样：{settings['parameter']}。")
         self._tasks.run(
             lambda: self._service.sample_vna_trace(settings["parameter"], file_flag=self._plot_panel.file_flag()),
             on_success=self._on_single_trace_ready,
@@ -454,8 +461,7 @@ class MainWindow(QMainWindow):
             return
 
         self._set_busy(True)
-        self.statusBar().showMessage("正在切换开关箱极化链路...")
-        self._log_panel.append_info(f"开关箱按极化切换：{polarization}。")
+        self._feedback.info("正在切换开关箱极化链路...", f"开关箱按极化切换：{polarization}。")
         self._tasks.run(
             lambda: self._service.select_switch_box_polarization(polarization),
             on_success=partial(self._on_switch_box_command_done, polarization),
@@ -469,12 +475,10 @@ class MainWindow(QMainWindow):
         if target not in labels:
             return
 
-        command = f"CONFigure:LINK DUT, AMP1, {target}"
         self._set_busy(True)
-        self.statusBar().showMessage("正在切换 DUT 到仪表链路...")
-        self._log_panel.append_info(f"DUT 到仪表链路切换：{labels[target]}。")
+        self._feedback.info("正在切换 DUT 到仪表链路...", f"DUT 到仪表链路切换：{labels[target]}。")
         self._tasks.run(
-            lambda: self._service.send_switch_box_command(command),
+            lambda: self._service.select_switch_box_dut_path(target),
             on_success=partial(self._on_switch_box_command_done, labels[target]),
             on_error=partial(self._on_operation_failed, "DUT 链路切换失败"),
             on_finished=partial(self._set_busy, False),
@@ -483,8 +487,7 @@ class MainWindow(QMainWindow):
     def _send_switch_box_command(self, command: str) -> None:
         command = str(command).strip()
         self._set_busy(True)
-        self.statusBar().showMessage("正在发送开关箱命令...")
-        self._log_panel.append_info(f"发送开关箱命令：{command}。")
+        self._feedback.info("正在发送开关箱命令...", f"发送开关箱命令：{command}。")
         self._tasks.run(
             lambda: self._service.send_switch_box_command(command),
             on_success=partial(self._on_switch_box_command_done, command),
@@ -506,8 +509,7 @@ class MainWindow(QMainWindow):
 
     def _run_disconnect(self, label: str, operation, on_success) -> None:
         self._set_busy(True)
-        self.statusBar().showMessage(f"正在{label}...")
-        self._log_panel.append_info(f"开始执行{label}。")
+        self._feedback.info(f"正在{label}...", f"开始执行{label}。")
         self._tasks.run(
             operation,
             on_success=lambda _: on_success(),
@@ -535,13 +537,13 @@ class MainWindow(QMainWindow):
         self._scan_workflow.begin_preview_sample()
         self._plot_panel.clear()
         self._set_busy(True)
-        self.statusBar().showMessage("正在采集网分曲线...")
-        self._log_panel.append_info(
+        self._feedback.info(
+            "正在采集网分曲线...",
             "曲线采样："
             f"{settings['parameter']}，"
             f"{settings['start_ghz']:.3f}-{settings['stop_ghz']:.3f} GHz，"
             f"功率 {settings['vna_power_dbm']:.1f} dBm，"
-            f"中频带宽 {settings['if_bandwidth_hz']:.0f} Hz。"
+            f"中频带宽 {settings['if_bandwidth_hz']:.0f} Hz。",
         )
         self._tasks.run(
             self._service.acquire_preview_trace,
@@ -561,8 +563,7 @@ class MainWindow(QMainWindow):
     def _start_scan_flow(self, settings: dict) -> None:
         if self._scan_workflow.task_running or self._scan_workflow.stop_positioner_task_running:
             message = "上一轮扫描正在停止，请等待扫描架停稳后再开始。"
-            self.statusBar().showMessage(message)
-            self._log_panel.append_info(message)
+            self._feedback.info(message, message)
             return
 
         if not self._ensure_ready_for_test("无法启动扫描流程"):
@@ -603,7 +604,7 @@ class MainWindow(QMainWindow):
         self._set_busy(True)
 
         message = "扫描测试已启动。"
-        self.statusBar().showMessage(message)
+        self._feedback.info(message)
         self._log_scan_start(settings, volume, message)
         return True
 
@@ -614,8 +615,7 @@ class MainWindow(QMainWindow):
         self._scan_workflow.pause()
         self._service.request_pause()
         self._test_setup_panel.set_sampling_paused(True)
-        self.statusBar().showMessage("正在暂停扫描测试...")
-        self._log_panel.append_info("用户请求暂停扫描测试；当前动作完成后将停在安全点。")
+        self._feedback.info("正在暂停扫描测试...", "用户请求暂停扫描测试；当前动作完成后将停在安全点。")
 
     def _resume_sampling(self) -> None:
         if not self._scan_workflow.sampling_active or not self._scan_workflow.paused:
@@ -624,8 +624,7 @@ class MainWindow(QMainWindow):
         self._scan_workflow.resume()
         self._service.resume_scan()
         self._test_setup_panel.set_sampling_paused(False)
-        self.statusBar().showMessage("扫描测试继续")
-        self._log_panel.append_info("扫描测试继续。")
+        self._feedback.info("扫描测试继续", "扫描测试继续。")
 
     def _stop_sampling(self) -> None:
         if not self._scan_workflow.sampling_active:
@@ -637,8 +636,7 @@ class MainWindow(QMainWindow):
         self._test_setup_panel.set_sampling_paused(False)
         self._scan_animation_panel.stop_scan()
         self._set_busy(False)
-        self.statusBar().showMessage("正在停止流程...")
-        self._log_panel.append_info("用户停止当前流程。")
+        self._feedback.info("正在停止流程...", "用户停止当前流程。")
         self._scan_workflow.set_stop_positioner_task_running(True)
         self._set_busy(False)
         self._tasks.run(
@@ -648,9 +646,7 @@ class MainWindow(QMainWindow):
         )
 
     def _on_stop_positioner_failed(self, title: str, message: str) -> None:
-        message = self._format_error_message(message)
-        self.statusBar().showMessage(title)
-        self._log_panel.append_error(f"{title}: {message}")
+        self._feedback.error(title, message, dialog=False)
 
     def _on_stop_positioner_finished(self) -> None:
         self._scan_workflow.set_stop_positioner_task_running(False)
@@ -662,32 +658,28 @@ class MainWindow(QMainWindow):
             self._vna_control_panel.set_vna_connected(len(instruments) > 0)
             self._positioner_control_panel.set_positioner_connected(len(instruments) > 1)
             self._switch_box_control_panel.set_switch_box_connected(len(instruments) > 2)
-        self.statusBar().showMessage("全部仪器已连接")
-        self._log_panel.append_info("网分仪、扫描架和开关箱连接完成。")
+        self._feedback.info("全部仪器已连接", "网分仪、扫描架和开关箱连接完成。")
 
     def _on_vna_connected(self, info: object) -> None:
         if isinstance(info, InstrumentInfo):
             self._connection_panel.set_vna_connected(info)
             self._vna_control_panel.set_vna_connected(True)
-        self.statusBar().showMessage("网分仪已连接")
-        self._log_panel.append_info("网分仪连接完成。")
+        self._feedback.info("网分仪已连接", "网分仪连接完成。")
 
     def _on_positioner_connected(self, info: object) -> None:
         if isinstance(info, InstrumentInfo):
             self._connection_panel.set_positioner_connected(info)
             self._positioner_control_panel.set_positioner_connected(True)
-        self.statusBar().showMessage("扫描架已连接")
-        self._log_panel.append_info("扫描架连接完成。")
+        self._feedback.info("扫描架已连接", "扫描架连接完成。")
 
     def _on_switch_box_connected(self, info: object) -> None:
         if isinstance(info, InstrumentInfo):
             self._connection_panel.set_switch_box_connected(info)
             self._switch_box_control_panel.set_switch_box_connected(True)
-        self.statusBar().showMessage("开关箱已连接")
-        self._log_panel.append_info("开关箱连接完成。")
+        self._feedback.info("开关箱已连接", "开关箱连接完成。")
 
     def _on_connection_failed(self, title: str, message: str) -> None:
-        self._on_operation_failed(title, self._format_error_message(message))
+        self._on_operation_failed(title, message)
 
     def _on_all_disconnected(self) -> None:
         self._connection_panel.set_all_disconnected()
@@ -695,29 +687,25 @@ class MainWindow(QMainWindow):
         self._positioner_control_panel.set_positioner_connected(False)
         self._switch_box_control_panel.set_switch_box_connected(False)
         self._clear_runtime_state()
-        self.statusBar().showMessage("全部仪器已断开")
-        self._log_panel.append_info("全部仪器已断开。")
+        self._feedback.info("全部仪器已断开", "全部仪器已断开。")
 
     def _on_vna_disconnected(self) -> None:
         self._connection_panel.set_vna_disconnected()
         self._vna_control_panel.set_vna_connected(False)
         self._latest_trace = None
         self._plot_panel.clear()
-        self.statusBar().showMessage("网分仪已断开")
-        self._log_panel.append_info("网分仪已断开。")
+        self._feedback.info("网分仪已断开", "网分仪已断开。")
 
     def _on_positioner_disconnected(self) -> None:
         self._position_tracker.stop()
         self._connection_panel.set_positioner_disconnected()
         self._positioner_control_panel.set_positioner_connected(False)
-        self.statusBar().showMessage("扫描架已断开")
-        self._log_panel.append_info("扫描架已断开。")
+        self._feedback.info("扫描架已断开", "扫描架已断开。")
 
     def _on_switch_box_disconnected(self) -> None:
         self._connection_panel.set_switch_box_disconnected()
         self._switch_box_control_panel.set_switch_box_connected(False)
-        self.statusBar().showMessage("开关箱已断开")
-        self._log_panel.append_info("开关箱已断开。")
+        self._feedback.info("开关箱已断开", "开关箱已断开。")
 
     def _on_single_trace_ready(self, trace: object) -> None:
         if not isinstance(trace, SParameterTrace):
@@ -726,12 +714,10 @@ class MainWindow(QMainWindow):
 
         self._latest_trace = trace
         self._plot_panel.set_trace(trace)
-        self.statusBar().showMessage("网分曲线已更新")
-        self._log_panel.append_info(f"网分曲线就绪：{trace.parameter}，{trace.frequency_hz.size} 点。")
+        self._feedback.info("网分曲线已更新", f"网分曲线就绪：{trace.parameter}，{trace.frequency_hz.size} 点。")
 
     def _on_vna_control_configured(self, settings: dict) -> None:
-        self.statusBar().showMessage("网分仪配置完成")
-        self._log_panel.append_info(f"网分仪配置完成：{settings['parameter']}，后续可直接采样。")
+        self._feedback.info("网分仪配置完成", f"网分仪配置完成：{settings['parameter']}，后续可直接采样。")
 
     def _on_positioner_position_ready(self, position: object) -> None:
         if not isinstance(position, Position):
@@ -739,15 +725,16 @@ class MainWindow(QMainWindow):
             return
 
         self._positioner_control_panel.set_position(position)
-        self.statusBar().showMessage("扫描架位置已更新")
-        self._log_panel.append_info(f"扫描架当前位置：X={position.x_mm:.3f} mm，Y={position.y_mm:.3f} mm。")
+        self._feedback.info(
+            "扫描架位置已更新",
+            f"扫描架当前位置：X={position.x_mm:.3f} mm，Y={position.y_mm:.3f} mm。",
+        )
 
     def _on_switch_box_command_done(self, label: str, response: object) -> None:
         response_text = str(response or "").strip()
         message = f"{label} -> {response_text or '完成'}"
         self._switch_box_control_panel.set_result(message)
-        self.statusBar().showMessage("开关箱命令已完成")
-        self._log_panel.append_info(f"开关箱命令完成：{message}。")
+        self._feedback.info("开关箱命令已完成", f"开关箱命令完成：{message}。")
 
     def _on_scan_task_progress(self, payload: object) -> None:
         if not isinstance(payload, tuple) or len(payload) != 3:
@@ -763,13 +750,11 @@ class MainWindow(QMainWindow):
             self._latest_trace = trace
             self._plot_panel.set_trace(trace)
         if self._scan_workflow.paused:
-            self.statusBar().showMessage(
+            self._feedback.info(
                 f"扫描测试暂停中：{self._scan_workflow.completed_points}/{self._scan_workflow.total_points}"
             )
             return
-        self.statusBar().showMessage(
-            f"扫描测试中：{self._scan_workflow.completed_points}/{self._scan_workflow.total_points}"
-        )
+        self._feedback.info(f"扫描测试中：{self._scan_workflow.completed_points}/{self._scan_workflow.total_points}")
 
     def _on_scan_task_finished(self, result: object) -> None:
         if isinstance(result, list) and result:
@@ -784,8 +769,7 @@ class MainWindow(QMainWindow):
             self._test_setup_panel.set_sampling_active(False)
             self._test_setup_panel.set_sampling_paused(False)
             self._scan_animation_panel.stop_scan()
-            self.statusBar().showMessage("流程已停止")
-            self._log_panel.append_info("扫描测试已停止。")
+            self._feedback.info("流程已停止", "扫描测试已停止。")
             return
 
         self._scan_workflow.mark_failed()
@@ -801,7 +785,7 @@ class MainWindow(QMainWindow):
             self._set_busy(False)
             self._test_setup_panel.set_sampling_paused(False)
             if stop_requested:
-                self.statusBar().showMessage("流程已停止")
+                self._feedback.info("流程已停止")
             self._scan_workflow.finish_inactive_cleanup()
             return
 
@@ -810,11 +794,10 @@ class MainWindow(QMainWindow):
         self._test_setup_panel.set_sampling_paused(False)
         self._set_busy(False)
         if not stop_requested and not failed:
-            self.statusBar().showMessage("扫描测试完成")
-            self._log_panel.append_info("扫描测试完成。")
+            self._feedback.info("扫描测试完成", "扫描测试完成。")
             scan_output_dir = self._service.last_scan_output_dir
             if scan_output_dir is not None:
-                self._log_panel.append_info(f"扫描数据目录：{scan_output_dir}")
+                self._feedback.info("扫描测试完成", f"扫描数据目录：{scan_output_dir}")
 
     def _on_scan_progress_changed(self, completed_points: int, total_points: int) -> None:
         self._scan_workflow.set_progress(completed_points, total_points)
@@ -833,7 +816,8 @@ class MainWindow(QMainWindow):
 
     def _log_scan_start(self, settings: dict, volume: ScanVolume, message: str) -> None:
         mode_text = "步进测试" if settings.get("scan_mode") == "step" else "匀速测试"
-        self._log_panel.append_info(
+        self._feedback.info(
+            message,
             f"{message} "
             f"{mode_text}，"
             f"{settings['parameter']}，"
@@ -875,10 +859,7 @@ class MainWindow(QMainWindow):
         return True
 
     def _on_operation_failed(self, title: str, message: str) -> None:
-        message = self._format_error_message(message)
-        self.statusBar().showMessage(title)
-        self._log_panel.append_error(f"{title}: {message}")
-        QMessageBox.critical(self, title, message)
+        self._feedback.error(title, message)
 
     def _set_busy(self, busy: bool) -> None:
         connection_busy = self._scan_workflow.connection_busy(busy)
@@ -888,10 +869,3 @@ class MainWindow(QMainWindow):
         self._positioner_control_panel.set_busy(connection_busy)
         self._vna_control_panel.set_busy(connection_busy)
         self._switch_box_control_panel.set_busy(connection_busy)
-
-    @staticmethod
-    def _format_error_message(message: str) -> str:
-        message = str(message or "未知错误").strip()
-        if not message:
-            return "未知错误"
-        return message if len(message) <= 500 else f"{message[:500]}..."

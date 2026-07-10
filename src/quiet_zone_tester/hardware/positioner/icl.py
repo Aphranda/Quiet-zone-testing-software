@@ -8,6 +8,19 @@ from threading import Event, Lock
 
 from quiet_zone_tester.hardware.interfaces import InstrumentInfo, Position
 from quiet_zone_tester.hardware.transport.modbus_rtu import ModbusRtuConfig, ModbusRtuError, ModbusRtuSession
+from quiet_zone_tester.shared.instrument_defaults import (
+    DEFAULT_POSITIONER_BAUDRATE,
+    DEFAULT_POSITIONER_BYTESIZE,
+    DEFAULT_POSITIONER_PARITY,
+    DEFAULT_POSITIONER_PULSES_PER_MM,
+    DEFAULT_POSITIONER_RETRIES,
+    DEFAULT_POSITIONER_RETRY_DELAY_S,
+    DEFAULT_POSITIONER_SPEED_MM_S,
+    DEFAULT_POSITIONER_STOPBITS,
+    DEFAULT_POSITIONER_TIMEOUT_MS,
+    DEFAULT_POSITIONER_X_AXIS,
+    DEFAULT_POSITIONER_Y_AXIS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,19 +49,19 @@ class IclPositionerError(RuntimeError):
 @dataclass(frozen=True)
 class IclPositionerConfig:
     port: str
-    baudrate: int = 115200
-    bytesize: int = 8
-    parity: str = "N"
-    stopbits: int = 1
-    timeout_ms: int = 1000
-    retries: int = 2
-    retry_delay_s: float = 0.05
-    x_axis: int = int(Axis.AXIS_3)
-    y_axis: int = int(Axis.AXIS_4)
-    pulses_per_mm: float = 1.0
+    baudrate: int = DEFAULT_POSITIONER_BAUDRATE
+    bytesize: int = DEFAULT_POSITIONER_BYTESIZE
+    parity: str = DEFAULT_POSITIONER_PARITY
+    stopbits: int = DEFAULT_POSITIONER_STOPBITS
+    timeout_ms: int = DEFAULT_POSITIONER_TIMEOUT_MS
+    retries: int = DEFAULT_POSITIONER_RETRIES
+    retry_delay_s: float = DEFAULT_POSITIONER_RETRY_DELAY_S
+    x_axis: int = DEFAULT_POSITIONER_X_AXIS
+    y_axis: int = DEFAULT_POSITIONER_Y_AXIS
+    pulses_per_mm: float = DEFAULT_POSITIONER_PULSES_PER_MM
     x_pulses_per_mm: float | None = None
     y_pulses_per_mm: float | None = None
-    default_speed: float = 20.0
+    default_speed: float = DEFAULT_POSITIONER_SPEED_MM_S
     default_acc: int = 100
     default_dec: int = 100
 

@@ -331,3 +331,48 @@ Last updated: 2026-07-10
 - 风险：offscreen 截图环境中文字体可能回退为方框；已在 stylesheet 中增加 Microsoft YaHei/SimSun/Segoe UI/Arial fallback，实际 Windows 桌面环境应使用可用中文字体。
 - 后续：如需进一步提升，可单独做信息密度优化、图标体系统一、扫描结果表格视图和主题切换。
 - 涉及文件：`src/quiet_zone_tester/app.py`、`docs/ARCH_TASK_PROGRESS.md`。
+
+### ARCH-TASK-20260710-037 - P5 仪器默认值收口
+
+- 目标：完成 P5-01/P5-02，把 VNA、扫描架和开关箱连接默认值集中到一个权威模块，并让连接面板不再直接写业务默认值。
+- 完成：新增 `shared/instrument_defaults.py`，统一 VNA 默认 IP/端口/超时、扫描架串口参数、轴号、每毫米单位 400.0、默认速度 20 mm/s，以及 LCD74000F/TC500 的连接默认值；`ConnectionViewModel` 的默认表单状态、`ConnectionPanel` 初始控件值、instrument domain model、controller factory、硬件 adapter 和 transport config 改为引用统一默认值。
+- 验证：运行 `$env:PYTHONPATH='src'; $env:QT_QPA_PLATFORM='offscreen'; .\.venv\Scripts\python.exe -m unittest discover -s tests`，通过 129 个 `unittest`，其中硬件集成入口默认跳过 1 个；主窗口 offscreen 初始化输出 `ok`。
+- 风险：旧 `*-Aphranda.py` 参考快照仍保留历史默认值，不作为 active 代码路径；S 参数链路旧语义尚未清理，进入后续 P5-03/P5-04。
+- 后续：继续 P5-03/P5-04，清理“按 S 参数切换开关箱”的旧接口和文档表述。
+- 涉及文件：`src/quiet_zone_tester/shared/instrument_defaults.py`、`src/quiet_zone_tester/presentation/modules/connection/connection_view_model.py`、`src/quiet_zone_tester/ui/widgets/connection_panel.py`、`src/quiet_zone_tester/domains/instrument_management/`、`src/quiet_zone_tester/domains/motion_control/motion_service.py`、`src/quiet_zone_tester/hardware/`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
+
+### ARCH-TASK-20260710-038 - P5 链路语义收口
+
+- 目标：完成 P5-03/P5-04，让开关箱主链路接口表达极化、DUT 目标和原始命令，不再把 S 参数作为当前链路事实。
+- 完成：`LinkService` 新增 `select_polarization()` 和 `select_dut_path()`；`InstrumentService.select_switch_box_polarization()` 改为委托链路服务，新增 `select_switch_box_dut_path()`；`MainWindow` 的 DUT 链路按钮不再拼接 `CONFigure:LINK DUT...` 字符串，只传目标；`select_s_parameter()` 保留 deprecated 兼容说明；README、链路设计文档和架构迁移方案同步当前链路语义。
+- 验证：运行 `$env:PYTHONPATH='src'; $env:QT_QPA_PLATFORM='offscreen'; .\.venv\Scripts\python.exe -m unittest tests.test_link_service tests.test_instrument_service_link_routing`，通过 8 个 `unittest`；运行全量 `unittest discover -s tests`，通过 132 个 `unittest`，其中硬件集成入口默认跳过 1 个；主窗口 offscreen 初始化输出 `ok`。
+- 风险：硬件 controller 仍保留 `select_s_parameter()` 以兼容旧脚本和旧测试；后续确认外部调用迁移后可进一步删除协议和 profile 中的历史 S 参数映射。
+- 后续：继续 P5-05，抽出实时曲线标签识别模型，并修正非 0 起点扫描区间判断。
+- 涉及文件：`src/quiet_zone_tester/domains/link_management/link_service.py`、`src/quiet_zone_tester/services/instrument_service.py`、`src/quiet_zone_tester/ui/main_window.py`、`tests/test_link_service.py`、`tests/test_instrument_service_link_routing.py`、`README.md`、`docs/LINK_MANAGEMENT_DESIGN.md`、`docs/architecture_migration_plan.md`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
+
+### ARCH-TASK-20260710-039 - P5 实时曲线标签模型抽取
+
+- 目标：完成 P5-05，把实时曲线标签中的主线条 X/Y、位置 L/R/U/D/M 和四分之一边界判断从 Widget 迁入 presentation model。
+- 完成：新增 `ScanFlagModel` 和 `ScanFlagState`；`LivePlotPanel.set_main_line_from_scan_settings()` 只读取模型结果并更新控件；非 0 起点扫描区间使用实际 min/max 坐标计算 25%/75% 边界，避免默认从 0 起算导致位置误判。
+- 验证：运行 `$env:PYTHONPATH='src'; $env:QT_QPA_PLATFORM='offscreen'; .\.venv\Scripts\python.exe -m unittest tests.test_scan_flag_model tests.test_live_plot_panel`，通过 14 个 `unittest`；运行全量 `unittest discover -s tests`，通过 138 个 `unittest`，其中硬件集成入口默认跳过 1 个；主窗口 offscreen 初始化输出 `ok`。
+- 风险：当前标签仍由实时曲线面板控件保存最终显示状态；后续如需让扫描记录复用，应把 `ScanFlagState` 纳入扫描运行元数据。
+- 后续：继续 P5-06，进一步瘦身 `MainWindow` 的任务结果处理、状态栏和日志路由。
+- 涉及文件：`src/quiet_zone_tester/presentation/modules/scan_runtime/scan_flag_model.py`、`src/quiet_zone_tester/presentation/modules/scan_runtime/__init__.py`、`src/quiet_zone_tester/ui/widgets/live_plot_panel.py`、`tests/test_scan_flag_model.py`、`tests/test_live_plot_panel.py`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
+
+### ARCH-TASK-20260711-040 - P5 MainWindow feedback 收口
+
+- 目标：完成 P5-06，减少 `MainWindow` 中直接散落的状态栏、日志和错误弹窗处理。
+- 完成：新增 `MainWindowFeedback`，集中处理状态栏消息、info/error 日志、错误消息裁剪和错误弹窗；`MainWindow` 的连接、扫描架控制、VNA 操作、开关箱链路、扫描控制、任务结果回调和通用失败处理改为通过 feedback helper 输出；`MainWindow` 不再直接调用 `_log_panel.append_*` 或 `statusBar().showMessage()`，除 feedback 初始化回调外不再直接触达日志/状态栏 API。
+- 验证：运行 `$env:PYTHONPATH='src'; $env:QT_QPA_PLATFORM='offscreen'; .\.venv\Scripts\python.exe -m unittest tests.test_main_window_feedback tests.test_application_context tests.test_scan_workflow_state`，通过 9 个 `unittest`；主窗口 offscreen 初始化输出 `ok`；运行全量 `unittest discover -s tests`，通过 140 个 `unittest`，其中硬件集成入口默认跳过 1 个。
+- 风险：任务启动/完成编排仍主要在 `MainWindow` 方法内；feedback 收口解决状态/日志路由，后续若继续瘦身可把扫描和连接任务编排继续迁入 application/presentation controller。
+- 后续：继续 P5-07，整理当前项目样式，避免长期依赖参考 CSS 的末尾覆盖。
+- 涉及文件：`src/quiet_zone_tester/presentation/modules/app_feedback/`、`src/quiet_zone_tester/ui/main_window.py`、`tests/test_main_window_feedback.py`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
+
+### ARCH-TASK-20260711-041 - P5 样式收口与回归验证
+
+- 目标：完成 P5-07/P5-08，把参考项目 `style.css` 收敛为当前项目专用样式，并确认 P5 收口阶段的回归验证流程有效。
+- 完成：重写 `resource/style/style.css`，移除参考项目遗留的 `LogWidget`、`initButton`、PlotWidget toolbar 和大字号规则；保留当前项目实际使用的浅色工作台、`appHeader`、输入框、按钮、ComboBox 可见箭头、DUT 链路切换按钮、进度条、菜单、滚动条、表格、消息框等规则；样式文件从 798 行缩减到 345 行，不再依赖末尾“桌面密度覆盖”压制字号。
+- 验证：主窗口 offscreen 初始化输出 `ok`；运行 `$env:PYTHONPATH='src'; $env:QT_QPA_PLATFORM='offscreen'; .\.venv\Scripts\python.exe -m unittest tests.test_application_context tests.test_main_window_feedback`，通过 5 个 `unittest`；运行全量 `unittest discover -s tests`，通过 140 个 `unittest`，其中硬件集成入口默认跳过 1 个。
+- 风险：offscreen 初始化只能验证样式可加载和窗口可创建，真实桌面视觉仍建议人工查看 ComboBox 箭头、DUT 按钮选中态和测试参数密度。
+- 后续：P5 当前任务全部完成；后续可进入真实硬件联调、外部旧接口删除计划或进一步 UI 细节打磨。
+- 涉及文件：`resource/style/style.css`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。

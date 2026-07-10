@@ -7,6 +7,23 @@ from typing import Callable
 from serial.tools import list_ports
 
 from quiet_zone_tester.domains.instrument_management import InstrumentConnectionConfig
+from quiet_zone_tester.shared.instrument_defaults import (
+    DEFAULT_POSITIONER_BAUDRATE,
+    DEFAULT_POSITIONER_PULSES_PER_MM,
+    DEFAULT_POSITIONER_SPEED_MM_S,
+    DEFAULT_POSITIONER_TIMEOUT_MS,
+    DEFAULT_POSITIONER_X_AXIS,
+    DEFAULT_POSITIONER_Y_AXIS,
+    DEFAULT_SWITCH_BOX_BAUDRATE,
+    DEFAULT_SWITCH_BOX_CONNECTION_TYPE,
+    DEFAULT_SWITCH_BOX_MODEL,
+    DEFAULT_VNA_IP_ADDRESS,
+    DEFAULT_VNA_PORT,
+    DEFAULT_VNA_TIMEOUT_MS,
+    SUPPORTED_SWITCH_BOX_MODELS,
+    SwitchBoxModelDefaults,
+    switch_box_model_defaults,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -14,40 +31,32 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class VnaFormState:
     virtual_enabled: bool = False
-    ip_address: str = "192.168.1.10"
-    port: int = 5025
-    timeout_ms: int = 5000
+    ip_address: str = DEFAULT_VNA_IP_ADDRESS
+    port: int = DEFAULT_VNA_PORT
+    timeout_ms: int = DEFAULT_VNA_TIMEOUT_MS
 
 
 @dataclass(frozen=True)
 class PositionerFormState:
     port_name: str = ""
-    baudrate: int = 115200
-    default_speed: float = 20.0
-    timeout_ms: int = 1000
-    x_axis: int = 2
-    y_axis: int = 3
-    pulses_per_mm: float = 400.0
+    baudrate: int = DEFAULT_POSITIONER_BAUDRATE
+    default_speed: float = DEFAULT_POSITIONER_SPEED_MM_S
+    timeout_ms: int = DEFAULT_POSITIONER_TIMEOUT_MS
+    x_axis: int = DEFAULT_POSITIONER_X_AXIS
+    y_axis: int = DEFAULT_POSITIONER_Y_AXIS
+    pulses_per_mm: float = DEFAULT_POSITIONER_PULSES_PER_MM
 
 
 @dataclass(frozen=True)
 class SwitchBoxFormState:
     virtual_enabled: bool = False
-    model: str = "LCD74000F"
-    connection_type: str = "TCP/IP"
-    ip_address: str = "192.168.1.113"
-    tcp_port: int = 7
+    model: str = DEFAULT_SWITCH_BOX_MODEL
+    connection_type: str = DEFAULT_SWITCH_BOX_CONNECTION_TYPE
+    ip_address: str = switch_box_model_defaults(DEFAULT_SWITCH_BOX_MODEL).ip_address
+    tcp_port: int = switch_box_model_defaults(DEFAULT_SWITCH_BOX_MODEL).tcp_port
     serial_port: str = ""
-    baudrate: int = 115200
-    timeout_ms: int = 2000
-
-
-@dataclass(frozen=True)
-class SwitchBoxModelDefaults:
-    connection_type: str
-    ip_address: str
-    tcp_port: int
-    timeout_ms: int
+    baudrate: int = DEFAULT_SWITCH_BOX_BAUDRATE
+    timeout_ms: int = switch_box_model_defaults(DEFAULT_SWITCH_BOX_MODEL).timeout_ms
 
 
 @dataclass(frozen=True)
@@ -79,12 +88,24 @@ class ConnectionPanelState:
 
 
 class ConnectionViewModel:
-    DEFAULT_POSITIONER_PULSES_PER_MM = 400.0
-    DEFAULT_POSITIONER_X_AXIS = 2
-    DEFAULT_POSITIONER_Y_AXIS = 3
-
     def __init__(self, serial_port_provider: Callable[[], list[str]] | None = None) -> None:
         self._serial_port_provider = serial_port_provider or self.enumerate_serial_ports
+
+    @staticmethod
+    def default_vna_form_state() -> VnaFormState:
+        return VnaFormState()
+
+    @staticmethod
+    def default_positioner_form_state() -> PositionerFormState:
+        return PositionerFormState()
+
+    @staticmethod
+    def default_switch_box_form_state() -> SwitchBoxFormState:
+        return SwitchBoxFormState()
+
+    @staticmethod
+    def supported_switch_box_models() -> tuple[str, ...]:
+        return SUPPORTED_SWITCH_BOX_MODELS
 
     def build_config(
         self,
@@ -175,19 +196,7 @@ class ConnectionViewModel:
 
     @staticmethod
     def switch_box_defaults(model: str) -> SwitchBoxModelDefaults:
-        if str(model).strip().upper() == "LCD74000F":
-            return SwitchBoxModelDefaults(
-                connection_type="TCP/IP",
-                ip_address="192.168.1.113",
-                tcp_port=7,
-                timeout_ms=2000,
-            )
-        return SwitchBoxModelDefaults(
-            connection_type="Serial",
-            ip_address="192.168.1.120",
-            tcp_port=35,
-            timeout_ms=1500,
-        )
+        return switch_box_model_defaults(model)
 
     @staticmethod
     def is_serial_connection(connection_type: str) -> bool:

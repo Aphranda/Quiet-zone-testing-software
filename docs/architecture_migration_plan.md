@@ -23,7 +23,7 @@ Last updated: 2026-07-10
 |---|---|
 | [APP_DESIGN.md](APP_DESIGN.md) | 应用入口、QApplication 生命周期、主窗口装配和全局任务边界。 |
 | [INSTRUMENT_MANAGEMENT_DESIGN.md](INSTRUMENT_MANAGEMENT_DESIGN.md) | VNA、扫描架、开关箱的连接生命周期、controller 创建和连接配置边界。 |
-| [LINK_MANAGEMENT_DESIGN.md](LINK_MANAGEMENT_DESIGN.md) | S 参数链路路由、开关箱 profile 和链路控制边界。 |
+| [LINK_MANAGEMENT_DESIGN.md](LINK_MANAGEMENT_DESIGN.md) | 开关箱链路操作、历史 S 参数兼容路由、profile 和链路控制边界。 |
 | [MOTION_CONTROL_DESIGN.md](MOTION_CONTROL_DESIGN.md) | 扫描架手动运动、轴级运动、运行时配置和位置显示边界。 |
 | [SCAN_MANAGEMENT_DESIGN.md](SCAN_MANAGEMENT_DESIGN.md) | 扫描配置、路径规划、状态机和扫描运行边界。 |
 | [DATA_MANAGEMENT_DESIGN.md](DATA_MANAGEMENT_DESIGN.md) | 扫描事实、trace 文件、metadata、trace index 和文件命名边界。 |
@@ -163,7 +163,7 @@ APP 管理
   VNA、扫描架、开关箱的连接、断开、状态查询、Mock/真实后端选择。
 
 链路管理
-  S 参数到开关箱链路的映射、链路切换、链路箱型号差异、链路可视化。
+  极化链路、DUT 目标链路、原始命令发送、历史 S 参数兼容路由、链路箱型号差异、链路可视化。
 
 运动控制管理
   扫描架当前位置、点动、停止、绝对/相对运动、轴映射、运动状态轮询。
@@ -315,7 +315,8 @@ src/quiet_zone_tester/
 
 不负责：
 
-- S 参数链路命令映射。
+- 极化链路和 DUT 目标链路命令。
+- 历史 S 参数兼容路由。
 - 扫描路径规划。
 - 文件保存。
 
@@ -327,7 +328,9 @@ src/quiet_zone_tester/
 
 职责：
 
-- `S11/S21/S12/S22` 到链路命令的映射。
+- 极化 H/V 到链路命令的映射。
+- DUT 目标 VNA2/SA 到链路命令的映射。
+- `S11/S21/S12/S22` 到链路命令的历史兼容映射。
 - LCD74000F、TC500 等型号 profile。
 - 链路切换和当前链路状态。
 
@@ -575,10 +578,10 @@ ConnectionView
 
 ```text
 LinkControlView
-  -> LinkControlViewModel.select_parameter("S21")
-  -> LinkService.select_s_parameter
-  -> LinkRouter.resolve("S21")
-  -> SwitchBoxController.select_s_parameter
+  -> LinkControlViewModel / MainWindow emits polarization or DUT target
+  -> InstrumentService.select_switch_box_polarization / select_switch_box_dut_path
+  -> LinkService.select_polarization / select_dut_path
+  -> SwitchBoxController.send_command
 ```
 
 手动运动：

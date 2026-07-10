@@ -50,7 +50,13 @@ class ReportExporterTest(unittest.TestCase):
                 point_index=1,
                 timestamp=datetime(2026, 7, 10, 12, 1, 0),
             )
-            repository.append_event(session, level="info", event_type="finish", message="done")
+            repository.append_event(
+                session,
+                level="info",
+                event_type="finish",
+                message="done",
+                timestamp=datetime(2026, 7, 10, 12, 1, 30),
+            )
             repository.finalize(session, final_state="Completed", timestamp=datetime(2026, 7, 10, 12, 2, 0))
 
             report_path = ReportExporter().export_markdown(session)

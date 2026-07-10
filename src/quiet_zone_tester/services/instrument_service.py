@@ -504,6 +504,7 @@ class InstrumentService:
         self.select_switch_box_polarization(polarization)
 
     def select_switch_box_parameter(self, parameter: str) -> str:
+        """Deprecated compatibility route; S parameters should only drive VNA measurement."""
         if not self.is_switch_box_connected or self._switch_box is None:
             raise InstrumentServiceError("请先连接开关箱，再切换链路。")
 
@@ -516,14 +517,19 @@ class InstrumentService:
         if not self.is_switch_box_connected or self._switch_box is None:
             raise InstrumentServiceError("请先连接开关箱，再切换链路。")
 
-        polarization = str(polarization or "").strip().upper()
-        if polarization not in {"H", "V"}:
-            raise InstrumentServiceError("极化必须为 H 或 V。")
-
         try:
-            return LinkService(self._switch_box).send_command(f"CONFigure:LINK {polarization}, VNA1")
+            return LinkService(self._switch_box).select_polarization(polarization)
         except LinkServiceError as exc:
             raise InstrumentServiceError(f"开关箱切换失败：{exc}") from exc
+
+    def select_switch_box_dut_path(self, target: str) -> str:
+        if not self.is_switch_box_connected or self._switch_box is None:
+            raise InstrumentServiceError("请先连接开关箱，再切换链路。")
+
+        try:
+            return LinkService(self._switch_box).select_dut_path(target)
+        except LinkServiceError as exc:
+            raise InstrumentServiceError(f"DUT 链路切换失败：{exc}") from exc
 
     def send_switch_box_command(self, command: str) -> str:
         if not self.is_switch_box_connected or self._switch_box is None:

@@ -9,6 +9,12 @@ import serial
 
 from quiet_zone_tester.hardware.interfaces import InstrumentInfo
 from quiet_zone_tester.domains.link_management import LinkRouter, switch_box_profile_from_commands
+from quiet_zone_tester.shared.instrument_defaults import (
+    DEFAULT_SWITCH_BOX_BAUDRATE,
+    DEFAULT_SWITCH_BOX_CONNECTION_TYPE,
+    DEFAULT_SWITCH_BOX_SERIAL_PORT,
+    switch_box_model_defaults,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -19,12 +25,12 @@ class Tc500SwitchBoxError(RuntimeError):
 
 @dataclass(frozen=True)
 class Tc500SwitchBoxConfig:
-    connection_type: str = "TCP/IP"
-    ip_address: str = "192.168.1.120"
-    tcp_port: int = 35
-    serial_port: str = "COM3"
-    baudrate: int = 115200
-    timeout_ms: int = 1500
+    connection_type: str = DEFAULT_SWITCH_BOX_CONNECTION_TYPE
+    ip_address: str = switch_box_model_defaults("TC500").ip_address
+    tcp_port: int = switch_box_model_defaults("TC500").tcp_port
+    serial_port: str = DEFAULT_SWITCH_BOX_SERIAL_PORT
+    baudrate: int = DEFAULT_SWITCH_BOX_BAUDRATE
+    timeout_ms: int = switch_box_model_defaults("TC500").timeout_ms
     command_terminator: str = "\r\n"
     identify_command: str = "PASSIVE"
     s11_command: str = "PASSIVE"

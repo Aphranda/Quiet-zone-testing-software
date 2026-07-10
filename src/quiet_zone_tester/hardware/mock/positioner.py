@@ -4,6 +4,11 @@ import logging
 import time
 
 from quiet_zone_tester.hardware.interfaces import InstrumentInfo, Position
+from quiet_zone_tester.shared.instrument_defaults import (
+    DEFAULT_POSITIONER_SPEED_MM_S,
+    DEFAULT_POSITIONER_X_AXIS,
+    DEFAULT_POSITIONER_Y_AXIS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -11,7 +16,7 @@ logger = logging.getLogger(__name__)
 class MockPositionerController:
     """Mock positioner for UI and workflow testing without chamber hardware."""
 
-    def __init__(self, x_axis: int = 2, y_axis: int = 3) -> None:
+    def __init__(self, x_axis: int = DEFAULT_POSITIONER_X_AXIS, y_axis: int = DEFAULT_POSITIONER_Y_AXIS) -> None:
         self._connected = False
         self._x_axis = x_axis
         self._y_axis = y_axis
@@ -52,7 +57,7 @@ class MockPositionerController:
         self._jog_speed_mm_s = 0.0
 
         delta = abs(x_mm - self._position.x_mm) + abs(y_mm - self._position.y_mm)
-        speed = max(abs(speed_mm_s or 20.0), 1.0)
+        speed = max(abs(speed_mm_s or DEFAULT_POSITIONER_SPEED_MM_S), 1.0)
         time.sleep(min(0.45, 0.02 + delta / speed / 20.0))
         self._position = Position(x_mm=x_mm, y_mm=y_mm)
         logger.info("Mock positioner moved to x=%.3f mm, y=%.3f mm.", x_mm, y_mm)

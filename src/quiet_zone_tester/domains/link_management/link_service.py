@@ -15,6 +15,7 @@ class LinkSwitchBoxController(Protocol):
         ...
 
     def select_s_parameter(self, parameter: str) -> str:
+        """Deprecated compatibility route; new link operations should use send_command()."""
         ...
 
     def send_command(self, command: str) -> str:
@@ -30,6 +31,7 @@ class LinkService:
     controller: LinkSwitchBoxController
 
     def select_s_parameter(self, parameter: str) -> str:
+        """Deprecated compatibility route for historical S-parameter based switching."""
         self._ensure_connected()
         parameter = normalize_s_parameter(parameter)
         try:
@@ -40,6 +42,18 @@ class LinkService:
 
         logger.info("Switch box routed %s with command %s.", parameter, command)
         return command
+
+    def select_polarization(self, polarization: str | None) -> str:
+        polarization = str(polarization or "").strip().upper()
+        if polarization not in {"H", "V"}:
+            raise LinkServiceError("Polarization must be H or V.")
+        return self.send_command(f"CONFigure:LINK {polarization}, VNA1")
+
+    def select_dut_path(self, target: str) -> str:
+        target = str(target).strip().upper()
+        if target not in {"VNA2", "SA"}:
+            raise LinkServiceError("DUT target must be VNA2 or SA.")
+        return self.send_command(f"CONFigure:LINK DUT, AMP1, {target}")
 
     def send_command(self, command: str) -> str:
         self._ensure_connected()

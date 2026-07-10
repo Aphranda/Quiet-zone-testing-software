@@ -6,6 +6,15 @@ from dataclasses import dataclass
 
 import serial
 
+from quiet_zone_tester.shared.instrument_defaults import (
+    DEFAULT_POSITIONER_BAUDRATE,
+    DEFAULT_POSITIONER_BYTESIZE,
+    DEFAULT_POSITIONER_PARITY,
+    DEFAULT_POSITIONER_RETRIES,
+    DEFAULT_POSITIONER_RETRY_DELAY_S,
+    DEFAULT_POSITIONER_STOPBITS,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -16,13 +25,13 @@ class ModbusRtuError(RuntimeError):
 @dataclass(frozen=True)
 class ModbusRtuConfig:
     port: str
-    baudrate: int = 115200
-    bytesize: int = 8
-    parity: str = "N"
-    stopbits: int = 1
+    baudrate: int = DEFAULT_POSITIONER_BAUDRATE
+    bytesize: int = DEFAULT_POSITIONER_BYTESIZE
+    parity: str = DEFAULT_POSITIONER_PARITY
+    stopbits: int = DEFAULT_POSITIONER_STOPBITS
     timeout_s: float = 1.0
-    retries: int = 2
-    retry_delay_s: float = 0.05
+    retries: int = DEFAULT_POSITIONER_RETRIES
+    retry_delay_s: float = DEFAULT_POSITIONER_RETRY_DELAY_S
 
 
 class ModbusRtuSession:

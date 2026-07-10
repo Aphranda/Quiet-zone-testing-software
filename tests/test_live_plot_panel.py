@@ -161,6 +161,22 @@ class LivePlotPanelTest(unittest.TestCase):
         self.assertEqual(panel._main_line.currentText(), "Y")
         self.assertEqual(panel._position_mark.currentText(), "D")
 
+    def test_position_mark_uses_non_zero_scan_bounds(self) -> None:
+        _app()
+        panel = LivePlotPanel()
+
+        panel.set_main_line_from_scan_settings(
+            {
+                "x_start_mm": 100.0,
+                "x_stop_mm": 500.0,
+                "y_start_mm": 300.0,
+                "y_stop_mm": 300.0,
+            }
+        )
+
+        self.assertEqual(panel._main_line.currentText(), "X")
+        self.assertEqual(panel._position_mark.currentText(), "M")
+
 
 if __name__ == "__main__":
     unittest.main()

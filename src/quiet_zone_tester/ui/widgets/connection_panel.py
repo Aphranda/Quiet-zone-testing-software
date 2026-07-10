@@ -55,10 +55,6 @@ class NoWheelDoubleSpinBox(QDoubleSpinBox):
 
 
 class ConnectionPanel(QGroupBox):
-    DEFAULT_POSITIONER_PULSES_PER_MM = 400.0
-    DEFAULT_POSITIONER_X_AXIS = 2
-    DEFAULT_POSITIONER_Y_AXIS = 3
-
     connect_all_requested = Signal(dict)
     connect_vna_requested = Signal(dict)
     connect_positioner_requested = Signal(dict)
@@ -74,6 +70,9 @@ class ConnectionPanel(QGroupBox):
     def __init__(self, parent=None) -> None:
         super().__init__("仪器连接", parent)
         self._view_model = ConnectionViewModel()
+        self._vna_defaults = self._view_model.default_vna_form_state()
+        self._positioner_defaults = self._view_model.default_positioner_form_state()
+        self._switch_box_defaults = self._view_model.default_switch_box_form_state()
         self._busy = False
         self._vna_connected = False
         self._positioner_connected = False
@@ -87,35 +86,38 @@ class ConnectionPanel(QGroupBox):
         self._vna_connection_mode = NoWheelComboBox()
         self._vna_connection_mode.addItem("真实连接", False)
         self._vna_connection_mode.addItem("虚拟连接", True)
-        self._vna_ip = QLineEdit("192.168.1.10")
-        self._vna_port = self._port_spinbox(5025)
+        self._vna_ip = QLineEdit(self._vna_defaults.ip_address)
+        self._vna_port = self._port_spinbox(self._vna_defaults.port)
         self._vna_resource = QLineEdit()
         self._vna_resource.setReadOnly(True)
-        self._vna_timeout_ms = self._timeout_spinbox(5000)
+        self._vna_timeout_ms = self._timeout_spinbox(self._vna_defaults.timeout_ms)
         self._sync_vna_resource()
         self._vna_ip.textChanged.connect(lambda _text: self._sync_vna_resource())
         self._vna_port.valueChanged.connect(lambda _value: self._sync_vna_resource())
 
         self._positioner_port_name = self._init_serial_port_combobox()
         self._positioner_port_field = self._serial_port_field(self._positioner_port_name)
-        self._positioner_baudrate = self._baudrate_spinbox(115200)
-        self._positioner_default_speed = self._positive_double_spinbox(20.0, " mm/s")
+        self._positioner_baudrate = self._baudrate_spinbox(self._positioner_defaults.baudrate)
+        self._positioner_default_speed = self._positive_double_spinbox(
+            self._positioner_defaults.default_speed,
+            " mm/s",
+        )
         self._positioner_default_speed.valueChanged.connect(self.positioner_default_speed_changed.emit)
-        self._positioner_timeout_ms = self._timeout_spinbox(1000)
+        self._positioner_timeout_ms = self._timeout_spinbox(self._positioner_defaults.timeout_ms)
 
         self._switch_box_connection_mode = NoWheelComboBox()
         self._switch_box_connection_mode.addItem("真实连接", False)
         self._switch_box_connection_mode.addItem("虚拟连接", True)
         self._switch_box_model = NoWheelComboBox()
-        self._switch_box_model.addItems(["LCD74000F", "TC500"])
+        self._switch_box_model.addItems(self._view_model.supported_switch_box_models())
         self._switch_box_connection_type = NoWheelComboBox()
         self._switch_box_connection_type.addItems(["TCP/IP", "Serial"])
-        self._switch_box_ip = QLineEdit("192.168.1.113")
-        self._switch_box_tcp_port = self._port_spinbox(7)
+        self._switch_box_ip = QLineEdit(self._switch_box_defaults.ip_address)
+        self._switch_box_tcp_port = self._port_spinbox(self._switch_box_defaults.tcp_port)
         self._switch_box_serial_port = self._init_serial_port_combobox()
         self._switch_box_serial_port_field = self._serial_port_field(self._switch_box_serial_port)
-        self._switch_box_baudrate = self._baudrate_spinbox(115200)
-        self._switch_box_timeout_ms = self._timeout_spinbox(2000)
+        self._switch_box_baudrate = self._baudrate_spinbox(self._switch_box_defaults.baudrate)
+        self._switch_box_timeout_ms = self._timeout_spinbox(self._switch_box_defaults.timeout_ms)
         self._switch_box_model.currentTextChanged.connect(self._on_switch_box_model_changed)
         self._on_switch_box_model_changed(self._switch_box_model.currentText())
 
@@ -174,9 +176,9 @@ class ConnectionPanel(QGroupBox):
                 baudrate=self._positioner_baudrate.value(),
                 default_speed=self._positioner_default_speed.value(),
                 timeout_ms=self._positioner_timeout_ms.value(),
-                x_axis=self.DEFAULT_POSITIONER_X_AXIS,
-                y_axis=self.DEFAULT_POSITIONER_Y_AXIS,
-                pulses_per_mm=self.DEFAULT_POSITIONER_PULSES_PER_MM,
+                x_axis=self._positioner_defaults.x_axis,
+                y_axis=self._positioner_defaults.y_axis,
+                pulses_per_mm=self._positioner_defaults.pulses_per_mm,
             ),
             switch_box=SwitchBoxFormState(
                 virtual_enabled=bool(self._switch_box_connection_mode.currentData()),
