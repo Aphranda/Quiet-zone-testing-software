@@ -16,7 +16,6 @@ from PySide6.QtWidgets import (
 
 from quiet_zone_tester.presentation.modules.scan_setup import (
     DEFAULT_DISTANCE_PER_TURN_MM,
-    DEFAULT_FREQUENCY_STEP_MHZ,
     DEFAULT_IF_BANDWIDTH_HZ,
     DEFAULT_PROBE_OFFSET_MM,
     DEFAULT_SETTLE_DELAY_S,
@@ -56,8 +55,6 @@ class TestSetupPanel(QGroupBox):
 
         self._start_ghz = self._frequency_spinbox(DEFAULT_START_GHZ)
         self._stop_ghz = self._frequency_spinbox(DEFAULT_STOP_GHZ)
-        self._frequency_step_mhz = self._frequency_step_spinbox(DEFAULT_FREQUENCY_STEP_MHZ)
-        self._sweep_points_label = QLabel()
         self._vna_power_dbm = self._power_spinbox(-10.0)
         self._if_bandwidth_hz = self._if_bandwidth_spinbox(DEFAULT_IF_BANDWIDTH_HZ)
 
@@ -90,7 +87,6 @@ class TestSetupPanel(QGroupBox):
         self._input_widgets: list[QWidget] = [
             self._start_ghz,
             self._stop_ghz,
-            self._frequency_step_mhz,
             self._vna_power_dbm,
             self._if_bandwidth_hz,
             self._parameter,
@@ -150,7 +146,6 @@ class TestSetupPanel(QGroupBox):
         self._probe_offset_preset.currentIndexChanged.connect(lambda _index: self._apply_probe_offset_preset())
         self._connect_config_change_signals()
         self._apply_probe_offset_preset()
-        self._refresh_sweep_points_display()
         self._refresh_mode_visibility()
         self._refresh_step_input_mode()
         self._refresh_action_buttons()
@@ -187,8 +182,8 @@ class TestSetupPanel(QGroupBox):
         form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         form.setHorizontalSpacing(8)
         form.setVerticalSpacing(6)
-        form.addRow("起止频率", self._build_frequency_range_field())
-        form.addRow("频率步进/点数", self._build_sweep_resolution_field())
+        form.addRow("起始频率", self._start_ghz)
+        form.addRow("终止频率", self._stop_ghz)
         form.addRow("网分功率", self._vna_power_dbm)
         form.addRow("中频带宽", self._if_bandwidth_hz)
         form.addRow("S 参数", self._parameter)
@@ -201,37 +196,15 @@ class TestSetupPanel(QGroupBox):
         grid.setVerticalSpacing(6)
         self._mode_field_labels: dict[QWidget, QLabel] = {}
         self._add_mode_field(grid, 0, 0, "测试模式", self._scan_mode, column_span=3)
-        self._add_mode_field(grid, 1, 0, "步进速度", self._step_speed_mm_s)
-        self._add_mode_field(grid, 1, 2, "到点延时", self._settle_delay_s)
-        self._add_mode_field(grid, 2, 0, "探头位置", self._probe_offset_preset, column_span=3)
-        self._add_mode_field(grid, 3, 0, "X偏移", self._probe_x_offset_mm)
-        self._add_mode_field(grid, 3, 2, "Y偏移", self._probe_y_offset_mm)
-        self._add_mode_field(grid, 4, 0, "匀速速度", self._continuous_speed_mm_s)
+        self._add_mode_field(grid, 1, 0, "步进速度", self._step_speed_mm_s, column_span=3)
+        self._add_mode_field(grid, 2, 0, "到点延时", self._settle_delay_s, column_span=3)
+        self._add_mode_field(grid, 3, 0, "探头位置", self._probe_offset_preset, column_span=3)
+        self._add_mode_field(grid, 4, 0, "X偏移", self._probe_x_offset_mm)
+        self._add_mode_field(grid, 4, 2, "Y偏移", self._probe_y_offset_mm)
+        self._add_mode_field(grid, 5, 0, "匀速速度", self._continuous_speed_mm_s, column_span=3)
         grid.setColumnStretch(1, 1)
         grid.setColumnStretch(3, 1)
         return group
-
-    def _build_frequency_range_field(self) -> QWidget:
-        field = QWidget()
-        layout = QHBoxLayout(field)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(6)
-        layout.addWidget(self._start_ghz, 1)
-        separator = QLabel("到")
-        separator.setStyleSheet("color: #475467;")
-        layout.addWidget(separator, 0)
-        layout.addWidget(self._stop_ghz, 1)
-        return field
-
-    def _build_sweep_resolution_field(self) -> QWidget:
-        field = QWidget()
-        layout = QHBoxLayout(field)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(6)
-        layout.addWidget(self._frequency_step_mhz, 1)
-        self._sweep_points_label.setMinimumWidth(64)
-        layout.addWidget(self._sweep_points_label, 0)
-        return field
 
     def _add_mode_field(
         self,
@@ -329,12 +302,8 @@ class TestSetupPanel(QGroupBox):
                 widget.currentTextChanged.connect(lambda _text: self._emit_config_changed())
 
     def _emit_config_changed(self) -> None:
-        self._refresh_sweep_points_display()
         if not self._sampling_active:
             self.config_changed.emit(self.current_settings())
-
-    def _refresh_sweep_points_display(self) -> None:
-        self._sweep_points_label.setText(f"{self._view_model.sweep_points(self._form_state())} 点")
 
     def _populate_probe_offset_presets(self) -> None:
         for preset in self._view_model.probe_offset_presets():
@@ -386,7 +355,6 @@ class TestSetupPanel(QGroupBox):
         return ScanSetupFormState(
             start_ghz=self._start_ghz.value(),
             stop_ghz=self._stop_ghz.value(),
-            frequency_step_mhz=self._frequency_step_mhz.value(),
             vna_power_dbm=self._vna_power_dbm.value(),
             if_bandwidth_hz=self._if_bandwidth_hz.value(),
             parameter=self._parameter.currentText(),
@@ -481,10 +449,8 @@ class TestSetupPanel(QGroupBox):
                 QPushButton:hover {
                     background: #b42318;
                 }
-                QPushButton:disabled {
-                    background: #e4e7ec;
-                    color: #98a2b3;
-                    border: 1px solid #d0d5dd;
+                QPushButton:pressed {
+                    background: #912018;
                 }
                 """
             )
@@ -595,16 +561,6 @@ class TestSetupPanel(QGroupBox):
         spinbox.setSingleStep(100.0)
         spinbox.setValue(value)
         spinbox.setSuffix(" Hz")
-        return spinbox
-
-    @staticmethod
-    def _frequency_step_spinbox(value: float) -> QDoubleSpinBox:
-        spinbox = NoWheelDoubleSpinBox()
-        spinbox.setRange(0.001, 1000000.0)
-        spinbox.setDecimals(3)
-        spinbox.setSingleStep(1.0)
-        spinbox.setValue(value)
-        spinbox.setSuffix(" MHz")
         return spinbox
 
     @staticmethod

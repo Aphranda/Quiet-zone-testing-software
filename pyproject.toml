@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.scripts]
-quiet-zone-tester = "quiet_zone_tester.main:main"
+quiet-zone-tester = "quiet_zone_tester.main:Main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

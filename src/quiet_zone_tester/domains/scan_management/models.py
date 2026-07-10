@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, ClassVar, Mapping
 
-from quiet_zone_tester.models import SParameterTrace, ScanVolume
+from quiet_zone_tester.models import DEFAULT_FREQUENCY_STEP_MHZ, SParameterTrace, ScanVolume
 from quiet_zone_tester.domains.scan_management.scan_planner import plan_scan_points
 
 
@@ -24,6 +24,7 @@ class ScanPoint:
 class SweepSettings:
     start_ghz: float = 10.0
     stop_ghz: float = 17.0
+    frequency_step_mhz: float = DEFAULT_FREQUENCY_STEP_MHZ
     points: int = 801
     vna_power_dbm: float = -10.0
     if_bandwidth_hz: float = 1000.0
@@ -34,6 +35,8 @@ class SweepSettings:
             raise ValueError("Sweep start frequency must be greater than 0 GHz.")
         if self.stop_ghz <= self.start_ghz:
             raise ValueError("Sweep stop frequency must be greater than start frequency.")
+        if self.frequency_step_mhz <= 0.0:
+            raise ValueError("Sweep frequency step must be greater than 0 MHz.")
         if self.points < 2:
             raise ValueError("Sweep points must be greater than 1.")
         if self.if_bandwidth_hz <= 0.0:
@@ -49,6 +52,7 @@ class SweepSettings:
         return cls(
             start_ghz=float(settings.get("start_ghz", 10.0)),
             stop_ghz=float(settings.get("stop_ghz", 17.0)),
+            frequency_step_mhz=float(settings.get("frequency_step_mhz", DEFAULT_FREQUENCY_STEP_MHZ)),
             points=int(settings.get("points", 801)),
             vna_power_dbm=float(settings.get("vna_power_dbm", -10.0)),
             if_bandwidth_hz=float(settings.get("if_bandwidth_hz", 1000.0)),
@@ -59,6 +63,7 @@ class SweepSettings:
         return {
             "start_ghz": self.start_ghz,
             "stop_ghz": self.stop_ghz,
+            "frequency_step_mhz": self.frequency_step_mhz,
             "points": self.points,
             "vna_power_dbm": self.vna_power_dbm,
             "if_bandwidth_hz": self.if_bandwidth_hz,
@@ -111,6 +116,7 @@ class ScanSettings:
     _KNOWN_KEYS: ClassVar[set[str]] = {
         "start_ghz",
         "stop_ghz",
+        "frequency_step_mhz",
         "points",
         "vna_power_dbm",
         "if_bandwidth_hz",

@@ -2,6 +2,7 @@
 
 from quiet_zone_tester.presentation.modules.scan_setup.scan_setup_view_model import (
     DEFAULT_DISTANCE_PER_TURN_MM,
+    DEFAULT_FREQUENCY_STEP_MHZ,
     DEFAULT_IF_BANDWIDTH_HZ,
     DEFAULT_PROBE_OFFSET_MM,
     DEFAULT_PROBE_POINT_HALF_SPACING_MM,
@@ -19,6 +20,7 @@ from quiet_zone_tester.presentation.modules.scan_setup.scan_setup_view_model imp
 
 __all__ = [
     "DEFAULT_DISTANCE_PER_TURN_MM",
+    "DEFAULT_FREQUENCY_STEP_MHZ",
     "DEFAULT_IF_BANDWIDTH_HZ",
     "DEFAULT_PROBE_OFFSET_MM",
     "DEFAULT_PROBE_POINT_HALF_SPACING_MM",

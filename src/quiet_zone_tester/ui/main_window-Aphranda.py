@@ -189,9 +189,8 @@ class MainWindow(QMainWindow):
         self._vna_control_panel.configure_requested.connect(self._configure_vna_from_control)
         self._vna_control_panel.sample_requested.connect(self._start_vna_control_sample)
 
+        self._switch_box_control_panel.parameter_requested.connect(self._route_switch_box_parameter)
         self._switch_box_control_panel.command_requested.connect(self._send_switch_box_command)
-        self._plot_panel.polarization_changed.connect(self._route_switch_box_polarization)
-        self._plot_panel.dut_path_requested.connect(self._route_switch_box_dut_path)
 
         self._test_setup_panel.config_changed.connect(self._preview_scan_volume)
         self._test_setup_panel.vna_sample_requested.connect(self._start_vna_sample)
@@ -201,9 +200,6 @@ class MainWindow(QMainWindow):
         self._test_setup_panel.stop_requested.connect(self._stop_sampling)
 
         self._scan_animation_panel.progress_changed.connect(self._on_scan_progress_changed)
-        self._scan_animation_panel.probe_position_refresh_requested.connect(
-            self._refresh_scan_animation_probe_position
-        )
 
     def _show_positioner_control(self) -> None:
         if self._positioner_control_dialog is None:
@@ -377,26 +373,6 @@ class MainWindow(QMainWindow):
             on_finished=partial(self._set_busy, False),
         )
 
-    def _refresh_scan_animation_probe_position(self) -> None:
-        self._set_busy(True)
-        self.statusBar().showMessage("正在刷新探头当前位置...")
-        self._log_panel.append_info("刷新扫描动画探头当前位置。")
-        self._tasks.run(
-            lambda: self._service.query_positioner_position(self._connection_panel.current_config()),
-            on_success=self._on_scan_animation_probe_position_ready,
-            on_error=partial(self._on_operation_failed, "探头位置刷新失败"),
-            on_finished=partial(self._set_busy, False),
-        )
-
-    def _on_scan_animation_probe_position_ready(self, position: object) -> None:
-        if not isinstance(position, Position):
-            self._on_operation_failed("探头位置刷新失败", "业务层返回了未知位置数据。")
-            return
-
-        self._scan_animation_panel.set_probe_center_position(position.x_mm, position.y_mm)
-        self.statusBar().showMessage("探头位置已刷新")
-        self._log_panel.append_info(f"探头当前位置：X={position.x_mm:.3f} mm，Y={position.y_mm:.3f} mm。")
-
     def _start_positioner_motion_polling(self) -> None:
         self._position_tracker.start()
 
@@ -448,35 +424,15 @@ class MainWindow(QMainWindow):
             on_finished=partial(self._set_busy, False),
         )
 
-    def _route_switch_box_polarization(self, polarization: str) -> None:
-        polarization = str(polarization).strip().upper()
-        if polarization not in {"H", "V"}:
-            return
-
+    def _route_switch_box_parameter(self, parameter: str) -> None:
+        parameter = str(parameter).strip().upper()
         self._set_busy(True)
-        self.statusBar().showMessage("正在切换开关箱极化链路...")
-        self._log_panel.append_info(f"开关箱按极化切换：{polarization}。")
+        self.statusBar().showMessage("正在切换开关箱链路...")
+        self._log_panel.append_info(f"开关箱按 S 参数切换：{parameter}。")
         self._tasks.run(
-            lambda: self._service.select_switch_box_polarization(polarization),
-            on_success=partial(self._on_switch_box_command_done, polarization),
+            lambda: self._service.select_switch_box_parameter(parameter),
+            on_success=partial(self._on_switch_box_command_done, f"{parameter}"),
             on_error=partial(self._on_operation_failed, "开关箱切换失败"),
-            on_finished=partial(self._set_busy, False),
-        )
-
-    def _route_switch_box_dut_path(self, target: str) -> None:
-        target = str(target).strip().upper()
-        labels = {"VNA2": "网分", "SA": "信号源+频谱"}
-        if target not in labels:
-            return
-
-        command = f"CONFigure:LINK DUT, AMP1, {target}"
-        self._set_busy(True)
-        self.statusBar().showMessage("正在切换 DUT 到仪表链路...")
-        self._log_panel.append_info(f"DUT 到仪表链路切换：{labels[target]}。")
-        self._tasks.run(
-            lambda: self._service.send_switch_box_command(command),
-            on_success=partial(self._on_switch_box_command_done, labels[target]),
-            on_error=partial(self._on_operation_failed, "DUT 链路切换失败"),
             on_finished=partial(self._set_busy, False),
         )
 
@@ -533,6 +489,7 @@ class MainWindow(QMainWindow):
 
         self._latest_trace = None
         self._scan_workflow.begin_preview_sample()
+        self._plot_panel.set_polarization_from_parameter(settings["parameter"])
         self._plot_panel.clear()
         self._set_busy(True)
         self.statusBar().showMessage("正在采集网分曲线...")
@@ -552,7 +509,6 @@ class MainWindow(QMainWindow):
             stop_ghz=settings["stop_ghz"],
             points=settings["points"],
             parameter=settings["parameter"],
-            polarization=self._plot_panel.polarization(),
             vna_power_dbm=settings["vna_power_dbm"],
             if_bandwidth_hz=settings["if_bandwidth_hz"],
             file_flag=self._plot_panel.file_flag(),
@@ -571,8 +527,8 @@ class MainWindow(QMainWindow):
             return
 
         settings = dict(settings)
+        self._plot_panel.set_polarization_from_parameter(settings["parameter"])
         self._plot_panel.set_main_line_from_scan_settings(settings)
-        settings["polarization"] = self._plot_panel.polarization()
         settings["connection_config"] = self._connection_panel.current_config()
         settings["file_flag"] = self._plot_panel.file_flag()
         self._scan_workflow.mark_scan_task_running(True)
@@ -745,6 +701,7 @@ class MainWindow(QMainWindow):
     def _on_switch_box_command_done(self, label: str, response: object) -> None:
         response_text = str(response or "").strip()
         message = f"{label} -> {response_text or '完成'}"
+        self._plot_panel.set_polarization_from_link(response_text or label, parameter=label)
         self._switch_box_control_panel.set_result(message)
         self.statusBar().showMessage("开关箱命令已完成")
         self._log_panel.append_info(f"开关箱命令完成：{message}。")
@@ -837,7 +794,6 @@ class MainWindow(QMainWindow):
             f"{message} "
             f"{mode_text}，"
             f"{settings['parameter']}，"
-            f"极化 {settings.get('polarization', '-')}，"
             f"{settings['start_ghz']:.3f}-{settings['stop_ghz']:.3f} GHz，"
             f"功率 {settings['vna_power_dbm']:.1f} dBm，"
             f"中频带宽 {settings.get('if_bandwidth_hz', 1000.0):.0f} Hz，"

@@ -116,7 +116,6 @@ class TraceStorage:
             "frequency": {
                 "start_ghz": float(settings.get("start_ghz", 0.0)),
                 "stop_ghz": float(settings.get("stop_ghz", 0.0)),
-                "step_mhz": float(settings.get("frequency_step_mhz", 0.0)),
                 "points": int(settings.get("points", 0)),
                 "if_bandwidth_hz": float(settings.get("if_bandwidth_hz", 0.0)),
                 "vna_power_dbm": float(settings.get("vna_power_dbm", 0.0)),

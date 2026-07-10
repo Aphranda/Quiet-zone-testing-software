@@ -45,22 +45,18 @@ class LinkControlViewModelTest(unittest.TestCase):
         self.assertFalse(view_model.ui_state(connected=True, busy=True).inputs_enabled)
         self.assertFalse(view_model.ui_state(connected=False, busy=False).inputs_enabled)
 
-    def test_switch_box_control_panel_uses_legacy_signal_payloads(self) -> None:
+    def test_switch_box_control_panel_emits_command_payloads_only(self) -> None:
         _app()
         panel = SwitchBoxControlPanel()
-        parameter_payloads: list[str] = []
         command_payloads: list[str] = []
-        panel.parameter_requested.connect(parameter_payloads.append)
         panel.command_requested.connect(command_payloads.append)
         panel.set_switch_box_connected(True)
 
-        panel._parameter.setCurrentText("S12")
         panel._command.setCurrentText(" CONFigure:LINK V,VNA1 ")
 
-        panel._route_button.click()
         panel._send_button.click()
 
-        self.assertEqual(parameter_payloads, ["S12"])
+        self.assertFalse(hasattr(panel, "parameter_requested"))
         self.assertEqual(command_payloads, ["CONFigure:LINK V,VNA1"])
 
     def test_switch_box_control_panel_result_and_command_labels(self) -> None:

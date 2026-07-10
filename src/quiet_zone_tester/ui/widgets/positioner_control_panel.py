@@ -60,7 +60,6 @@ class PositionerControlPanel(QGroupBox):
 
         self._stop_button = QPushButton("停止")
         self._stop_button.setIcon(self.style().standardIcon(QStyle.SP_MediaStop))
-        self._stop_button.clicked.connect(self.stop_requested)
         self._stop_button.setStyleSheet(
             """
             QPushButton {
@@ -80,6 +79,7 @@ class PositionerControlPanel(QGroupBox):
             }
             """
         )
+        self._stop_button.clicked.connect(self.stop_requested)
 
         self._action_widgets: list[QWidget] = [
             self._query_button,

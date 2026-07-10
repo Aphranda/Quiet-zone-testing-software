@@ -325,7 +325,6 @@ class InstrumentService:
         stop_ghz: float,
         points: int,
         parameter: str,
-        polarization: str | None = None,
         vna_power_dbm: float = -10.0,
         if_bandwidth_hz: float = 1000.0,
         file_flag: str = "",
@@ -333,7 +332,7 @@ class InstrumentService:
         self.verify_ready_for_test()
 
         try:
-            self._select_switch_box_polarization_path(polarization)
+            self._select_switch_box_path(parameter)
             trace = self._acquisition_service().acquire_trace(
                 start_ghz=start_ghz,
                 stop_ghz=stop_ghz,
@@ -499,10 +498,6 @@ class InstrumentService:
         self.verify_ready_for_test()
         self.select_switch_box_parameter(parameter)
 
-    def _select_switch_box_polarization_path(self, polarization: str | None) -> None:
-        self.verify_ready_for_test()
-        self.select_switch_box_polarization(polarization)
-
     def select_switch_box_parameter(self, parameter: str) -> str:
         if not self.is_switch_box_connected or self._switch_box is None:
             raise InstrumentServiceError("请先连接开关箱，再切换链路。")
@@ -510,19 +505,6 @@ class InstrumentService:
         try:
             return LinkService(self._switch_box).select_s_parameter(parameter)
         except (LinkServiceError, ValueError) as exc:
-            raise InstrumentServiceError(f"开关箱切换失败：{exc}") from exc
-
-    def select_switch_box_polarization(self, polarization: str | None) -> str:
-        if not self.is_switch_box_connected or self._switch_box is None:
-            raise InstrumentServiceError("请先连接开关箱，再切换链路。")
-
-        polarization = str(polarization or "").strip().upper()
-        if polarization not in {"H", "V"}:
-            raise InstrumentServiceError("极化必须为 H 或 V。")
-
-        try:
-            return LinkService(self._switch_box).send_command(f"CONFigure:LINK {polarization}, VNA1")
-        except LinkServiceError as exc:
             raise InstrumentServiceError(f"开关箱切换失败：{exc}") from exc
 
     def send_switch_box_command(self, command: str) -> str:
@@ -567,7 +549,7 @@ class InstrumentService:
             raise InstrumentServiceError(str(exc)) from exc
 
     def _configure_vna_for_scan(self, settings: dict) -> None:
-        self._select_switch_box_polarization_path(settings.get("polarization"))
+        self._select_switch_box_path(str(settings["parameter"]))
         try:
             self._acquisition_service().configure_for_scan(settings)
         except AcquisitionServiceError as exc:

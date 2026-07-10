@@ -3,11 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from quiet_zone_tester.domains.scan_management import ScanSettings
+from quiet_zone_tester.models import DEFAULT_FREQUENCY_STEP_MHZ, calculate_sweep_points
 
 
-DEFAULT_SWEEP_POINTS = 801
 DEFAULT_START_GHZ = 10.0
 DEFAULT_STOP_GHZ = 17.0
+DEFAULT_SWEEP_POINTS = calculate_sweep_points(DEFAULT_START_GHZ, DEFAULT_STOP_GHZ, DEFAULT_FREQUENCY_STEP_MHZ)
 DEFAULT_IF_BANDWIDTH_HZ = 1000.0
 DEFAULT_STEP_MM = 2.5
 DEFAULT_DISTANCE_PER_TURN_MM = 24.0
@@ -28,6 +29,7 @@ class ProbeOffsetPreset:
 class ScanSetupFormState:
     start_ghz: float
     stop_ghz: float
+    frequency_step_mhz: float
     vna_power_dbm: float
     if_bandwidth_hz: float
     parameter: str
@@ -59,7 +61,8 @@ class ScanSetupViewModel:
             {
                 "start_ghz": state.start_ghz,
                 "stop_ghz": state.stop_ghz,
-                "points": DEFAULT_SWEEP_POINTS,
+                "frequency_step_mhz": state.frequency_step_mhz,
+                "points": self.sweep_points(state),
                 "vna_power_dbm": state.vna_power_dbm,
                 "if_bandwidth_hz": state.if_bandwidth_hz,
                 "parameter": state.parameter,
@@ -109,3 +112,7 @@ class ScanSetupViewModel:
     @staticmethod
     def turns_from_step_distance(step_mm: float, mm_per_turn: float) -> float:
         return float(step_mm) / float(mm_per_turn)
+
+    @staticmethod
+    def sweep_points(state: ScanSetupFormState) -> int:
+        return calculate_sweep_points(state.start_ghz, state.stop_ghz, state.frequency_step_mhz)

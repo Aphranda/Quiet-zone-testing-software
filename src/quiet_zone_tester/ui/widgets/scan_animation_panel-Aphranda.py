@@ -3,21 +3,19 @@ from __future__ import annotations
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, QTimer, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
-from PySide6.QtWidgets import QComboBox, QGroupBox, QHBoxLayout, QLabel, QPushButton, QStyle, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QGroupBox, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from quiet_zone_tester.models import ScanVolume
 from quiet_zone_tester.presentation.modules.scan_runtime import ScanPointModel
 
 
 DEFAULT_VOLUME = ScanVolume(0.0, 400.0, 0.0, 400.0, 2.5, 2.5)
-PROBE_POINT_SPACING_MM = 123.0
-PROBE_HOLDER_HALF_SIZE_MM = PROBE_POINT_SPACING_MM / 2.0
+PROBE_HOLDER_HALF_SIZE_PX = 24.0
 
 
 class ScanAnimationPanel(QGroupBox):
     finished = Signal()
     progress_changed = Signal(int, int)
-    probe_position_refresh_requested = Signal()
 
     def __init__(self, parent=None) -> None:
         super().__init__("二维扫描动画", parent)
@@ -31,15 +29,11 @@ class ScanAnimationPanel(QGroupBox):
         self._view_rotation.addItem("旋转180°", 180)
         self._view_rotation.addItem("旋转270°", 270)
         self._view_rotation.currentIndexChanged.connect(self._on_view_rotation_changed)
-        self._refresh_probe_button = QPushButton("刷新探头位置")
-        self._refresh_probe_button.setIcon(self.style().standardIcon(QStyle.SP_BrowserReload))
-        self._refresh_probe_button.clicked.connect(self.probe_position_refresh_requested.emit)
 
         toolbar = QHBoxLayout()
         toolbar.addWidget(QLabel("视角"))
         toolbar.addWidget(self._view_rotation)
         toolbar.addStretch(1)
-        toolbar.addWidget(self._refresh_probe_button)
 
         layout = QVBoxLayout(self)
         layout.addLayout(toolbar)
@@ -62,9 +56,6 @@ class ScanAnimationPanel(QGroupBox):
             y_offset_mm=float(settings.get("probe_y_offset_mm", 0.0)),
             label=str(settings.get("probe_offset_preset", "")).strip(),
         )
-
-    def set_probe_center_position(self, x_mm: float, y_mm: float) -> None:
-        self._canvas.set_probe_center_position(x_mm, y_mm)
 
     def start_scan(self, volume: ScanVolume) -> None:
         self._canvas.set_volume(volume, scan_active=True)
@@ -117,7 +108,6 @@ class _ScanCanvas(QWidget):
         self._probe_x_offset_mm = 0.0
         self._probe_y_offset_mm = 0.0
         self._probe_offset_label = "右上"
-        self._probe_center_position_mm: np.ndarray | None = None
 
     def set_view_rotation(self, degrees: int) -> None:
         normalized_degrees = int(degrees) % 360
@@ -135,10 +125,6 @@ class _ScanCanvas(QWidget):
         self._probe_offset_label = str(label or "").strip()
         self.update()
 
-    def set_probe_center_position(self, x_mm: float, y_mm: float) -> None:
-        self._probe_center_position_mm = np.array([float(x_mm), float(y_mm)], dtype=float)
-        self.update()
-
     def set_volume(self, volume: ScanVolume, scan_active: bool) -> None:
         self._volume = volume
         self._points = volume.scan_points()
@@ -148,8 +134,6 @@ class _ScanCanvas(QWidget):
         self._display_completed = 0
         self._display_total = None
         self._selected_index = None
-        if scan_active:
-            self._probe_center_position_mm = None
         self.update()
 
     def reset_to_preview(self) -> None:
@@ -167,7 +151,6 @@ class _ScanCanvas(QWidget):
         if not self._scan_active or self._points.size == 0:
             return False
 
-        self._probe_center_position_mm = None
         last_index = self._points.shape[0] - 1
         if self._current_index < last_index:
             self._current_index += 1
@@ -180,7 +163,6 @@ class _ScanCanvas(QWidget):
         if not self._scan_active or self._points.size == 0:
             return
 
-        self._probe_center_position_mm = None
         self._display_completed = max(int(completed_points), 0)
         self._display_total = None if total_points is None else max(int(total_points), 0)
         if self._uses_index_progress():
@@ -210,7 +192,7 @@ class _ScanCanvas(QWidget):
     def paintEvent(self, event) -> None:  # noqa: N802 - Qt override.
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        painter.fillRect(self.rect(), QColor("#ffffff"))
+        painter.fillRect(self.rect(), QColor("#f8fafc"))
 
         if self._volume is None:
             return
@@ -233,7 +215,7 @@ class _ScanCanvas(QWidget):
 
     def _draw_scan_plane(self, painter: QPainter) -> None:
         rect = self._plot_rect()
-        painter.setPen(QPen(QColor("#7b8987"), 1.6))
+        painter.setPen(QPen(QColor("#98a2b3"), 1.4))
         painter.setBrush(QColor("#ffffff"))
         painter.drawRect(rect)
 
@@ -243,7 +225,7 @@ class _ScanCanvas(QWidget):
         x_ticks = self._axis_ticks(x_min, x_max, self._volume.step_x_mm)
         y_ticks = self._axis_ticks(y_min, y_max, self._volume.step_y_mm)
 
-        painter.setPen(QPen(QColor("#b8c6c4"), 1.0, Qt.DashLine))
+        painter.setPen(QPen(QColor("#d0d5dd"), 1.0, Qt.DashLine))
         for x_value in x_ticks:
             painter.drawLine(
                 self._project_point(np.array([x_value, y_min], dtype=float)),
@@ -300,8 +282,8 @@ class _ScanCanvas(QWidget):
 
     def _draw_tick_labels(self, painter: QPainter) -> None:
         assert self._volume is not None
-        painter.setPen(QColor("#222222"))
-        painter.setFont(QFont("Microsoft YaHei UI", 9))
+        painter.setPen(QColor("#475467"))
+        painter.setFont(QFont("Microsoft YaHei UI", 8))
 
         (x_min, x_max), (y_min, y_max) = self._view_bounds()
         x_ticks = self._axis_ticks(x_min, x_max, self._volume.step_x_mm)
@@ -381,10 +363,10 @@ class _ScanCanvas(QWidget):
 
         center = self._probe_holder_center_point()
         center_screen = self._project_point(center)
-        corner_points = self._probe_holder_corner_points(center)
+        corner_points = self._probe_holder_corner_points(center_screen)
         order = ("右上", "左上", "左下", "右下", "右上")
 
-        painter.setPen(QPen(QColor("#344054"), 2.0))
+        painter.setPen(QPen(QColor("#344054"), 1.8))
         painter.setBrush(Qt.NoBrush)
         for start_name, stop_name in zip(order[:-1], order[1:]):
             painter.drawLine(corner_points[start_name], corner_points[stop_name])
@@ -397,15 +379,15 @@ class _ScanCanvas(QWidget):
         painter.setFont(QFont("Microsoft YaHei UI", 8))
         for name, screen_point in corner_points.items():
             selected = name == selected_corner
-            painter.setPen(QPen(QColor("#7a271a" if selected else "#344054"), 2.0 if selected else 1.4))
+            painter.setPen(QPen(QColor("#7a271a" if selected else "#475467"), 2.0 if selected else 1.2))
             painter.setBrush(QColor("#f04438" if selected else "#e4e7ec"))
             radius = 7.0 if selected else 4.8
             painter.drawEllipse(screen_point, radius, radius)
-            painter.setPen(QColor("#101828" if selected else "#344054"))
+            painter.setPen(QColor("#101828" if selected else "#667085"))
             painter.drawText(screen_point + self._probe_label_offset(name), name)
 
         if selected_corner is None:
-            custom_screen = self._probe_custom_screen_point(center)
+            custom_screen = center_screen + self._probe_custom_screen_offset()
             painter.setPen(QPen(QColor("#7a271a"), 2.0))
             painter.setBrush(QColor("#f04438"))
             painter.drawEllipse(custom_screen, 7.0, 7.0)
@@ -432,8 +414,8 @@ class _ScanCanvas(QWidget):
             )
         painter.drawText(14, 24, text)
 
-        painter.setPen(QColor("#344054"))
-        painter.setFont(QFont("Microsoft YaHei UI", 9))
+        painter.setPen(QColor("#667085"))
+        painter.setFont(QFont("Microsoft YaHei UI", 8))
         painter.drawText(
             14,
             44,
@@ -449,7 +431,7 @@ class _ScanCanvas(QWidget):
         panel = QRectF(self.width() - 238.0, 14.0, 224.0, 116.0)
 
         painter.fillRect(panel, QColor(255, 255, 255, 232))
-        painter.setPen(QPen(QColor("#aebbb9"), 1.0))
+        painter.setPen(QPen(QColor("#d0d5dd"), 1.0))
         painter.drawRoundedRect(panel, 6.0, 6.0)
 
         painter.setPen(QColor("#101828"))
@@ -709,8 +691,6 @@ class _ScanCanvas(QWidget):
         return f"{value:g}"
 
     def _probe_holder_center_point(self) -> np.ndarray:
-        if self._probe_center_position_mm is not None:
-            return self._probe_center_position_mm
         if self._scan_active and self._display_completed > 0 and self._points.size:
             return self._current_point()
         if self._points.size:
@@ -718,13 +698,13 @@ class _ScanCanvas(QWidget):
         assert self._volume is not None
         return np.array([self._volume.x_min_mm, self._volume.y_min_mm], dtype=float)
 
-    def _probe_holder_corner_points(self, center: np.ndarray) -> dict[str, QPointF]:
-        half = PROBE_HOLDER_HALF_SIZE_MM
+    def _probe_holder_corner_points(self, center: QPointF) -> dict[str, QPointF]:
+        half = PROBE_HOLDER_HALF_SIZE_PX
         return {
-            "右上": self._probe_point_from_offset(center, -half, -half),
-            "左上": self._probe_point_from_offset(center, -half, half),
-            "右下": self._probe_point_from_offset(center, half, -half),
-            "左下": self._probe_point_from_offset(center, half, half),
+            "右上": center + self._probe_screen_offset(-half, -half),
+            "左上": center + self._probe_screen_offset(-half, half),
+            "右下": center + self._probe_screen_offset(half, -half),
+            "左下": center + self._probe_screen_offset(half, half),
         }
 
     def _selected_probe_corner_name(self) -> str | None:
@@ -732,12 +712,15 @@ class _ScanCanvas(QWidget):
             return self._probe_offset_label
         return None
 
-    def _probe_custom_screen_point(self, center: np.ndarray) -> QPointF:
-        return self._probe_point_from_offset(center, self._probe_x_offset_mm, self._probe_y_offset_mm)
+    def _probe_custom_screen_offset(self) -> QPointF:
+        x_offset = self._probe_x_offset_mm
+        y_offset = self._probe_y_offset_mm
+        magnitude = max(abs(x_offset), abs(y_offset), 1.0)
+        half = PROBE_HOLDER_HALF_SIZE_PX
+        return self._probe_screen_offset(x_offset / magnitude * half, y_offset / magnitude * half)
 
-    def _probe_point_from_offset(self, center: np.ndarray, x_offset_mm: float, y_offset_mm: float) -> QPointF:
-        probe_point = center + np.array([x_offset_mm, y_offset_mm], dtype=float)
-        return self._project_point_unclamped(probe_point)
+    def _probe_screen_offset(self, logical_x_px: float, logical_y_px: float) -> QPointF:
+        return self._rotate_offset(-logical_y_px, logical_x_px)
 
     @staticmethod
     def _probe_label_offset(name: str) -> QPointF:

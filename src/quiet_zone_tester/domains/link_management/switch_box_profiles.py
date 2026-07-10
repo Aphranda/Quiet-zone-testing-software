@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Mapping
@@ -13,6 +14,25 @@ def normalize_s_parameter(parameter: str) -> str:
     if normalized not in SUPPORTED_S_PARAMETERS:
         raise ValueError(f"Unsupported S-parameter for switch box routing: {parameter}")
     return normalized
+
+
+def normalize_polarization(polarization: str) -> str:
+    normalized = str(polarization).strip().upper()
+    if normalized not in {"H", "V"}:
+        raise ValueError(f"Unsupported polarization for switch box routing: {polarization}")
+    return normalized
+
+
+def command_with_polarization(command: str, polarization: str | None) -> str:
+    if polarization is None or str(polarization).strip() == "":
+        return command
+
+    selected_polarization = normalize_polarization(polarization)
+    return re.sub(
+        r"(?i)(?<![A-Z0-9_])[HV](?![A-Z0-9_])",
+        selected_polarization,
+        command,
+    )
 
 
 @dataclass(frozen=True)
@@ -35,8 +55,9 @@ class SwitchBoxProfile:
         object.__setattr__(self, "model", str(self.model).strip().upper())
         object.__setattr__(self, "command_by_parameter", MappingProxyType(normalized_commands))
 
-    def command_for(self, parameter: str) -> str:
-        return self.command_by_parameter[normalize_s_parameter(parameter)]
+    def command_for(self, parameter: str, polarization: str | None = None) -> str:
+        command = self.command_by_parameter[normalize_s_parameter(parameter)]
+        return command_with_polarization(command, polarization)
 
     def with_overrides(self, overrides: Mapping[str, str]) -> "SwitchBoxProfile":
         commands = dict(self.command_by_parameter)

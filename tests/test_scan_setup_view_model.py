@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QApplication
 
 from quiet_zone_tester.presentation.modules.scan_setup import (
     DEFAULT_DISTANCE_PER_TURN_MM,
+    DEFAULT_FREQUENCY_STEP_MHZ,
     DEFAULT_STEP_MM,
     ProbeOffsetPreset,
     ScanSetupFormState,
@@ -26,6 +27,7 @@ def _state(scan_mode: str = "step") -> ScanSetupFormState:
     return ScanSetupFormState(
         start_ghz=10.0,
         stop_ghz=17.0,
+        frequency_step_mhz=DEFAULT_FREQUENCY_STEP_MHZ,
         vna_power_dbm=-10.0,
         if_bandwidth_hz=1000.0,
         parameter="S21",
@@ -53,7 +55,8 @@ class ScanSetupViewModelTest(unittest.TestCase):
     def test_build_step_settings_preserves_legacy_dict_shape(self) -> None:
         settings = ScanSetupViewModel().build_settings(_state("step"))
 
-        self.assertEqual(settings["points"], 801)
+        self.assertEqual(settings["frequency_step_mhz"], DEFAULT_FREQUENCY_STEP_MHZ)
+        self.assertEqual(settings["points"], 1401)
         self.assertEqual(settings["parameter"], "S21")
         self.assertEqual(settings["scan_mode"], "step")
         self.assertEqual(settings["step_x_mm"], 2.5)
@@ -87,7 +90,8 @@ class ScanSetupViewModelTest(unittest.TestCase):
 
         settings = panel.current_settings()
 
-        self.assertEqual(settings["points"], 801)
+        self.assertEqual(settings["frequency_step_mhz"], DEFAULT_FREQUENCY_STEP_MHZ)
+        self.assertEqual(settings["points"], 1401)
         self.assertEqual(settings["scan_mode"], "step")
         self.assertEqual(settings["parameter"], "S21")
         self.assertEqual(settings["step_x_mm"], DEFAULT_STEP_MM)

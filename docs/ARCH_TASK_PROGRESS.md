@@ -273,7 +273,7 @@ Last updated: 2026-07-10
 
 - 目标：完成 P4-01，为旧 `drivers/` 和 `instruments/` 兼容 re-export 增加清晰 deprecated 说明，并在硬件适配层设计文档中明确新代码导入规则。
 - 完成：为 `drivers/`、`instruments/` 包入口和兼容模块增加 deprecated docstring；不添加运行时 warning，避免旧脚本导入时产生额外输出或测试噪声；`HARDWARE_ADAPTER_DESIGN.md` 更新为旧路径只保留 deprecated re-export，新实现只进入 `hardware/`。
-- 验证：使用 uv 环境运行 `python -m uv run python -m unittest tests.test_hardware_migration`，通过 3 个 `unittest`；全量验证后补充最终结果。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest tests.test_hardware_migration`，通过 3 个 `unittest`；运行全量 `python -m uv run python -m unittest discover -s tests`，通过 116 个 `unittest`，其中硬件集成入口默认跳过 1 个；主窗口 offscreen 初始化输出 `ok`。
 - 风险：旧路径仍可导入；移除旧路径需要等外部脚本迁移完成后单独确认。
 - 后续：继续 P4-02/P4-03，补真实硬件手动验证清单和可跳过集成测试入口。
 - 涉及文件：`src/quiet_zone_tester/drivers/`、`src/quiet_zone_tester/instruments/`、`docs/HARDWARE_ADAPTER_DESIGN.md`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
@@ -282,7 +282,7 @@ Last updated: 2026-07-10
 
 - 目标：完成 P4-02/P4-03，补充真实硬件手动验证清单，并建立默认跳过的硬件集成测试入口。
 - 完成：新增 `HARDWARE_VALIDATION_CHECKLIST.md`，覆盖环境准备、连接验证、VNA、扫描架、开关箱、步进/匀速扫描、暂停/停止和失败恢复；新增 `tests/test_hardware_integration_smoke.py`，仅在 `RUN_HARDWARE_INTEGRATION=1` 时启用，并要求显式配置硬件环境变量；硬件适配层设计文档同步验证入口。
-- 验证：使用 uv 环境运行 `python -m uv run python -m unittest tests.test_hardware_integration_smoke`，默认无硬件环境通过并跳过 1 个测试；全量验证后补充最终结果。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest tests.test_hardware_integration_smoke`，默认无硬件环境通过并跳过 1 个测试；运行全量 `python -m uv run python -m unittest discover -s tests`，通过 116 个 `unittest`，其中硬件集成入口默认跳过 1 个；主窗口 offscreen 初始化输出 `ok`。
 - 风险：当前集成入口只验证环境显式配置，不自动执行真实连接和运动，避免误动硬件；真实设备行为仍需按清单人工验证。
 - 后续：继续 P4-04 建立 `ScanRepository`，收口扫描事实写入。
 - 涉及文件：`docs/HARDWARE_VALIDATION_CHECKLIST.md`、`tests/test_hardware_integration_smoke.py`、`docs/HARDWARE_ADAPTER_DESIGN.md`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
@@ -291,7 +291,7 @@ Last updated: 2026-07-10
 
 - 目标：完成 P4-04，让 `ScanSession`、`TraceRecord`、metadata、trace index 和文件输出具备统一事实写入入口。
 - 完成：新增 `ScanRepository`，封装 `TraceStorage` 并提供 `create_session()`、`save_trace()`、`append_event()`、`finalize()`；创建 session 时写 metadata 和 trace index header，保存 trace 时写 CSV/index 并追加 `TraceRecord`；数据管理设计文档同步当前实现。
-- 验证：使用 uv 环境运行 `python -m uv run python -m unittest tests.test_scan_repository`，通过 3 个 `unittest`；全量验证后补充最终结果。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest tests.test_scan_repository`，通过 3 个 `unittest`；运行全量 `python -m uv run python -m unittest discover -s tests`，通过 116 个 `unittest`，其中硬件集成入口默认跳过 1 个；主窗口 offscreen 初始化输出 `ok`。
 - 风险：现有扫描主流程仍直接使用 `TraceStorage` 保存结果；后续可把 `InstrumentService` 的扫描保存路径切到 `ScanRepository`。
 - 后续：继续 P4-05 增加报告导出服务。
 - 涉及文件：`src/quiet_zone_tester/domains/data_management/scan_repository.py`、`src/quiet_zone_tester/domains/data_management/__init__.py`、`tests/test_scan_repository.py`、`docs/DATA_MANAGEMENT_DESIGN.md`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
@@ -300,7 +300,7 @@ Last updated: 2026-07-10
 
 - 目标：完成 P4-05，基于扫描事实提供报告导出服务，避免 UI 直接读写结果文件。
 - 完成：新增 `ReportExporter`，支持从 `ScanSession` 导出 Markdown 报告，包含会话概览、扫描范围、trace 记录和事件记录；数据管理设计文档同步当前实现。
-- 验证：使用 uv 环境运行 `python -m uv run python -m unittest tests.test_report_exporter`，通过 1 个 `unittest`；全量验证后补充最终结果。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest tests.test_report_exporter`，通过 1 个 `unittest`；运行全量 `python -m uv run python -m unittest discover -s tests`，通过 116 个 `unittest`，其中硬件集成入口默认跳过 1 个；主窗口 offscreen 初始化输出 `ok`。
 - 风险：当前报告为基础 Markdown 汇总，尚未包含图表、统计指标或模板配置。
 - 后续：继续 P4-06 清理旧 dict 兼容层，或 P4-07 更新 README 和用户运行说明。
 - 涉及文件：`src/quiet_zone_tester/domains/data_management/report_exporter.py`、`src/quiet_zone_tester/domains/data_management/__init__.py`、`tests/test_report_exporter.py`、`docs/DATA_MANAGEMENT_DESIGN.md`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
@@ -309,7 +309,25 @@ Last updated: 2026-07-10
 
 - 目标：完成 P4-06，让核心 domain service 边界优先接受 dataclass，同时保留 UI/旧调用路径 dict 兼容。
 - 完成：`ScanRuntimeService.run_step_scan()` 和 `run_continuous_scan()` 支持 `ScanSettings | dict`，入口统一通过 `ScanSettings` 规范化；`AcquisitionService.configure_for_scan()` 支持 `ScanSettings`，同时保留只传 sweep 字段 dict 的旧行为；新增测试覆盖 dataclass 入参。
-- 验证：使用 uv 环境运行 `python -m uv run python -m unittest tests.test_acquisition_service tests.test_scan_runtime_service`，通过 10 个 `unittest`；全量验证后补充最终结果。
+- 验证：使用 uv 环境运行 `python -m uv run python -m unittest tests.test_acquisition_service tests.test_scan_runtime_service`，通过 10 个 `unittest`；运行全量 `python -m uv run python -m unittest discover -s tests`，通过 116 个 `unittest`，其中硬件集成入口默认跳过 1 个；主窗口 offscreen 初始化输出 `ok`。
 - 风险：UI 层仍以旧 dict signal 作为兼容载荷；这是外部兼容边界，后续大版本可再统一切换。
 - 后续：继续 P4-07 更新 README 和用户运行说明。
 - 涉及文件：`src/quiet_zone_tester/domains/acquisition/acquisition_service.py`、`src/quiet_zone_tester/domains/scan_management/scan_runtime_service.py`、`tests/test_acquisition_service.py`、`tests/test_scan_runtime_service.py`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
+
+### ARCH-TASK-20260710-035 - P4 README 和运行说明更新
+
+- 目标：完成 P4-07，更新 README，记录当前架构、uv 环境、启动命令、测试命令、硬件验证入口和旧路径兼容策略。
+- 完成：README 的分层架构和项目结构更新为 `application/domains/hardware/presentation/ui` 当前结构；补充 `unittest` 命令、主窗口 offscreen 初始化命令、硬件验证清单链接和默认跳过的硬件集成测试环境变量；明确 `drivers/` 与 `instruments/` 仅为 deprecated re-export。
+- 验证：文档更新；运行全量 `python -m uv run python -m unittest discover -s tests`，通过 116 个 `unittest`，其中硬件集成入口默认跳过 1 个；主窗口 offscreen 初始化输出 `ok`；`git diff --check` 无 whitespace error，仅有 CRLF 行尾提示。
+- 风险：README 仍需随 UI 现代化阶段继续补充截图或用户操作说明。
+- 后续：P4 当前任务已全部完成；进入 UI 现代化阶段。
+- 涉及文件：`README.md`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
+
+### ARCH-TASK-20260710-036 - UI 现代浅色风格更新
+
+- 目标：完成架构重构后的首轮 UI 现代化，让界面更接近现代开源 Qt/Fluent 风格的浅色工作台。
+- 完成：更新全局 Qt stylesheet，统一字体 fallback、浅色中性背景、白色面板、8px 圆角、按钮 hover/pressed/disabled 状态、输入框 focus 状态、菜单、滚动条、splitter、日志框、表格和状态栏样式；不改变业务逻辑和控件布局。
+- 验证：使用 offscreen 启动主窗口并保存截图到 `test_results/ui_checks/main_window_modern.png`，输出 `ok`；运行全量 `python -m uv run python -m unittest discover -s tests`，通过 116 个 `unittest`，其中硬件集成入口默认跳过 1 个；`git diff --check` 无 whitespace error，仅有 CRLF 行尾提示。
+- 风险：offscreen 截图环境中文字体可能回退为方框；已在 stylesheet 中增加 Microsoft YaHei/SimSun/Segoe UI/Arial fallback，实际 Windows 桌面环境应使用可用中文字体。
+- 后续：如需进一步提升，可单独做信息密度优化、图标体系统一、扫描结果表格视图和主题切换。
+- 涉及文件：`src/quiet_zone_tester/app.py`、`docs/ARCH_TASK_PROGRESS.md`。

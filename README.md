@@ -77,7 +77,7 @@ UI 线程绝不能被硬件 I/O 阻塞。
 ```text
 src/quiet_zone_tester/
   app.py                    # QApplication 创建和全局样式
-  main.py                   # 程序入口
+  main.py                   # 程序入口，规范入口函数为 Main()
   application/              # AppContext、TaskRunner、扫描工作流状态
   domains/                  # acquisition/data/instrument/link/motion/scan 等业务域
   hardware/                 # interfaces、mock、vna、positioner、switch_box、transport

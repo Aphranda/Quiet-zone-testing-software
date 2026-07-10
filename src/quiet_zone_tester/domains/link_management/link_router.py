@@ -28,10 +28,10 @@ class LinkRouter:
     def profile(self) -> SwitchBoxProfile:
         return self._profile
 
-    def resolve(self, parameter: str) -> LinkRoute:
+    def resolve(self, parameter: str, polarization: str | None = None) -> LinkRoute:
         normalized_parameter = normalize_s_parameter(parameter)
         return LinkRoute(
             parameter=normalized_parameter,
-            command=self._profile.command_for(normalized_parameter),
+            command=self._profile.command_for(normalized_parameter, polarization),
             profile_model=self._profile.model,
         )

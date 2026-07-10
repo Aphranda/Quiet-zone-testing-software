@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import pyqtgraph as pg
-from PySide6.QtWidgets import QComboBox, QGroupBox, QHBoxLayout, QLabel, QTabWidget, QVBoxLayout
+from PySide6.QtCore import Signal
+from PySide6.QtWidgets import QButtonGroup, QComboBox, QGroupBox, QHBoxLayout, QLabel, QPushButton, QTabWidget, QVBoxLayout
 
 from quiet_zone_tester.models import SParameterTrace
 
@@ -12,17 +13,34 @@ class NoWheelComboBox(QComboBox):
 
 
 class LivePlotPanel(QGroupBox):
+    polarization_changed = Signal(str)
+    dut_path_requested = Signal(str)
+
     def __init__(self, parent=None) -> None:
         super().__init__("实时曲线", parent)
         self._trace: SParameterTrace | None = None
 
         self._polarization = NoWheelComboBox()
         self._polarization.addItems(["H", "V"])
+        self._polarization.currentTextChanged.connect(self.polarization_changed.emit)
         self._position_mark = NoWheelComboBox()
         self._position_mark.addItems(["L", "M", "R", "U", "D"])
         self._position_mark.setCurrentText("M")
         self._main_line = NoWheelComboBox()
         self._main_line.addItems(["X", "Y"])
+        self._dut_vna_button = QPushButton("网分")
+        self._dut_vna_button.setObjectName("dutPathButton")
+        self._dut_vna_button.setCheckable(True)
+        self._dut_vna_button.setChecked(True)
+        self._dut_sa_button = QPushButton("信号源+频谱")
+        self._dut_sa_button.setObjectName("dutPathButton")
+        self._dut_sa_button.setCheckable(True)
+        self._dut_path_buttons = QButtonGroup(self)
+        self._dut_path_buttons.setExclusive(True)
+        self._dut_path_buttons.addButton(self._dut_vna_button)
+        self._dut_path_buttons.addButton(self._dut_sa_button)
+        self._dut_vna_button.clicked.connect(lambda _checked=False: self.dut_path_requested.emit("VNA2"))
+        self._dut_sa_button.clicked.connect(lambda _checked=False: self.dut_path_requested.emit("SA"))
 
         self._tabs = QTabWidget()
         self._magnitude_plot = pg.PlotWidget()
@@ -40,6 +58,9 @@ class LivePlotPanel(QGroupBox):
         header = QHBoxLayout()
         header.addStretch(1)
         header.addWidget(QLabel("FLAG"))
+        header.addWidget(QLabel("DUT"))
+        header.addWidget(self._dut_vna_button)
+        header.addWidget(self._dut_sa_button)
         header.addWidget(QLabel("极化"))
         header.addWidget(self._polarization)
         header.addWidget(QLabel("主线条"))
@@ -58,19 +79,8 @@ class LivePlotPanel(QGroupBox):
             )
         )
 
-    def set_polarization_from_link(self, command: str, parameter: str = "") -> None:
-        polarization = self._polarization_from_link_command(command)
-        if polarization is None:
-            polarization = self._polarization_from_link_command(parameter)
-        if polarization is None:
-            polarization = self._polarization_from_parameter(parameter)
-        if polarization is not None:
-            self._polarization.setCurrentText(polarization)
-
-    def set_polarization_from_parameter(self, parameter: str) -> None:
-        polarization = self._polarization_from_parameter(parameter)
-        if polarization is not None:
-            self._polarization.setCurrentText(polarization)
+    def polarization(self) -> str:
+        return self._polarization.currentText().strip().upper()
 
     def set_main_line_from_scan_settings(self, settings: dict) -> None:
         try:
@@ -81,12 +91,79 @@ class LivePlotPanel(QGroupBox):
         except (KeyError, TypeError, ValueError):
             return
 
-        x_fixed = abs(x_start - x_stop) <= 1e-9
-        y_fixed = abs(y_start - y_stop) <= 1e-9
-        if x_fixed and not y_fixed:
-            self._main_line.setCurrentText("Y")
-        elif y_fixed and not x_fixed:
+        x_moving = abs(x_start - x_stop) > 1e-9
+        y_moving = abs(y_start - y_stop) > 1e-9
+        if x_moving:
             self._main_line.setCurrentText("X")
+            if y_moving:
+                self._position_mark.setCurrentText("M")
+            else:
+                self._position_mark.setCurrentText(self._x_line_position_mark(y_start, x_start, x_stop, y_start, y_stop))
+        elif y_moving:
+            self._main_line.setCurrentText("Y")
+            self._position_mark.setCurrentText(self._y_line_position_mark(x_start, x_start, x_stop, y_start, y_stop))
+        else:
+            self._position_mark.setCurrentText("M")
+
+    @classmethod
+    def _x_line_position_mark(
+        cls,
+        y_mm: float,
+        x_start_mm: float,
+        x_stop_mm: float,
+        y_start_mm: float,
+        y_stop_mm: float,
+    ) -> str:
+        return cls._position_mark_by_quarter(
+            value_mm=y_mm,
+            x_start_mm=x_start_mm,
+            x_stop_mm=x_stop_mm,
+            y_start_mm=y_start_mm,
+            y_stop_mm=y_stop_mm,
+            low_mark="R",
+            high_mark="L",
+        )
+
+    @classmethod
+    def _y_line_position_mark(
+        cls,
+        x_mm: float,
+        x_start_mm: float,
+        x_stop_mm: float,
+        y_start_mm: float,
+        y_stop_mm: float,
+    ) -> str:
+        return cls._position_mark_by_quarter(
+            value_mm=x_mm,
+            x_start_mm=x_start_mm,
+            x_stop_mm=x_stop_mm,
+            y_start_mm=y_start_mm,
+            y_stop_mm=y_stop_mm,
+            low_mark="U",
+            high_mark="D",
+        )
+
+    @classmethod
+    def _position_mark_by_quarter(
+        cls,
+        value_mm: float,
+        x_start_mm: float,
+        x_stop_mm: float,
+        y_start_mm: float,
+        y_stop_mm: float,
+        low_mark: str,
+        high_mark: str,
+    ) -> str:
+        view_limit = cls._view_limit_mm(x_start_mm, x_stop_mm, y_start_mm, y_stop_mm)
+        if value_mm <= view_limit * 0.25:
+            return low_mark
+        if value_mm >= view_limit * 0.75:
+            return high_mark
+        return "M"
+
+    @staticmethod
+    def _view_limit_mm(x_start_mm: float, x_stop_mm: float, y_start_mm: float, y_stop_mm: float) -> float:
+        return max(x_start_mm, x_stop_mm, y_start_mm, y_stop_mm, 1.0)
 
     def set_trace(self, trace: SParameterTrace) -> None:
         self._trace = trace
@@ -112,22 +189,3 @@ class LivePlotPanel(QGroupBox):
         plot.showGrid(x=True, y=True, alpha=0.25)
         plot.setLabel("bottom", bottom_label)
         plot.setLabel("left", left_label)
-
-    @staticmethod
-    def _polarization_from_link_command(command: str) -> str | None:
-        normalized = str(command or "").upper().replace(",", " ")
-        tokens = [token.strip() for token in normalized.split()]
-        if "H" in tokens:
-            return "H"
-        if "V" in tokens:
-            return "V"
-        return None
-
-    @staticmethod
-    def _polarization_from_parameter(parameter: str) -> str | None:
-        parameter = str(parameter or "").strip().upper()
-        if parameter in {"S11", "S21"}:
-            return "H"
-        if parameter in {"S12", "S22"}:
-            return "V"
-        return None

@@ -163,6 +163,7 @@ class NoWheelComboBox(QComboBox):
 
 
 class SwitchBoxControlPanel(QGroupBox):
+    parameter_requested = Signal(str)
     command_requested = Signal(str)
 
     def __init__(self, parent=None) -> None:
@@ -170,6 +171,9 @@ class SwitchBoxControlPanel(QGroupBox):
         self._view_model = LinkControlViewModel()
         self._busy = False
         self._connected = False
+
+        self._parameter = NoWheelComboBox()
+        self._parameter.addItems(["S21", "S11", "S12", "S22"])
 
         self._command = NoWheelComboBox()
         self._command.setEditable(True)
@@ -182,6 +186,12 @@ class SwitchBoxControlPanel(QGroupBox):
         self._last_result = QLabel("-")
         self._last_result.setWordWrap(True)
 
+        self._route_button = QPushButton("按 S 参数切换")
+        self._route_button.setIcon(self.style().standardIcon(QStyle.SP_ArrowForward))
+        self._route_button.clicked.connect(
+            lambda: self.parameter_requested.emit(self._view_model.route_parameter(self._parameter.currentText()))
+        )
+
         self._send_button = QPushButton("发送链路命令")
         self._send_button.setIcon(self.style().standardIcon(QStyle.SP_DialogApplyButton))
         self._send_button.clicked.connect(
@@ -189,9 +199,16 @@ class SwitchBoxControlPanel(QGroupBox):
         )
 
         self._input_widgets: list[QWidget] = [
+            self._parameter,
+            self._route_button,
             self._command,
             self._send_button,
         ]
+
+        parameter_group = QGroupBox("快速切换")
+        parameter_form = QFormLayout(parameter_group)
+        parameter_form.addRow("S 参数", self._parameter)
+        parameter_form.addRow("", self._route_button)
 
         command_group = QGroupBox("链路命令")
         command_form = QFormLayout(command_group)
@@ -205,6 +222,7 @@ class SwitchBoxControlPanel(QGroupBox):
         layout = QVBoxLayout(self)
         layout.addWidget(self._diagram)
         layout.addWidget(self._current_command)
+        layout.addWidget(parameter_group)
         layout.addWidget(command_group)
         layout.addWidget(result_group)
         layout.addStretch(1)

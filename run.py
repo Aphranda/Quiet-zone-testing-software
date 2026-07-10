@@ -10,8 +10,8 @@ SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from quiet_zone_tester.main import main
+from quiet_zone_tester.main import Main
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(Main())

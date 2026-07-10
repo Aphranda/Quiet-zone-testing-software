@@ -38,6 +38,12 @@ class LinkRouterTest(unittest.TestCase):
         self.assertEqual(router.resolve("S21").command, "CONFigure:LINK H,AMP2,VNA1")
         self.assertEqual(router.resolve("S22").command, "CONFigure:LINK V,AMP2,VNA1")
 
+    def test_lcd74000f_route_can_override_polarization_independently_from_parameter(self) -> None:
+        router = LinkRouter(LCD74000F_PROFILE)
+
+        self.assertEqual(router.resolve("S21", polarization="V").command, "CONFigure:LINK V,VNA1")
+        self.assertEqual(router.resolve("S12", polarization="H").command, "CONFigure:LINK H,VNA1")
+
     def test_unsupported_parameter_is_rejected(self) -> None:
         router = LinkRouter(TC500_PROFILE)
 

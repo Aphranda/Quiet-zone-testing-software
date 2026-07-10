@@ -8,9 +8,7 @@ from quiet_zone_tester.domains.link_management.switch_box_profiles import (
     SUPPORTED_S_PARAMETERS,
     TC500_PROFILE,
     SwitchBoxProfile,
-    command_with_polarization,
     default_switch_box_profile,
-    normalize_polarization,
     normalize_s_parameter,
     switch_box_profile_from_commands,
 )
@@ -25,9 +23,7 @@ __all__ = [
     "LinkService",
     "LinkServiceError",
     "SwitchBoxProfile",
-    "command_with_polarization",
     "default_switch_box_profile",
-    "normalize_polarization",
     "normalize_s_parameter",
     "switch_box_profile_from_commands",
 ]
