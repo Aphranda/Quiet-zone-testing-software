@@ -40,11 +40,11 @@ class PositionerControlPanel(QGroupBox):
 
         self._absolute_x_mm = self._position_spinbox(0.0)
         self._absolute_y_mm = self._position_spinbox(0.0)
-        self._absolute_speed_mm_s = self._speed_spinbox(100.0)
+        self._absolute_speed_mm_s = self._speed_spinbox(20.0)
 
         self._relative_x_mm = self._relative_spinbox(0.0)
         self._relative_y_mm = self._relative_spinbox(0.0)
-        self._relative_speed_mm_s = self._speed_spinbox(100.0)
+        self._relative_speed_mm_s = self._speed_spinbox(20.0)
 
         self._query_button = QPushButton("查询当前位置")
         self._query_button.setIcon(self.style().standardIcon(QStyle.SP_BrowserReload))

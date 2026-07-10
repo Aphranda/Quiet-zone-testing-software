@@ -23,7 +23,7 @@ class VnaFormState:
 class PositionerFormState:
     port_name: str = ""
     baudrate: int = 115200
-    default_speed: float = 100.0
+    default_speed: float = 20.0
     timeout_ms: int = 1000
     x_axis: int = 2
     y_axis: int = 3

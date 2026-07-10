@@ -47,7 +47,7 @@ def _state(scan_mode: str = "step") -> ScanSetupFormState:
         probe_offset_preset="右上",
         probe_x_offset_mm=-61.5,
         probe_y_offset_mm=-61.5,
-        continuous_speed_mm_s=100.0,
+        continuous_speed_mm_s=20.0,
     )
 
 

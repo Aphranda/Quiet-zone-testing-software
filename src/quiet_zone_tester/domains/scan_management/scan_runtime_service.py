@@ -221,7 +221,7 @@ class ScanRuntimeService:
         except ValueError as exc:
             raise ScanRuntimeServiceError(str(exc)) from exc
         settings = scan_settings.to_dict()
-        speed_mm_s = float(settings.get("continuous_speed_mm_s", settings.get("step_speed_mm_s", 100.0)))
+        speed_mm_s = float(settings.get("continuous_speed_mm_s", settings.get("step_speed_mm_s", 20.0)))
         if abs(speed_mm_s) <= 1e-9:
             raise ScanRuntimeServiceError("匀速测试速度不能为 0。")
         speed_mm_s = abs(speed_mm_s)

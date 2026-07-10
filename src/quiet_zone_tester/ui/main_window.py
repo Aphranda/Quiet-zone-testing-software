@@ -296,7 +296,7 @@ class MainWindow(QMainWindow):
 
     def _move_positioner_axis(self, config: dict, axis_name: str) -> None:
         axis = self._axis_id_from_config(config, axis_name)
-        speed = float(config.get("positioner", {}).get("default_speed", 100.0))
+        speed = float(config.get("positioner", {}).get("default_speed", 20.0))
         self._set_busy(True)
         self.statusBar().showMessage(f"正在运动{axis_name}轴...")
         self._log_panel.append_info(f"扫描架手动运动：{axis_name} 轴，速度 {speed:.3f} mm/s。")

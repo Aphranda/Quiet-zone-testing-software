@@ -52,7 +52,7 @@ class MockPositionerController:
         self._jog_speed_mm_s = 0.0
 
         delta = abs(x_mm - self._position.x_mm) + abs(y_mm - self._position.y_mm)
-        speed = max(abs(speed_mm_s or 100.0), 1.0)
+        speed = max(abs(speed_mm_s or 20.0), 1.0)
         time.sleep(min(0.45, 0.02 + delta / speed / 20.0))
         self._position = Position(x_mm=x_mm, y_mm=y_mm)
         logger.info("Mock positioner moved to x=%.3f mm, y=%.3f mm.", x_mm, y_mm)

@@ -199,7 +199,7 @@ class MotionService:
                 pulses_per_mm=legacy_pulses_per_mm,
                 x_pulses_per_mm=x_pulses_per_mm,
                 y_pulses_per_mm=y_pulses_per_mm,
-                default_speed=float(config.get("default_speed", 100.0)),
+                default_speed=float(config.get("default_speed", 20.0)),
             )
         except InstrumentControllerFactoryError as exc:
             raise MotionServiceError(str(exc)) from exc

@@ -48,7 +48,7 @@ class IclPositionerConfig:
     pulses_per_mm: float = 1.0
     x_pulses_per_mm: float | None = None
     y_pulses_per_mm: float | None = None
-    default_speed: float = 100.0
+    default_speed: float = 20.0
     default_acc: int = 100
     default_dec: int = 100
 

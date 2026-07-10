@@ -68,7 +68,7 @@ class PositionerConnectionConfig:
     y_units_per_turn: float | None = None
     x_mm_per_turn: float | None = None
     y_mm_per_turn: float | None = None
-    default_speed: float = 100.0
+    default_speed: float = 20.0
     virtual_enabled: bool = False
 
     @classmethod
@@ -95,7 +95,7 @@ class PositionerConnectionConfig:
             y_units_per_turn=_optional_float(config.get("y_units_per_turn")),
             x_mm_per_turn=_optional_float(config.get("x_mm_per_turn")),
             y_mm_per_turn=_optional_float(config.get("y_mm_per_turn")),
-            default_speed=float(config.get("default_speed", 100.0)),
+            default_speed=float(config.get("default_speed", 20.0)),
             virtual_enabled=_bool_from_config(config.get("virtual_enabled"), False),
         )
 

@@ -99,7 +99,7 @@ class ConnectionPanel(QGroupBox):
         self._positioner_port_name = self._init_serial_port_combobox()
         self._positioner_port_field = self._serial_port_field(self._positioner_port_name)
         self._positioner_baudrate = self._baudrate_spinbox(115200)
-        self._positioner_default_speed = self._positive_double_spinbox(100.0, " mm/s")
+        self._positioner_default_speed = self._positive_double_spinbox(20.0, " mm/s")
         self._positioner_default_speed.valueChanged.connect(self.positioner_default_speed_changed.emit)
         self._positioner_timeout_ms = self._timeout_spinbox(1000)
 

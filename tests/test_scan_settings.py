@@ -29,7 +29,7 @@ def _settings_dict() -> dict:
         "x_mm_per_turn": 24.0,
         "y_mm_per_turn": 24.0,
         "step_speed_mm_s": 20.0,
-        "continuous_speed_mm_s": 100.0,
+        "continuous_speed_mm_s": 20.0,
         "settle_delay_s": 0.3,
         "probe_offset_preset": "右上",
         "probe_x_offset_mm": -61.5,

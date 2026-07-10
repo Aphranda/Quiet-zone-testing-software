@@ -85,7 +85,7 @@ class TestSetupPanel(QGroupBox):
         self._probe_x_offset_mm = self._offset_spinbox(DEFAULT_PROBE_OFFSET_MM)
         self._probe_y_offset_mm = self._offset_spinbox(DEFAULT_PROBE_OFFSET_MM)
 
-        self._continuous_speed_mm_s = self._speed_spinbox(100.0)
+        self._continuous_speed_mm_s = self._speed_spinbox(20.0)
 
         self._input_widgets: list[QWidget] = [
             self._start_ghz,
