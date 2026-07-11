@@ -282,10 +282,12 @@ class TestSetupPanel(QGroupBox):
 
     def _build_action_buttons(self) -> QHBoxLayout:
         layout = QHBoxLayout()
-        layout.addWidget(self._vna_sample_button)
-        layout.addWidget(self._scan_button)
-        layout.addWidget(self._pause_button)
-        layout.addWidget(self._stop_button)
+        layout.setContentsMargins(0, 2, 0, 0)
+        layout.setSpacing(10)
+        layout.addWidget(self._vna_sample_button, 1)
+        layout.addWidget(self._scan_button, 1)
+        layout.addWidget(self._pause_button, 1)
+        layout.addWidget(self._stop_button, 1)
         return layout
 
     def _toggle_pause(self) -> None:

@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import sys
 
-from PySide6.QtGui import QFont, QIcon
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication
 
 from quiet_zone_tester.application.app_context import create_app_context
 from quiet_zone_tester.logging_config import setup_logging
 from quiet_zone_tester.resources import resource_path
+from quiet_zone_tester.ui.logo_assets import logo_icon
 
 
 def run_app(argv: list[str] | None = None) -> int:
@@ -18,7 +19,7 @@ def run_app(argv: list[str] | None = None) -> int:
     app.setOrganizationName("RF Test Lab")
     app.setStyle("Fusion")
     app.setFont(QFont("Microsoft YaHei UI", 9))
-    app.setWindowIcon(QIcon(str(resource_path("gtslogo_icon.png"))))
+    app.setWindowIcon(logo_icon())
     app.setStyleSheet(_application_style())
 
     app_context = create_app_context()
@@ -29,4 +30,12 @@ def run_app(argv: list[str] | None = None) -> int:
 
 
 def _application_style() -> str:
-    return resource_path("style/style.css").read_text(encoding="utf-8")
+    replacements = {
+        "__COMBOBOX_ARROW_ICON__": resource_path("style/chevron-down.svg").as_posix(),
+        "__SPINBOX_UP_ICON__": resource_path("style/chevron-up-small.svg").as_posix(),
+        "__SPINBOX_DOWN_ICON__": resource_path("style/chevron-down-small.svg").as_posix(),
+    }
+    style = resource_path("style/style.css").read_text(encoding="utf-8")
+    for placeholder, path in replacements.items():
+        style = style.replace(placeholder, path)
+    return style

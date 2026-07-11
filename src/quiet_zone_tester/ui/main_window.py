@@ -4,7 +4,7 @@ from collections.abc import Callable
 from functools import partial
 
 from PySide6.QtCore import QObject, Qt
-from PySide6.QtGui import QAction, QFont, QIcon, QPixmap
+from PySide6.QtGui import QAction, QFont
 from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
@@ -22,9 +22,9 @@ from quiet_zone_tester.models import SParameterTrace, ScanVolume
 from quiet_zone_tester.application import ScanWorkflowState
 from quiet_zone_tester.presentation.modules.app_feedback import MainWindowFeedback
 from quiet_zone_tester.presentation.modules.motion_control import PositionTracker
-from quiet_zone_tester.resources import resource_path
 from quiet_zone_tester.services import InstrumentService
 from quiet_zone_tester.application.task_runner import TaskRunner
+from quiet_zone_tester.ui.logo_assets import logo_icon, logo_pixmap
 from quiet_zone_tester.ui.widgets.connection_panel import ConnectionPanel
 from quiet_zone_tester.ui.widgets.live_plot_panel import LivePlotPanel
 from quiet_zone_tester.ui.widgets.positioner_control_panel import PositionerControlPanel
@@ -36,7 +36,6 @@ from quiet_zone_tester.ui.widgets.vna_control_panel import VnaControlPanel
 
 
 APP_TITLE = "微波暗室静区测试系统"
-APP_ICON_NAME = "gtslogo_icon.png"
 
 
 class MainWindow(QMainWindow):
@@ -48,7 +47,7 @@ class MainWindow(QMainWindow):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(APP_TITLE)
-        self.setWindowIcon(QIcon(str(resource_path(APP_ICON_NAME))))
+        self.setWindowIcon(logo_icon())
 
         self._service = service or InstrumentService()
         self._tasks = (task_runner_factory or TaskRunner)(self)
@@ -161,9 +160,7 @@ class MainWindow(QMainWindow):
         icon_label = QLabel()
         icon_label.setFixedSize(64, 64)
         icon_label.setAlignment(Qt.AlignCenter)
-        icon = QPixmap(str(resource_path(APP_ICON_NAME)))
-        if not icon.isNull():
-            icon_label.setPixmap(icon.scaled(56, 56, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        icon_label.setPixmap(logo_pixmap(56))
 
         title_label = QLabel(APP_TITLE)
         title_label.setObjectName("appTitle")
