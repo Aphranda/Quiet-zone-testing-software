@@ -41,6 +41,9 @@ resource/iCL-RS/
 *.swp
 *.swo
 
+# OneDrive conflict copies
+*-Aphranda.py
+
 # OS files
 .DS_Store
 Thumbs.db
