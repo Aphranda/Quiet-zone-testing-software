@@ -85,6 +85,7 @@ class VisaScpiSession:
                 "query",
                 command,
                 lambda: self._require_resource().query(command),
+                retry=False,
             )
         ).strip()
 
@@ -94,6 +95,7 @@ class VisaScpiSession:
                 "read_raw",
                 "<binary>",
                 lambda: self._require_resource().read_raw(),
+                retry=False,
             )
         )
 
@@ -106,6 +108,7 @@ class VisaScpiSession:
                 datatype=datatype,
                 is_big_endian=is_big_endian,
             ),
+            retry=False,
         )
         return list(result)
 
@@ -114,8 +117,8 @@ class VisaScpiSession:
             raise ScpiCommunicationError(f"VISA resource is not open: {self._config.resource_name}")
         return self._resource
 
-    def _execute_with_retries(self, operation: str, command: str, action):
-        attempts = max(1, self._config.retries + 1)
+    def _execute_with_retries(self, operation: str, command: str, action, *, retry: bool = True):
+        attempts = max(1, self._config.retries + 1) if retry else 1
         last_error: Exception | None = None
         for attempt in range(1, attempts + 1):
             try:

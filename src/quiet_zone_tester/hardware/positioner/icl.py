@@ -87,6 +87,8 @@ class IclPositionerController:
     REG_ORIGIN_OFFSET = 0x600D
     STOP_CONFIRMATION_SAMPLES = 4
     STOP_POLL_INTERVAL_S = 0.1
+    MOTION_TIMEOUT_SAFETY_FACTOR = 1.5
+    MOTION_TIMEOUT_OVERHEAD_S = 5.0
 
     def __init__(self, config: IclPositionerConfig) -> None:
         self._config = config
@@ -293,7 +295,11 @@ class IclPositionerController:
         self._trigger_motion(axis, MotionMode.ABSOLUTE)
 
         distance_mm = abs(position_mm - current_axis_position_mm)
-        timeout_ms = max(self._config.timeout_ms, int((distance_mm / max(abs(speed), 0.001) + 10.0) * 1000.0))
+        timeout_ms = self.calculate_motion_timeout_ms(
+            distance_mm,
+            speed,
+            minimum_timeout_ms=self._config.timeout_ms,
+        )
         axis_targets = {axis: position_mm}
         self.wait_axes([axis], timeout_ms, axis_targets)
         self._stop_axes_after_absolute_move([axis])
@@ -365,7 +371,9 @@ class IclPositionerController:
         timeout_ms: int,
         target_positions_mm: dict[int, float] | None = None,
     ) -> None:
-        del timeout_ms
+        timeout_ms = max(int(timeout_ms), 1)
+        started_at = time.monotonic()
+        deadline = started_at + timeout_ms / 1000.0
         last_positions: dict[int, float] = {}
         previous_positions: dict[int, float] = {}
         stable_counts: dict[int, int] = {axis: 0 for axis in axes}
@@ -392,7 +400,51 @@ class IclPositionerController:
             if all(stable_counts.get(axis, 0) >= self.STOP_CONFIRMATION_SAMPLES for axis in axes):
                 self._log_target_offsets(last_positions, target_positions_mm)
                 return
+            if time.monotonic() >= deadline:
+                stop_errors: list[str] = []
+                for axis in axes:
+                    try:
+                        self._execute_motion(axis, MotionMode.STOP)
+                    except Exception as exc:
+                        logger.exception("Failed to stop timed-out positioner axis %s.", self._axis_label(axis))
+                        stop_errors.append(f"{self._axis_label(axis)}: {exc}")
+                elapsed_s = time.monotonic() - started_at
+                details = []
+                for axis in axes:
+                    target = None if target_positions_mm is None else target_positions_mm.get(axis)
+                    actual = last_positions.get(axis)
+                    target_text = "unknown" if target is None else f"{target:.3f} mm"
+                    actual_text = "unavailable" if actual is None else f"{actual:.3f} mm"
+                    error_text = "unknown"
+                    if target is not None and actual is not None:
+                        error_text = f"{actual - target:+.3f} mm"
+                    details.append(
+                        f"{self._axis_label(axis)} target={target_text}, actual={actual_text}, error={error_text}"
+                    )
+                message = (
+                    f"扫描架运动超时：等待 {elapsed_s:.3f} s（上限 {timeout_ms / 1000.0:.3f} s）；"
+                    + "；".join(details)
+                )
+                if stop_errors:
+                    message += "；停止失败：" + "；".join(stop_errors)
+                raise IclPositionerError(message)
             time.sleep(self.STOP_POLL_INTERVAL_S)
+
+    @classmethod
+    def calculate_motion_timeout_ms(
+        cls,
+        distance_mm: float,
+        speed_mm_s: float,
+        *,
+        minimum_timeout_ms: int,
+    ) -> int:
+        distance_mm = abs(float(distance_mm))
+        speed_mm_s = abs(float(speed_mm_s))
+        if speed_mm_s <= 1e-9:
+            raise IclPositionerError("扫描架运动超时无法计算：速度必须大于 0。")
+        theoretical_s = distance_mm / speed_mm_s
+        timeout_s = theoretical_s * cls.MOTION_TIMEOUT_SAFETY_FACTOR + cls.MOTION_TIMEOUT_OVERHEAD_S
+        return max(int(minimum_timeout_ms), int(timeout_s * 1000.0))
 
     def _execute_motion(self, axis: int, mode: MotionMode) -> None:
         self._prepare_motion_mode(axis, mode)

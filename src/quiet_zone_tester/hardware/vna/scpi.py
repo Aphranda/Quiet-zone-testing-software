@@ -49,16 +49,20 @@ class ScpiVnaController:
         self._selected_parameter: str | None = None
 
     def connect(self) -> InstrumentInfo:
-        self._session.open()
-        idn = self._session.query("*IDN?")
-        info = self._parse_idn(idn)
-        expected_model = (self._config.expected_model or "").strip().upper()
-        actual_model = self._idn_model(idn).upper()
-        if expected_model and actual_model != expected_model:
+        try:
+            self._session.open()
+            idn = self._session.query("*IDN?")
+            info = self._parse_idn(idn)
+            expected_model = (self._config.expected_model or "").strip().upper()
+            actual_model = self._idn_model(idn).upper()
+            if expected_model and actual_model != expected_model:
+                raise ScpiCommunicationError(
+                    f"VNA model mismatch: configured {expected_model}, "
+                    f"instrument reported {actual_model or 'UNKNOWN'}."
+                )
+        except Exception:
             self._session.close()
-            raise ScpiCommunicationError(
-                f"VNA model mismatch: configured {expected_model}, instrument reported {actual_model or 'UNKNOWN'}."
-            )
+            raise
         self._connected = True
         self._info = info
         logger.info("Connected VNA: %s", info)
@@ -89,9 +93,10 @@ class ScpiVnaController:
         self._session.write(f"SENS:FREQ:STAR {start_hz:.12g}")
         self._session.write(f"SENS:FREQ:STOP {stop_hz:.12g}")
         self._session.write(f"SENS:SWE:POIN {points}")
-        self._start_hz = start_hz
-        self._stop_hz = stop_hz
-        self._points = points
+        self._raise_for_system_error()
+        self._start_hz = float(self._session.query("SENS:FREQ:STAR?"))
+        self._stop_hz = float(self._session.query("SENS:FREQ:STOP?"))
+        self._points = int(float(self._session.query("SENS:SWE:POIN?")))
 
     def configure_power(self, power_dbm: float) -> None:
         self._ensure_connected()
@@ -100,6 +105,7 @@ class ScpiVnaController:
 
         logger.info("Configuring VNA source power: %.2f dBm", power_dbm)
         self._session.write(f"SOUR:POW {power_dbm:.6g}")
+        self._raise_for_system_error()
         self._power_dbm = power_dbm
 
     def configure_if_bandwidth(self, bandwidth_hz: float) -> None:
@@ -108,7 +114,6 @@ class ScpiVnaController:
             raise ValueError("VNA IF bandwidth must be greater than 0 Hz.")
 
         logger.info("Configuring VNA IF bandwidth: %.3f Hz", bandwidth_hz)
-        self._session.write("*CLS")
         self._session.write(f"SENS:BAND:RES {bandwidth_hz:.12g}")
         self._raise_for_system_error()
         self._if_bandwidth_hz = bandwidth_hz
@@ -125,7 +130,9 @@ class ScpiVnaController:
             self._select_parameter(parameter)
         else:
             self._session.write(f"CALC:PAR:SEL '{self._trace_name}'")
-        self._session.write("INIT:IMM")
+        self._session.write("INIT1:CONT OFF")
+        self._session.write("TRIG:SOUR IMM")
+        self._session.write("INIT1:IMM")
         self._session.query("*OPC?")
         values = self._read_sdata()
         complex_values = self._values_to_complex(values)
@@ -146,10 +153,28 @@ class ScpiVnaController:
 
         trace_name = self._trace_name
         self._session.write("*CLS")
+        try:
+            catalog = self._session.query("CALC1:PAR:CAT:EXT?")
+            catalog_items = [item.strip().strip("'\"") for item in catalog.split(",")]
+            measurement_names = set(catalog_items[0::2])
+            if trace_name in measurement_names:
+                self._session.write(f"CALC1:PAR:DEL '{trace_name}'")
+                self._raise_for_system_error()
+            self._session.write(f"CALC1:PAR:DEF:EXT '{trace_name}','{parameter}'")
+            self._session.write(f"CALC1:PAR:SEL '{trace_name}'")
+            self._raise_for_system_error()
+            self._try_write(f"DISP:WIND1:TRAC1:FEED '{trace_name}'")
+            self._session.query("*OPC?")
+            self._selected_parameter = parameter
+            logger.info("VNA measurement parameter configured: %s.", parameter)
+            return
+        except Exception as exc:  # noqa: BLE001 - use legacy command variants as fallback.
+            logger.warning("VNA catalog-based parameter configuration failed: %s", exc)
+
         strategies = (
             (
                 f"CALC:PAR:SEL '{trace_name}'",
-                f"CALC:PAR:MOD {parameter}",
+                f"CALC:PAR:MOD:EXT '{trace_name}','{parameter}'",
             ),
             (
                 f"CALC:PAR:DEF:EXT '{trace_name}','{parameter}'",
@@ -187,14 +212,7 @@ class ScpiVnaController:
         try:
             return self._session.query_binary_values("CALC:DATA? SDATA", datatype="d", is_big_endian=False)
         except ScpiCommunicationError:
-            logger.info("Binary SDATA read failed, falling back to ASCII SDATA.")
-            self._session.write("FORM:DATA ASCii,0")
-            for command in ("CALC:DATA? SDATA", "CALC:DATA? SDAT", "CALC:DATA:SDAT?"):
-                try:
-                    response = self._session.query(command)
-                    return [float(value) for value in response.replace("\n", "").split(",") if value.strip()]
-                except ScpiCommunicationError:
-                    logger.info("ASCII SDATA read failed with command %s.", command)
+            logger.error("Binary SDATA read failed; refusing an unsafe in-session retry.")
             raise
 
     def _try_write(self, command: str) -> None:

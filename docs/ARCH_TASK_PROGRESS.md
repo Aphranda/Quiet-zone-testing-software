@@ -376,3 +376,11 @@ Last updated: 2026-07-10
 - 风险：offscreen 初始化只能验证样式可加载和窗口可创建，真实桌面视觉仍建议人工查看 ComboBox 箭头、DUT 按钮选中态和测试参数密度。
 - 后续：P5 当前任务全部完成；后续可进入真实硬件联调、外部旧接口删除计划或进一步 UI 细节打磨。
 - 涉及文件：`resource/style/style.css`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
+### HARDWARE-RELIABILITY-20260713-001 - 修复扫描架绝对运动超时
+
+- 目标：让绝对运动等待使用按距离和速度计算的有限超时，避免位置反馈异常时无限阻塞。
+- 完成：新增统一超时计算，采用 `距离/速度 × 1.5 + 5 秒` 且不低于配置通信超时；`wait_axes()` 使用单调时钟执行截止时间，超时后向相关轴发送 STOP，并报告轴号、目标位置、最后实际位置、位置误差和等待时长。
+- 验证：运行 `tests.test_positioner_timeout`、`tests.test_motion_service`、`tests.test_scan_runtime_service`，18 个测试通过。
+- 风险：当前超时包含理论匀速时间和固定裕量，尚未结合加速度参数建立精确梯形速度模型；真实负载下需继续验证安全系数。
+- 后续：执行 HR-P0-02，为匀速运动位置轮询增加截止时间和反馈冻结检测。
+- 涉及文件：`src/quiet_zone_tester/hardware/positioner/icl.py`、`tests/test_positioner_timeout.py`、`docs/HARDWARE_SCAN_RELIABILITY_TODO.md`。
