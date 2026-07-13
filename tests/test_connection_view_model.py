@@ -1,5 +1,6 @@
 import os
 import unittest
+from unittest import mock
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -32,6 +33,7 @@ class ConnectionViewModelTest(unittest.TestCase):
                 model="N5245B",
                 ip_address="192.168.1.10",
                 port=5025,
+                resource_name="TCPIP0::VNA::inst0::INSTR",
                 timeout_ms=5000,
             ),
             positioner=PositionerFormState(
@@ -52,7 +54,7 @@ class ConnectionViewModelTest(unittest.TestCase):
             ),
         )
 
-        self.assertEqual(config["vna"]["resource_name"], "TCPIP0::192.168.1.10::5025::SOCKET")
+        self.assertEqual(config["vna"]["resource_name"], "TCPIP0::VNA::inst0::INSTR")
         self.assertTrue(config["vna"]["virtual_enabled"])
         self.assertEqual(config["vna"]["model"], "N5245B")
         self.assertEqual(config["positioner"]["port_name"], "COM3")
@@ -72,12 +74,70 @@ class ConnectionViewModelTest(unittest.TestCase):
         self.assertEqual(tc500.ip_address, "192.168.1.120")
         self.assertEqual(tc500.tcp_port, 35)
 
+    def test_vna_model_defaults(self) -> None:
+        e5080b = ConnectionViewModel.vna_defaults("E5080B")
+        n5245b = ConnectionViewModel.vna_defaults("N5245B")
+
+        self.assertEqual(e5080b.ip_address, "192.168.1.10")
+        self.assertEqual(n5245b.ip_address, "169.254.143.10")
+        self.assertEqual(n5245b.port, 5025)
+
     def test_serial_provider_failure_returns_empty_list(self) -> None:
         def fail() -> list[str]:
             raise RuntimeError("serial unavailable")
 
         with self.assertLogs("quiet_zone_tester.presentation.modules.connection.connection_view_model", level="ERROR"):
             self.assertEqual(ConnectionViewModel(serial_port_provider=fail).available_serial_ports(), [])
+
+    def test_visa_provider_failure_returns_empty_list(self) -> None:
+        def fail() -> list[str]:
+            raise RuntimeError("visa unavailable")
+
+        with self.assertLogs("quiet_zone_tester.presentation.modules.connection.connection_view_model", level="ERROR"):
+            self.assertEqual(ConnectionViewModel(visa_resource_provider=fail).available_visa_resources(), [])
+
+    def test_available_visa_resources_uses_provider(self) -> None:
+        view_model = ConnectionViewModel(visa_resource_provider=lambda: ["TCPIP0::HOST::inst0::INSTR"])
+
+        self.assertEqual(view_model.available_visa_resources(), ["TCPIP0::HOST::inst0::INSTR"])
+
+    def test_vna_visa_resources_are_filtered_by_selected_model(self) -> None:
+        view_model = ConnectionViewModel(
+            visa_resource_provider=lambda: [
+                "TCPIP0::K-E5080B-01081::inst0::INSTR",
+                "TCPIP0::K-N5245B-01082::inst0::INSTR",
+                "TCPIP0::K-E5245B-01083::inst0::INSTR",
+                "TCPIP0::OTHER::inst0::INSTR",
+            ]
+        )
+
+        self.assertEqual(
+            view_model.available_vna_visa_resources("E5080B"),
+            ["TCPIP0::K-E5080B-01081::inst0::INSTR"],
+        )
+        self.assertEqual(
+            view_model.available_vna_visa_resources("N5245B"),
+            [
+                "TCPIP0::K-N5245B-01082::inst0::INSTR",
+                "TCPIP0::K-E5245B-01083::inst0::INSTR",
+            ],
+        )
+
+    def test_host_port_from_visa_resource_updates_from_socket_resource(self) -> None:
+        self.assertEqual(
+            ConnectionViewModel.host_port_from_visa_resource("TCPIP0::169.254.143.10::5025::SOCKET"),
+            ("169.254.143.10", 5025),
+        )
+
+    def test_host_port_from_visa_resource_resolves_local_host_when_available(self) -> None:
+        with mock.patch(
+            "quiet_zone_tester.presentation.modules.connection.connection_view_model.socket.gethostbyname",
+            return_value="169.254.143.10",
+        ):
+            self.assertEqual(
+                ConnectionViewModel.host_port_from_visa_resource("TCPIP0::K-N5245B-81003.local::5025::SOCKET"),
+                ("169.254.143.10", 5025),
+            )
 
     def test_panel_state_describes_connection_status_and_buttons(self) -> None:
         disconnected = ConnectionViewModel.panel_state(
@@ -126,6 +186,15 @@ class ConnectionViewModelTest(unittest.TestCase):
         self.assertEqual(config["vna"]["resource_name"], "TCPIP0::192.168.1.10::5025::SOCKET")
         self.assertEqual(config["vna"]["model"], "E5080B")
         self.assertEqual(config["switch_box"]["model"], "LCD74000F")
+
+    def test_connection_panel_uses_selected_visa_resource(self) -> None:
+        _app()
+        panel = ConnectionPanel()
+
+        panel._vna_resource.setEditText("TCPIP0::HOST::inst0::INSTR")
+        config = panel.current_config()
+
+        self.assertEqual(config["vna"]["resource_name"], "TCPIP0::HOST::inst0::INSTR")
 
 
 if __name__ == "__main__":

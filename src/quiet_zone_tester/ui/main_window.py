@@ -194,6 +194,7 @@ class MainWindow(QMainWindow):
         self._positioner_control_panel.stop_requested.connect(self._stop_positioner_from_control)
 
         self._vna_control_panel.configure_requested.connect(self._configure_vna_from_control)
+        self._vna_control_panel.trigger_requested.connect(self._trigger_vna_from_control)
         self._vna_control_panel.sample_requested.connect(self._start_vna_control_sample)
 
         self._switch_box_control_panel.command_requested.connect(self._send_switch_box_command)
@@ -425,11 +426,12 @@ class MainWindow(QMainWindow):
             f"{settings['start_ghz']:.3f}-{settings['stop_ghz']:.3f} GHz，"
             f"{settings['points']} 点，"
             f"功率 {settings['vna_power_dbm']:.1f} dBm，"
-            f"中频带宽 {settings['if_bandwidth_hz']:.0f} Hz。",
+            f"中频带宽 {settings['if_bandwidth_hz']:.0f} Hz，"
+            "Sweep 模式 Hold。",
         )
         self._tasks.run(
             self._service.configure_vna_trace,
-            on_success=lambda _: self._on_vna_control_configured(settings),
+            on_success=lambda sweep_time_s: self._on_vna_control_configured(settings, sweep_time_s),
             on_error=partial(self._on_operation_failed, "网分仪配置失败"),
             on_finished=partial(self._set_busy, False),
             start_ghz=settings["start_ghz"],
@@ -438,18 +440,42 @@ class MainWindow(QMainWindow):
             parameter=settings["parameter"],
             vna_power_dbm=settings["vna_power_dbm"],
             if_bandwidth_hz=settings["if_bandwidth_hz"],
+            continuous_sweep=bool(settings.get("continuous_sweep")),
         )
 
     def _start_vna_control_sample(self, settings: dict) -> None:
         self._latest_trace = None
         self._plot_panel.clear()
         self._set_busy(True)
-        self._feedback.info("正在执行网分仪独立采样...", f"网分仪独立采样：{settings['parameter']}。")
+        self._feedback.info(
+            "正在执行网分仪独立采样...",
+            "网分仪独立采样："
+            f"{settings['parameter']}，"
+            "读取当前曲线；如需刷新数据，请先点击“触发”。",
+        )
         self._tasks.run(
-            lambda: self._service.sample_vna_trace(settings["parameter"], file_flag=self._plot_panel.file_flag()),
+            self._service.read_vna_trace,
             on_success=self._on_single_trace_ready,
-            on_error=partial(self._on_operation_failed, "网分仪采样失败"),
+            on_error=partial(self._on_operation_failed, "网分仪读取失败"),
             on_finished=partial(self._set_busy, False),
+            parameter=settings["parameter"],
+            file_flag=self._plot_panel.file_flag(),
+        )
+
+    def _trigger_vna_from_control(self, settings: dict) -> None:
+        self._set_busy(True)
+        self._feedback.info(
+            "正在触发网分仪 sweep...",
+            "网分仪独立触发："
+            f"{settings['parameter']}，"
+            "Sweep 模式 Single；触发完成后可点击“采样”读取曲线。",
+        )
+        self._tasks.run(
+            self._service.trigger_vna_sweep,
+            on_success=lambda _: self._feedback.info("网分仪触发完成", "Sweep 已完成，可读取曲线。"),
+            on_error=partial(self._on_operation_failed, "网分仪触发失败"),
+            on_finished=partial(self._set_busy, False),
+            parameter=settings["parameter"],
         )
 
     def _route_switch_box_polarization(self, polarization: str) -> None:
@@ -713,7 +739,9 @@ class MainWindow(QMainWindow):
         self._plot_panel.set_trace(trace)
         self._feedback.info("网分曲线已更新", f"网分曲线就绪：{trace.parameter}，{trace.frequency_hz.size} 点。")
 
-    def _on_vna_control_configured(self, settings: dict) -> None:
+    def _on_vna_control_configured(self, settings: dict, sweep_time_s: object = None) -> None:
+        if isinstance(sweep_time_s, (int, float)):
+            self._vna_control_panel.set_sweep_time_s(float(sweep_time_s))
         self._feedback.info("网分仪配置完成", f"网分仪配置完成：{settings['parameter']}，后续可直接采样。")
 
     def _on_positioner_position_ready(self, position: object) -> None:

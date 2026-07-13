@@ -37,6 +37,25 @@ class SwitchBoxModelDefaults:
     timeout_ms: int
 
 
+@dataclass(frozen=True)
+class VnaModelDefaults:
+    ip_address: str
+    port: int
+    timeout_ms: int
+
+
+E5080B_VNA_DEFAULTS = VnaModelDefaults(
+    ip_address="192.168.1.10",
+    port=5025,
+    timeout_ms=DEFAULT_VNA_TIMEOUT_MS,
+)
+N5245B_VNA_DEFAULTS = VnaModelDefaults(
+    ip_address="169.254.143.10",
+    port=5025,
+    timeout_ms=DEFAULT_VNA_TIMEOUT_MS,
+)
+
+
 LCD74000F_SWITCH_BOX_DEFAULTS = SwitchBoxModelDefaults(
     connection_type="TCP/IP",
     ip_address="192.168.1.113",
@@ -55,3 +74,9 @@ def switch_box_model_defaults(model: str) -> SwitchBoxModelDefaults:
     if str(model).strip().upper() == "TC500":
         return TC500_SWITCH_BOX_DEFAULTS
     return LCD74000F_SWITCH_BOX_DEFAULTS
+
+
+def vna_model_defaults(model: str) -> VnaModelDefaults:
+    if str(model).strip().upper() in {"N5245B", "E5245B"}:
+        return N5245B_VNA_DEFAULTS
+    return E5080B_VNA_DEFAULTS

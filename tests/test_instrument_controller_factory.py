@@ -79,6 +79,20 @@ class InstrumentControllerFactoryTest(unittest.TestCase):
         with self.assertRaises(InstrumentControllerFactoryError):
             factory.create_vna({"model": "UNKNOWN", "resource_name": "TCPIP0::HOST::inst0::INSTR"})
 
+    def test_create_vna_prefers_selected_visa_resource_over_ip_fields(self) -> None:
+        factory = InstrumentControllerFactory()
+
+        vna = factory.create_vna(
+            {
+                "model": "E5080B",
+                "ip_address": "192.168.1.10",
+                "port": 5025,
+                "resource_name": "TCPIP0::NI-VISA::inst0::INSTR",
+            }
+        )
+
+        self.assertEqual(vna._config.resource_name, "TCPIP0::NI-VISA::inst0::INSTR")
+
 
 if __name__ == "__main__":
     unittest.main()

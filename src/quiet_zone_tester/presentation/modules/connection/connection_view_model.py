@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import re
+import socket
 from dataclasses import dataclass
 from typing import Callable
 
@@ -25,6 +27,7 @@ from quiet_zone_tester.shared.instrument_defaults import (
     SUPPORTED_VNA_MODELS,
     SwitchBoxModelDefaults,
     switch_box_model_defaults,
+    vna_model_defaults,
 )
 
 logger = logging.getLogger(__name__)
@@ -36,6 +39,7 @@ class VnaFormState:
     model: str = DEFAULT_VNA_MODEL
     ip_address: str = DEFAULT_VNA_IP_ADDRESS
     port: int = DEFAULT_VNA_PORT
+    resource_name: str = ""
     timeout_ms: int = DEFAULT_VNA_TIMEOUT_MS
 
 
@@ -91,12 +95,23 @@ class ConnectionPanelState:
 
 
 class ConnectionViewModel:
-    def __init__(self, serial_port_provider: Callable[[], list[str]] | None = None) -> None:
+    def __init__(
+        self,
+        serial_port_provider: Callable[[], list[str]] | None = None,
+        visa_resource_provider: Callable[[], list[str]] | None = None,
+    ) -> None:
         self._serial_port_provider = serial_port_provider or self.enumerate_serial_ports
+        self._visa_resource_provider = visa_resource_provider or self.enumerate_visa_resources
 
     @staticmethod
     def default_vna_form_state() -> VnaFormState:
-        return VnaFormState()
+        defaults = vna_model_defaults(DEFAULT_VNA_MODEL)
+        return VnaFormState(
+            model=DEFAULT_VNA_MODEL,
+            ip_address=defaults.ip_address,
+            port=defaults.port,
+            timeout_ms=defaults.timeout_ms,
+        )
 
     @staticmethod
     def default_positioner_form_state() -> PositionerFormState:
@@ -114,6 +129,10 @@ class ConnectionViewModel:
     def supported_vna_models() -> tuple[str, ...]:
         return SUPPORTED_VNA_MODELS
 
+    @staticmethod
+    def vna_defaults(model: str):
+        return vna_model_defaults(model)
+
     def build_config(
         self,
         *,
@@ -128,7 +147,11 @@ class ConnectionViewModel:
                     "model": vna.model.strip().upper(),
                     "ip_address": vna.ip_address.strip(),
                     "port": vna.port,
-                    "resource_name": self.vna_resource_name(vna.ip_address, vna.port),
+                    "resource_name": self.vna_resource_name(
+                        vna.ip_address,
+                        vna.port,
+                        resource_name=vna.resource_name,
+                    ),
                     "timeout_ms": vna.timeout_ms,
                 },
                 "positioner": {
@@ -164,6 +187,16 @@ class ConnectionViewModel:
             logger.exception("Failed to enumerate serial ports.")
             return []
 
+    def available_visa_resources(self) -> list[str]:
+        try:
+            return list(self._visa_resource_provider())
+        except Exception:
+            logger.exception("Failed to enumerate VISA resources.")
+            return []
+
+    def available_vna_visa_resources(self, model: str) -> list[str]:
+        return self.filter_visa_resources_by_model(self.available_visa_resources(), model)
+
     @staticmethod
     def panel_state(*, connection: ConnectionState, busy: bool) -> ConnectionPanelState:
         busy = bool(busy)
@@ -196,11 +229,37 @@ class ConnectionViewModel:
         )
 
     @staticmethod
-    def vna_resource_name(ip_address: str, port: int) -> str:
+    def vna_resource_name(ip_address: str, port: int, *, resource_name: str = "") -> str:
+        resource_name = str(resource_name).strip()
+        if resource_name:
+            return resource_name
         ip_address = str(ip_address).strip()
         if not ip_address:
             return ""
         return f"TCPIP0::{ip_address}::{int(port)}::SOCKET"
+
+    @classmethod
+    def host_port_from_visa_resource(cls, resource_name: str) -> tuple[str, int] | None:
+        resource_name = str(resource_name).strip()
+        match = re.match(r"^TCPIP\d*::([^:]+)::(?:(\d+)::SOCKET|[^:]+::INSTR)$", resource_name, flags=re.IGNORECASE)
+        if not match:
+            return None
+        host = match.group(1)
+        port = int(match.group(2) or DEFAULT_VNA_PORT)
+        return cls.resolve_host_if_possible(host), port
+
+    @staticmethod
+    def resolve_host_if_possible(host: str) -> str:
+        host = str(host).strip()
+        if not host:
+            return host
+        if re.match(r"^\d{1,3}(?:\.\d{1,3}){3}$", host):
+            return host
+        try:
+            return socket.gethostbyname(host)
+        except OSError:
+            logger.info("VISA host could not be resolved to IPv4, keeping host name: %s", host)
+            return host
 
     @staticmethod
     def switch_box_defaults(model: str) -> SwitchBoxModelDefaults:
@@ -213,3 +272,20 @@ class ConnectionViewModel:
     @staticmethod
     def enumerate_serial_ports() -> list[str]:
         return [port.device for port in list_ports.comports()]
+
+    @staticmethod
+    def enumerate_visa_resources() -> list[str]:
+        import pyvisa
+
+        resource_manager = pyvisa.ResourceManager()
+        return [str(resource) for resource in resource_manager.list_resources()]
+
+    @staticmethod
+    def filter_visa_resources_by_model(resources: list[str], model: str) -> list[str]:
+        model = str(model).strip().upper()
+        if not model:
+            return list(resources)
+        tokens = {model}
+        if len(model) > 1 and model[0].isalpha():
+            tokens.add(model[1:])
+        return [resource for resource in resources if any(token in str(resource).upper() for token in tokens)]

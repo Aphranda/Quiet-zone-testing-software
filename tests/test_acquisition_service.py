@@ -37,16 +37,30 @@ class _Vna:
     def configure_measurement_parameter(self, parameter: str) -> None:
         self.calls.append(("parameter", parameter))
 
+    def configure_continuous_sweep(self, enabled: bool) -> None:
+        self.calls.append(("continuous", enabled))
+
+    def trigger_sweep(self, parameter: str = "S21") -> None:
+        self.calls.append(("trigger", parameter))
+
+    def read_s_parameter(self, parameter: str = "S21") -> SParameterTrace:
+        self.calls.append(("read", parameter))
+        return SParameterTrace(self.trace.frequency_hz, self.trace.complex_values, parameter)
+
     def measure_s_parameter(self, parameter: str = "S21") -> SParameterTrace:
         self.calls.append(("measure", parameter))
         return SParameterTrace(self.trace.frequency_hz, self.trace.complex_values, parameter)
+
+    def query_sweep_time_s(self) -> float:
+        self.calls.append(("sweep_time",))
+        return 0.123
 
 
 class AcquisitionServiceTest(unittest.TestCase):
     def test_configure_trace_sets_power_if_sweep_and_parameter(self) -> None:
         vna = _Vna()
 
-        AcquisitionService(vna).configure_trace(
+        sweep_time = AcquisitionService(vna).configure_trace(
             start_ghz=1.0,
             stop_ghz=2.0,
             points=101,
@@ -62,8 +76,25 @@ class AcquisitionServiceTest(unittest.TestCase):
                 ("if_bandwidth", 300.0),
                 ("sweep", 1.0e9, 2.0e9, 101),
                 ("parameter", "S11"),
+                ("continuous", False),
+                ("sweep_time",),
             ],
         )
+        self.assertEqual(sweep_time, 0.123)
+
+    def test_configure_trace_can_enable_continuous_sweep(self) -> None:
+        vna = _Vna()
+
+        AcquisitionService(vna).configure_trace(
+            start_ghz=1.0,
+            stop_ghz=2.0,
+            points=101,
+            parameter="S21",
+            continuous_sweep=True,
+        )
+
+        self.assertIn(("continuous", True), vna.calls)
+        self.assertEqual(vna.calls[-1], ("sweep_time",))
 
     def test_configure_for_scan_keeps_original_scan_parameter_behavior(self) -> None:
         vna = _Vna()
@@ -85,6 +116,8 @@ class AcquisitionServiceTest(unittest.TestCase):
                 ("power", -12.0),
                 ("if_bandwidth", 1000.0),
                 ("sweep", 3.0e9, 4.0e9, 11),
+                ("continuous", False),
+                ("sweep_time",),
             ],
         )
 
@@ -110,7 +143,9 @@ class AcquisitionServiceTest(unittest.TestCase):
 
         AcquisitionService(vna).configure_for_scan(settings)
 
-        self.assertEqual(vna.calls[-1], ("sweep", 3.0e9, 4.0e9, 11))
+        self.assertIn(("sweep", 3.0e9, 4.0e9, 11), vna.calls)
+        self.assertIn(("continuous", False), vna.calls)
+        self.assertEqual(vna.calls[-1], ("sweep_time",))
 
     def test_acquire_trace_configures_then_samples(self) -> None:
         vna = _Vna()
@@ -127,6 +162,16 @@ class AcquisitionServiceTest(unittest.TestCase):
         self.assertEqual(trace.parameter, "S22")
         self.assertEqual(vna.calls[-1], ("measure", "S22"))
 
+    def test_trigger_and_read_trace_are_separate_operations(self) -> None:
+        vna = _Vna()
+        service = AcquisitionService(vna)
+
+        service.trigger_trace("S11")
+        trace = service.read_trace("S11")
+
+        self.assertEqual(trace.parameter, "S11")
+        self.assertEqual(vna.calls, [("trigger", "S11"), ("read", "S11")])
+
     def test_sample_scan_trace_honors_stop_callback(self) -> None:
         vna = _Vna()
         service = AcquisitionService(vna)
@@ -135,6 +180,15 @@ class AcquisitionServiceTest(unittest.TestCase):
             service.sample_scan_trace("S21", stop_requested=lambda: True)
 
         self.assertEqual(vna.calls, [])
+
+    def test_sample_scan_trace_triggers_then_reads(self) -> None:
+        vna = _Vna()
+        service = AcquisitionService(vna)
+
+        trace = service.sample_scan_trace("S22")
+
+        self.assertEqual(trace.parameter, "S22")
+        self.assertEqual(vna.calls, [("trigger", "S22"), ("read", "S22")])
 
     def test_rejects_unconnected_vna(self) -> None:
         service = AcquisitionService(_Vna(connected=False))

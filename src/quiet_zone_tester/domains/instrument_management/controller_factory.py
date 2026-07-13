@@ -54,12 +54,12 @@ class InstrumentControllerFactory:
         if self.virtual_enabled(config):
             return MockVnaController(timeout_ms=int(config.get("timeout_ms", DEFAULT_VNA_TIMEOUT_MS)))
 
-        ip_address = str(config.get("ip_address", "")).strip()
-        port = int(config.get("port", DEFAULT_VNA_PORT))
-        if ip_address:
-            resource_name = f"TCPIP0::{ip_address}::{port}::SOCKET"
-        else:
-            resource_name = str(config.get("resource_name", "")).strip()
+        resource_name = str(config.get("resource_name", "")).strip()
+        if not resource_name:
+            ip_address = str(config.get("ip_address", "")).strip()
+            port = int(config.get("port", DEFAULT_VNA_PORT))
+            if ip_address:
+                resource_name = f"TCPIP0::{ip_address}::{port}::SOCKET"
 
         if not resource_name:
             raise InstrumentControllerFactoryError("VNA VISA 资源不能为空，真实测试模式需要填写仪器资源。")

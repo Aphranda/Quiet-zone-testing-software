@@ -23,6 +23,7 @@ class MockVnaController:
         self._power_dbm = -10.0
         self._if_bandwidth_hz = 1000.0
         self._parameter = "S21"
+        self._continuous_sweep_enabled = False
         self._timeout_s = max(timeout_ms / 1000.0, 0.001)
 
     def connect(self) -> InstrumentInfo:
@@ -87,13 +88,31 @@ class MockVnaController:
         logger.info("Configuring mock VNA measurement parameter: %s", parameter)
         self._parameter = parameter
 
+    def configure_continuous_sweep(self, enabled: bool) -> None:
+        self._ensure_connected()
+        self._continuous_sweep_enabled = bool(enabled)
+        logger.info("Configuring mock VNA continuous sweep: %s", self._continuous_sweep_enabled)
+
+    def query_sweep_time_s(self) -> float:
+        self._ensure_connected()
+        return max(self._points, 1) / max(self._if_bandwidth_hz, 1.0)
+
     def measure_s_parameter(self, parameter: str = "S21") -> SParameterTrace:
+        self.trigger_sweep(parameter)
+        return self.read_s_parameter(parameter)
+
+    def trigger_sweep(self, parameter: str = "S21") -> None:
         self._ensure_connected()
         parameter = (parameter or self._parameter).upper()
         self._parameter = parameter
-        logger.info("Measuring mock %s trace.", parameter)
+        logger.info("Triggering mock %s sweep.", parameter)
         time.sleep(self._timeout_s)
 
+    def read_s_parameter(self, parameter: str = "S21") -> SParameterTrace:
+        self._ensure_connected()
+        parameter = (parameter or self._parameter).upper()
+        self._parameter = parameter
+        logger.info("Reading mock %s trace.", parameter)
         freq_hz = np.linspace(self._start_hz, self._stop_hz, self._points)
         complex_values = np.zeros(freq_hz.shape, dtype=complex)
         return SParameterTrace(freq_hz, complex_values, parameter)

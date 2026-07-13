@@ -24,6 +24,15 @@ class AcquisitionVnaController(Protocol):
     def measure_s_parameter(self, parameter: str = "S21") -> SParameterTrace:
         ...
 
+    def trigger_sweep(self, parameter: str = "S21") -> None:
+        ...
+
+    def read_s_parameter(self, parameter: str = "S21") -> SParameterTrace:
+        ...
+
+    def query_sweep_time_s(self) -> float:
+        ...
+
 
 class AcquisitionServiceError(RuntimeError):
     pass
@@ -72,7 +81,8 @@ class AcquisitionService:
         parameter: str,
         power_dbm: float = -10.0,
         if_bandwidth_hz: float = 1000.0,
-    ) -> None:
+        continuous_sweep: bool = False,
+    ) -> float | None:
         config = SweepConfiguration.from_ghz(
             start_ghz=start_ghz,
             stop_ghz=stop_ghz,
@@ -81,7 +91,7 @@ class AcquisitionService:
             power_dbm=power_dbm,
             if_bandwidth_hz=if_bandwidth_hz,
         )
-        self.configure(config, configure_parameter=True)
+        return self.configure(config, configure_parameter=True, continuous_sweep=continuous_sweep)
 
     def configure_for_scan(self, settings: dict | ScanSettings) -> None:
         if isinstance(settings, ScanSettings):
@@ -107,7 +117,13 @@ class AcquisitionService:
         )
         self.configure(config, configure_parameter=False)
 
-    def configure(self, config: SweepConfiguration, *, configure_parameter: bool) -> None:
+    def configure(
+        self,
+        config: SweepConfiguration,
+        *,
+        configure_parameter: bool,
+        continuous_sweep: bool = False,
+    ) -> float | None:
         self._ensure_connected()
         try:
             self.vna.configure_power(config.power_dbm)
@@ -117,6 +133,13 @@ class AcquisitionService:
                 configure_measurement = getattr(self.vna, "configure_measurement_parameter", None)
                 if callable(configure_measurement):
                     configure_measurement(config.parameter)
+            configure_continuous = getattr(self.vna, "configure_continuous_sweep", None)
+            if callable(configure_continuous):
+                configure_continuous(bool(continuous_sweep))
+            query_sweep_time = getattr(self.vna, "query_sweep_time_s", None)
+            if callable(query_sweep_time):
+                return float(query_sweep_time())
+            return None
         except Exception as exc:
             logger.exception("VNA sweep configuration failed.")
             raise AcquisitionServiceError(f"VNA sweep configuration failed: {exc}") from exc
@@ -130,6 +153,7 @@ class AcquisitionService:
         parameter: str,
         power_dbm: float = -10.0,
         if_bandwidth_hz: float = 1000.0,
+        continuous_sweep: bool = False,
     ) -> SParameterTrace:
         self.configure_trace(
             start_ghz=start_ghz,
@@ -138,6 +162,7 @@ class AcquisitionService:
             parameter=parameter,
             power_dbm=power_dbm,
             if_bandwidth_hz=if_bandwidth_hz,
+            continuous_sweep=continuous_sweep,
         )
         return self.sample_trace(parameter)
 
@@ -150,6 +175,31 @@ class AcquisitionService:
             raise AcquisitionServiceError(f"VNA trace measurement failed: {exc}") from exc
         return self._validated_trace(trace)
 
+    def trigger_trace(self, parameter: str) -> None:
+        self._ensure_connected()
+        try:
+            trigger = getattr(self.vna, "trigger_sweep", None)
+            if callable(trigger):
+                trigger(str(parameter))
+                return
+            self.vna.measure_s_parameter(str(parameter))
+        except Exception as exc:
+            logger.exception("VNA sweep trigger failed.")
+            raise AcquisitionServiceError(f"VNA sweep trigger failed: {exc}") from exc
+
+    def read_trace(self, parameter: str) -> SParameterTrace:
+        self._ensure_connected()
+        try:
+            read = getattr(self.vna, "read_s_parameter", None)
+            if callable(read):
+                trace = read(str(parameter))
+            else:
+                trace = self.vna.measure_s_parameter(str(parameter))
+        except Exception as exc:
+            logger.exception("VNA trace read failed.")
+            raise AcquisitionServiceError(f"VNA trace read failed: {exc}") from exc
+        return self._validated_trace(trace)
+
     def sample_scan_trace(
         self,
         parameter: str,
@@ -157,7 +207,9 @@ class AcquisitionService:
         stop_requested: Callable[[], bool] | None = None,
     ) -> SParameterTrace:
         self._raise_if_stopped(stop_requested)
-        trace = self.sample_trace(parameter)
+        self.trigger_trace(parameter)
+        self._raise_if_stopped(stop_requested)
+        trace = self.read_trace(parameter)
         self._raise_if_stopped(stop_requested)
         return trace
 

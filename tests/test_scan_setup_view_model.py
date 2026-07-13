@@ -56,7 +56,7 @@ class ScanSetupViewModelTest(unittest.TestCase):
         settings = ScanSetupViewModel().build_settings(_state("step"))
 
         self.assertEqual(settings["frequency_step_mhz"], DEFAULT_FREQUENCY_STEP_MHZ)
-        self.assertEqual(settings["points"], 1401)
+        self.assertEqual(settings["points"], 71)
         self.assertEqual(settings["parameter"], "S21")
         self.assertEqual(settings["scan_mode"], "step")
         self.assertEqual(settings["step_x_mm"], 2.5)
@@ -91,7 +91,7 @@ class ScanSetupViewModelTest(unittest.TestCase):
         settings = panel.current_settings()
 
         self.assertEqual(settings["frequency_step_mhz"], DEFAULT_FREQUENCY_STEP_MHZ)
-        self.assertEqual(settings["points"], 1401)
+        self.assertEqual(settings["points"], 71)
         self.assertEqual(settings["scan_mode"], "step")
         self.assertEqual(settings["parameter"], "S21")
         self.assertEqual(settings["step_x_mm"], DEFAULT_STEP_MM)

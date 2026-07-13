@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -25,6 +26,7 @@ class ScpiConnectionConfig:
     write_termination: str = "\n"
     retries: int = 2
     retry_delay_s: float = 0.2
+    fallback_tcp_port: int = 5025
 
 
 class VisaScpiSession:
@@ -39,7 +41,7 @@ class VisaScpiSession:
 
     @property
     def resource_name(self) -> str:
-        return self._config.resource_name
+        return self._config.resource_name if self._resource is None else str(getattr(self._resource, "resource_name", self._config.resource_name))
 
     @property
     def is_open(self) -> bool:
@@ -49,20 +51,31 @@ class VisaScpiSession:
         if self._resource is not None:
             return
 
+        errors: list[str] = []
         try:
             logger.info("Opening VISA resource: %s", self._config.resource_name)
             if self._resource_manager is None:
                 self._resource_manager = pyvisa.ResourceManager()
-            resource = self._resource_manager.open_resource(self._config.resource_name)
-            resource.timeout = self._config.timeout_ms
-            resource.read_termination = self._config.read_termination
-            resource.write_termination = self._config.write_termination
-            self._resource = resource
+            for resource_name in self._candidate_resource_names(self._config.resource_name):
+                try:
+                    resource = self._resource_manager.open_resource(resource_name)
+                    resource.timeout = self._config.timeout_ms
+                    resource.read_termination = self._config.read_termination
+                    resource.write_termination = self._config.write_termination
+                    self._resource = resource
+                    logger.info("Opened VISA resource: %s", resource_name)
+                    return
+                except Exception as exc:  # noqa: BLE001 - try next equivalent VISA address.
+                    errors.append(f"{resource_name}: {exc}")
+                    logger.warning("Failed to open VISA candidate %s: %s", resource_name, exc)
         except Exception as exc:  # noqa: BLE001 - instrument boundary wraps VISA backend errors.
             logger.exception("Failed to open VISA resource: %s", self._config.resource_name)
             raise ScpiCommunicationError(
                 f"Failed to open VISA resource {self._config.resource_name}: {exc}"
             ) from exc
+        raise ScpiCommunicationError(
+            "Failed to open VISA resource candidates: " + " | ".join(errors)
+        )
 
     def close(self) -> None:
         resource = self._resource
@@ -116,6 +129,16 @@ class VisaScpiSession:
         if self._resource is None:
             raise ScpiCommunicationError(f"VISA resource is not open: {self._config.resource_name}")
         return self._resource
+
+    def _candidate_resource_names(self, resource_name: str) -> list[str]:
+        resource_name = str(resource_name).strip()
+        candidates = [resource_name]
+        match = re.match(r"^(TCPIP\d*)::([^:]+)::inst\d+::INSTR$", resource_name, flags=re.IGNORECASE)
+        if match:
+            prefix, host = match.groups()
+            candidates.append(f"{prefix}::{host}::{int(self._config.fallback_tcp_port)}::SOCKET")
+            candidates.append(f"{prefix}::{host}::hislip0::INSTR")
+        return list(dict.fromkeys(candidates))
 
     def _execute_with_retries(self, operation: str, command: str, action, *, retry: bool = True):
         attempts = max(1, self._config.retries + 1) if retry else 1

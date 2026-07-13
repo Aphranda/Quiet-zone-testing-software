@@ -29,6 +29,8 @@ from quiet_zone_tester.presentation.modules.scan_setup import (
 )
 from quiet_zone_tester.shared.instrument_defaults import MAX_POSITIONER_SPEED_MM_S
 
+MAX_PROBE_OFFSET_MM = 10000.0
+
 
 class NoWheelComboBox(QComboBox):
     def wheelEvent(self, event) -> None:  # noqa: N802 - Qt override.
@@ -624,7 +626,7 @@ class TestSetupPanel(QGroupBox):
     @staticmethod
     def _offset_spinbox(value: float) -> QDoubleSpinBox:
         spinbox = NoWheelDoubleSpinBox()
-        spinbox.setRange(-MAX_POSITIONER_SPEED_MM_S, MAX_POSITIONER_SPEED_MM_S)
+        spinbox.setRange(-MAX_PROBE_OFFSET_MM, MAX_PROBE_OFFSET_MM)
         spinbox.setDecimals(3)
         spinbox.setSingleStep(1.0)
         spinbox.setValue(value)

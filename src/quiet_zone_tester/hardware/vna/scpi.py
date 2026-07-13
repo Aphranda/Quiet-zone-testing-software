@@ -90,9 +90,11 @@ class ScpiVnaController:
             stop_hz,
             points,
         )
+        self._prepare_for_reconfiguration()
         self._session.write(f"SENS:FREQ:STAR {start_hz:.12g}")
         self._session.write(f"SENS:FREQ:STOP {stop_hz:.12g}")
         self._session.write(f"SENS:SWE:POIN {points}")
+        self._wait_for_operation_complete()
         self._raise_for_system_error()
         self._start_hz = float(self._session.query("SENS:FREQ:STAR?"))
         self._stop_hz = float(self._session.query("SENS:FREQ:STOP?"))
@@ -104,7 +106,9 @@ class ScpiVnaController:
             raise ValueError("VNA power must be between -90 dBm and 30 dBm.")
 
         logger.info("Configuring VNA source power: %.2f dBm", power_dbm)
+        self._prepare_for_reconfiguration()
         self._session.write(f"SOUR:POW {power_dbm:.6g}")
+        self._wait_for_operation_complete()
         self._raise_for_system_error()
         self._power_dbm = power_dbm
 
@@ -114,26 +118,52 @@ class ScpiVnaController:
             raise ValueError("VNA IF bandwidth must be greater than 0 Hz.")
 
         logger.info("Configuring VNA IF bandwidth: %.3f Hz", bandwidth_hz)
+        self._prepare_for_reconfiguration()
         self._session.write(f"SENS:BAND:RES {bandwidth_hz:.12g}")
+        self._wait_for_operation_complete()
         self._raise_for_system_error()
         self._if_bandwidth_hz = bandwidth_hz
 
     def configure_measurement_parameter(self, parameter: str) -> None:
         self._select_parameter(parameter)
 
+    def configure_continuous_sweep(self, enabled: bool) -> None:
+        self._ensure_connected()
+        self._prepare_for_reconfiguration()
+        self._set_sweep_mode("CONT" if enabled else "HOLD")
+
+    def query_sweep_time_s(self) -> float:
+        self._ensure_connected()
+        return float(self._session.query("SENS1:SWE:TIME?"))
+
     def measure_s_parameter(self, parameter: str = "S21") -> SParameterTrace:
+        self.trigger_sweep(parameter)
+        return self.read_s_parameter(parameter)
+
+    def trigger_sweep(self, parameter: str = "S21") -> None:
         self._ensure_connected()
         parameter = parameter.upper()
-        logger.info("Measuring VNA trace: %s", parameter)
+        logger.info("Triggering VNA sweep: %s", parameter)
 
         if self._selected_parameter != parameter:
             self._select_parameter(parameter)
         else:
             self._session.write(f"CALC:PAR:SEL '{self._trace_name}'")
-        self._session.write("INIT1:CONT OFF")
+        self._prepare_for_reconfiguration()
         self._session.write("TRIG:SOUR IMM")
-        self._session.write("INIT1:IMM")
-        self._session.query("*OPC?")
+        self._set_sweep_mode("SING")
+        self._wait_for_operation_complete()
+        self._raise_for_system_error()
+
+    def read_s_parameter(self, parameter: str = "S21") -> SParameterTrace:
+        self._ensure_connected()
+        parameter = parameter.upper()
+        logger.info("Reading VNA trace: %s", parameter)
+
+        if self._selected_parameter != parameter:
+            self._select_parameter(parameter)
+        else:
+            self._session.write(f"CALC:PAR:SEL '{self._trace_name}'")
         values = self._read_sdata()
         complex_values = self._values_to_complex(values)
         if complex_values.size != self._points:
@@ -152,6 +182,7 @@ class ScpiVnaController:
             raise ValueError(f"Unsupported S-parameter: {parameter}")
 
         trace_name = self._trace_name
+        self._prepare_for_reconfiguration()
         self._session.write("*CLS")
         try:
             catalog = self._session.query("CALC1:PAR:CAT:EXT?")
@@ -163,7 +194,7 @@ class ScpiVnaController:
             self._session.write(f"CALC1:PAR:DEF:EXT '{trace_name}','{parameter}'")
             self._session.write(f"CALC1:PAR:SEL '{trace_name}'")
             self._raise_for_system_error()
-            self._try_write(f"DISP:WIND1:TRAC1:FEED '{trace_name}'")
+            self._feed_trace_display(trace_name)
             self._session.query("*OPC?")
             self._selected_parameter = parameter
             logger.info("VNA measurement parameter configured: %s.", parameter)
@@ -193,7 +224,7 @@ class ScpiVnaController:
                 for command in commands:
                     self._session.write(command)
                 self._raise_for_system_error()
-                self._try_write(f"DISP:WIND1:TRAC1:FEED '{trace_name}'")
+                self._feed_trace_display(trace_name)
                 self._session.query("*OPC?")
                 self._selected_parameter = parameter
                 logger.info("VNA measurement parameter configured: %s.", parameter)
@@ -221,6 +252,80 @@ class ScpiVnaController:
         except ScpiCommunicationError:
             logger.debug("Optional VNA command failed: %s", command, exc_info=True)
 
+    def _feed_trace_display(self, trace_name: str) -> None:
+        self._try_write("DISP:WIND1:STAT ON")
+        if self._display_trace_exists(1):
+            self._try_write("DISP:WIND1:TRAC1:DEL")
+        self._try_write(f"DISP:WIND1:TRAC1:FEED '{trace_name}'")
+        self._drain_optional_display_error()
+
+    def _display_trace_exists(self, trace_number: int) -> bool:
+        try:
+            catalog = self._session.query("DISP:WIND1:CAT?")
+        except ScpiCommunicationError:
+            return False
+
+        tokens = [token.strip().strip("'\"") for token in catalog.split(",")]
+        return str(int(trace_number)) in tokens
+
+    def _drain_optional_display_error(self) -> None:
+        try:
+            response = self._session.query("SYST:ERR?")
+        except ScpiCommunicationError:
+            return
+
+        normalized = response.strip()
+        if self._is_no_error(normalized) or self._is_ignored_optional_display_error(normalized):
+            return
+        logger.warning("Optional VNA display command reported SCPI error: %s", normalized)
+
+    def _prepare_for_reconfiguration(self) -> None:
+        self._try_write("ABOR")
+        self._wait_for_operation_complete()
+        self._drain_stale_init_ignored_error()
+
+    def _set_sweep_mode(self, mode: str) -> None:
+        normalized_mode = mode.strip().upper()
+        current = self._query_sweep_mode()
+        if current == normalized_mode:
+            return
+        self._session.write(f"SENS1:SWE:MODE {normalized_mode}")
+        self._wait_for_operation_complete()
+        self._raise_for_system_error()
+
+    def _query_sweep_mode(self) -> str | None:
+        try:
+            response = self._session.query("SENS1:SWE:MODE?")
+        except ScpiCommunicationError:
+            return None
+
+        normalized = response.strip().strip("'\"").upper()
+        aliases = {
+            "CONTINUOUS": "CONT",
+            "CONT": "CONT",
+            "SINGLE": "SING",
+            "SING": "SING",
+            "HOLD": "HOLD",
+        }
+        return aliases.get(normalized)
+
+    def _wait_for_operation_complete(self) -> None:
+        self._session.query("*OPC?")
+
+    def _drain_stale_init_ignored_error(self) -> None:
+        try:
+            response = self._session.query("SYST:ERR?")
+        except ScpiCommunicationError:
+            return
+
+        normalized = response.strip()
+        if self._is_no_error(normalized):
+            return
+        if self._is_init_ignored(normalized):
+            logger.info("Cleared stale VNA Init ignored state before reconfiguration: %s", normalized)
+            return
+        raise ScpiCommunicationError(f"VNA has pending SCPI error before reconfiguration: {normalized}")
+
     def _raise_for_system_error(self) -> None:
         try:
             response = self._session.query("SYST:ERR?")
@@ -228,13 +333,28 @@ class ScpiVnaController:
             return
 
         normalized = response.strip()
-        if not normalized:
-            return
-        if normalized.startswith(("0,", "+0,")) or normalized in {"0", "+0"}:
-            return
-        if "NO ERROR" in normalized.upper():
+        if self._is_no_error(normalized):
             return
         raise ScpiCommunicationError(f"VNA reported SCPI error: {normalized}")
+
+    @staticmethod
+    def _is_no_error(response: str) -> bool:
+        normalized = response.strip()
+        return (
+            not normalized
+            or normalized.startswith(("0,", "+0,"))
+            or normalized in {"0", "+0"}
+            or "NO ERROR" in normalized.upper()
+        )
+
+    @staticmethod
+    def _is_init_ignored(response: str) -> bool:
+        return "INIT IGNORED" in response.strip().upper()
+
+    @staticmethod
+    def _is_ignored_optional_display_error(response: str) -> bool:
+        normalized = response.strip().upper()
+        return "DUPLICATE TRACE NUMBER" in normalized or "REQUESTED TRACE NOT FOUND" in normalized
 
     @staticmethod
     def _values_to_complex(values: list[float]) -> np.ndarray:

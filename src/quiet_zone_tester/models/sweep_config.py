@@ -3,7 +3,7 @@ from __future__ import annotations
 from math import floor
 
 
-DEFAULT_FREQUENCY_STEP_MHZ = 5.0
+DEFAULT_FREQUENCY_STEP_MHZ = 100.0
 
 
 def calculate_sweep_points(start_ghz: float, stop_ghz: float, step_mhz: float = DEFAULT_FREQUENCY_STEP_MHZ) -> int:

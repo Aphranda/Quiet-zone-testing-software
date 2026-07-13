@@ -90,14 +90,13 @@ class ConnectionPanel(QGroupBox):
         self._vna_model = NoWheelComboBox()
         self._vna_model.addItems(self._view_model.supported_vna_models())
         self._vna_model.setCurrentText(self._vna_defaults.model)
+        self._vna_model.currentTextChanged.connect(self._on_vna_model_changed)
         self._vna_ip = QLineEdit(self._vna_defaults.ip_address)
         self._vna_port = self._port_spinbox(self._vna_defaults.port)
-        self._vna_resource = QLineEdit()
-        self._vna_resource.setReadOnly(True)
+        self._vna_resource = self._visa_resource_combobox()
+        self._vna_resource.currentTextChanged.connect(self._on_vna_resource_changed)
         self._vna_timeout_ms = self._timeout_spinbox(self._vna_defaults.timeout_ms)
         self._sync_vna_resource()
-        self._vna_ip.textChanged.connect(lambda _text: self._sync_vna_resource())
-        self._vna_port.valueChanged.connect(lambda _value: self._sync_vna_resource())
 
         self._positioner_port_name = self._init_serial_port_combobox()
         self._positioner_port_field = self._serial_port_field(self._positioner_port_name)
@@ -174,6 +173,7 @@ class ConnectionPanel(QGroupBox):
                 model=self._vna_model.currentText(),
                 ip_address=self._vna_ip.text(),
                 port=self._vna_port.value(),
+                resource_name=self._combo_text(self._vna_resource),
                 timeout_ms=self._vna_timeout_ms.value(),
             ),
             positioner=PositionerFormState(
@@ -257,7 +257,7 @@ class ConnectionPanel(QGroupBox):
         form.addRow("型号", self._vna_model)
         form.addRow("IP 地址", self._vna_ip)
         form.addRow("端口", self._vna_port)
-        form.addRow("VISA 资源", self._vna_resource)
+        form.addRow("VISA 资源", self._visa_resource_field(self._vna_resource))
         form.addRow("超时", self._vna_timeout_ms)
 
         self._connect_vna_button = QPushButton("连接网分")
@@ -270,9 +270,24 @@ class ConnectionPanel(QGroupBox):
         return group
 
     def _sync_vna_resource(self) -> None:
-        self._vna_resource.setText(
-            self._view_model.vna_resource_name(self._vna_ip.text(), self._vna_port.value())
-        )
+        resource_name = self._view_model.vna_resource_name(self._vna_ip.text(), self._vna_port.value())
+        if not self._combo_text(self._vna_resource):
+            self._vna_resource.setEditText(resource_name)
+
+    def _on_vna_model_changed(self, model: str) -> None:
+        defaults = self._view_model.vna_defaults(model)
+        self._vna_ip.setText(defaults.ip_address)
+        self._vna_port.setValue(defaults.port)
+        self._vna_timeout_ms.setValue(defaults.timeout_ms)
+        self._refresh_visa_resources(self._vna_resource)
+
+    def _on_vna_resource_changed(self, resource_name: str) -> None:
+        parsed = self._view_model.host_port_from_visa_resource(resource_name)
+        if parsed is None:
+            return
+        host, port = parsed
+        self._vna_ip.setText(host)
+        self._vna_port.setValue(port)
 
     def _build_positioner_group(self) -> QGroupBox:
         group = QGroupBox("扫描架配置")
@@ -415,10 +430,31 @@ class ConnectionPanel(QGroupBox):
         layout.addWidget(refresh_button, 0)
         return field
 
+    def _visa_resource_field(self, combobox: NoWheelComboBox) -> QWidget:
+        field = QWidget()
+        layout = QHBoxLayout(field)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(4)
+        layout.addWidget(combobox, 1)
+
+        refresh_button = QPushButton("刷新")
+        refresh_icon = getattr(QStyle, "SP_BrowserReload", QStyle.SP_FileDialogDetailedView)
+        refresh_button.setIcon(self.style().standardIcon(refresh_icon))
+        refresh_button.setToolTip("从 NI-VISA 刷新资源")
+        refresh_button.clicked.connect(lambda: self._refresh_visa_resources(combobox))
+        layout.addWidget(refresh_button, 0)
+        return field
+
     @staticmethod
     def _serial_port_combobox() -> NoWheelComboBox:
         combobox = NoWheelComboBox()
         combobox.setEditable(True)
+        return combobox
+
+    def _visa_resource_combobox(self) -> NoWheelComboBox:
+        combobox = NoWheelComboBox()
+        combobox.setEditable(True)
+        combobox._refresh_before_popup = lambda: self._refresh_visa_resources(combobox)
         return combobox
 
     def _init_serial_port_combobox(self) -> NoWheelComboBox:
@@ -441,6 +477,24 @@ class ConnectionPanel(QGroupBox):
                 combobox.setCurrentIndex(0)
             else:
                 combobox.setEditText("")
+        finally:
+            combobox.blockSignals(blocked)
+
+    def _refresh_visa_resources(self, combobox: QComboBox) -> None:
+        current_text = combobox.currentText().strip()
+        resources = self._view_model.available_vna_visa_resources(self._vna_model.currentText())
+        fallback = self._view_model.vna_resource_name(self._vna_ip.text(), self._vna_port.value())
+
+        blocked = combobox.blockSignals(True)
+        try:
+            combobox.clear()
+            combobox.addItems(resources)
+            if current_text and current_text in resources:
+                combobox.setCurrentText(current_text)
+            elif resources:
+                combobox.setCurrentIndex(0)
+            else:
+                combobox.setEditText(fallback)
         finally:
             combobox.blockSignals(blocked)
 

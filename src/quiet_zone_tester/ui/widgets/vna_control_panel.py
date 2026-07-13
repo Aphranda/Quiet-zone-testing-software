@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QPushButton,
     QSizePolicy,
     QStyle,
@@ -35,6 +36,7 @@ class NoWheelDoubleSpinBox(QDoubleSpinBox):
 
 class VnaControlPanel(QGroupBox):
     configure_requested = Signal(dict)
+    trigger_requested = Signal(dict)
     sample_requested = Signal(dict)
 
     def __init__(self, parent=None) -> None:
@@ -46,8 +48,15 @@ class VnaControlPanel(QGroupBox):
         self._stop_ghz = self._frequency_spinbox(DEFAULT_STOP_GHZ)
         self._frequency_step_mhz = self._frequency_step_spinbox(DEFAULT_FREQUENCY_STEP_MHZ)
         self._sweep_points_label = QLabel()
+        self._sweep_time = QLineEdit()
+        self._sweep_time.setReadOnly(True)
+        self._sweep_time.setMinimumWidth(140)
         self._power_dbm = self._power_spinbox(-10.0)
         self._if_bandwidth_hz = self._if_bandwidth_spinbox(DEFAULT_IF_BANDWIDTH_HZ)
+        self._trigger_mode = NoWheelComboBox()
+        self._trigger_mode.addItem("Hold", "hold")
+        self._trigger_mode.addItem("Single", "single")
+        self._trigger_mode.addItem("Continuous", "continuous")
         self._parameter = NoWheelComboBox()
         self._parameter.addItems(["S21", "S11", "S12", "S22"])
 
@@ -55,12 +64,17 @@ class VnaControlPanel(QGroupBox):
         self._configure_button.setIcon(self.style().standardIcon(QStyle.SP_DialogApplyButton))
         self._configure_button.clicked.connect(lambda: self.configure_requested.emit(self.current_settings()))
 
+        self._trigger_button = QPushButton("触发")
+        self._trigger_button.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
+        self._trigger_button.clicked.connect(lambda: self.trigger_requested.emit(self.current_settings()))
+
         self._sample_button = QPushButton("采样")
-        self._sample_button.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
+        self._sample_button.setIcon(self.style().standardIcon(QStyle.SP_DialogOpenButton))
         self._sample_button.clicked.connect(lambda: self.sample_requested.emit(self.current_settings()))
         self._start_ghz.valueChanged.connect(lambda _value: self._refresh_sweep_points_display())
         self._stop_ghz.valueChanged.connect(lambda _value: self._refresh_sweep_points_display())
         self._frequency_step_mhz.valueChanged.connect(lambda _value: self._refresh_sweep_points_display())
+        self._if_bandwidth_hz.valueChanged.connect(lambda _value: self._refresh_sweep_points_display())
 
         self._input_widgets: list[QWidget] = [
             self._start_ghz,
@@ -68,8 +82,10 @@ class VnaControlPanel(QGroupBox):
             self._frequency_step_mhz,
             self._power_dbm,
             self._if_bandwidth_hz,
+            self._trigger_mode,
             self._parameter,
             self._configure_button,
+            self._trigger_button,
             self._sample_button,
         ]
 
@@ -77,14 +93,17 @@ class VnaControlPanel(QGroupBox):
         form = QFormLayout(form_group)
         form.addRow("起止频率", self._build_frequency_range_field())
         form.addRow("频率步进/点数", self._build_sweep_resolution_field())
+        form.addRow("Sweep Time", self._sweep_time)
         form.addRow("输出功率", self._power_dbm)
         form.addRow("中频带宽", self._if_bandwidth_hz)
+        form.addRow("Sweep 模式", self._trigger_mode)
         form.addRow("S 参数", self._parameter)
 
         layout = QVBoxLayout(self)
         layout.addWidget(form_group)
         button_row = QHBoxLayout()
         button_row.addWidget(self._configure_button)
+        button_row.addWidget(self._trigger_button)
         button_row.addWidget(self._sample_button)
         layout.addLayout(button_row)
         layout.addStretch(1)
@@ -100,6 +119,9 @@ class VnaControlPanel(QGroupBox):
             "points": self._sweep_points(),
             "vna_power_dbm": self._power_dbm.value(),
             "if_bandwidth_hz": self._if_bandwidth_hz.value(),
+            "continuous_sweep": self._trigger_mode.currentData() == "continuous",
+            "sweep_mode": self._trigger_mode.currentData(),
+            "trigger_mode": self._trigger_mode.currentData(),
             "parameter": self._parameter.currentText(),
         }
 
@@ -110,6 +132,12 @@ class VnaControlPanel(QGroupBox):
     def set_busy(self, busy: bool) -> None:
         self._busy = busy
         self._refresh_enabled_state()
+
+    def set_sweep_time_s(self, seconds: float | None) -> None:
+        if seconds is None:
+            self._refresh_sweep_points_display()
+            return
+        self._sweep_time.setText(self._format_sweep_time(float(seconds)))
 
     def _refresh_enabled_state(self) -> None:
         enabled = self._connected and not self._busy
@@ -124,7 +152,18 @@ class VnaControlPanel(QGroupBox):
         )
 
     def _refresh_sweep_points_display(self) -> None:
-        self._sweep_points_label.setText(f"{self._sweep_points()} 点")
+        points = self._sweep_points()
+        self._sweep_points_label.setText(f"{points} 点")
+        self._sweep_time.setText(f"估算 {self._format_sweep_time(self._estimated_sweep_time_s(points))}")
+
+    def _estimated_sweep_time_s(self, points: int) -> float:
+        return max(points, 1) / max(self._if_bandwidth_hz.value(), 1.0)
+
+    @staticmethod
+    def _format_sweep_time(seconds: float) -> str:
+        if seconds < 1.0:
+            return f"{seconds * 1000.0:.1f} ms"
+        return f"{seconds:.3f} s"
 
     def _build_frequency_range_field(self) -> QWidget:
         field = QWidget()

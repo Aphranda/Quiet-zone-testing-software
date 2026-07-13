@@ -362,6 +362,7 @@ class InstrumentService:
         parameter: str,
         vna_power_dbm: float = -10.0,
         if_bandwidth_hz: float = 1000.0,
+        continuous_sweep: bool = False,
         file_flag: str = "",
     ) -> SParameterTrace:
         if not self.is_vna_connected or self._vna is None:
@@ -375,6 +376,7 @@ class InstrumentService:
                 parameter=parameter,
                 vna_power_dbm=vna_power_dbm,
                 if_bandwidth_hz=if_bandwidth_hz,
+                continuous_sweep=continuous_sweep,
             )
             return self.sample_vna_trace(parameter, file_flag=file_flag)
         except InstrumentServiceError:
@@ -391,18 +393,20 @@ class InstrumentService:
         parameter: str,
         vna_power_dbm: float = -10.0,
         if_bandwidth_hz: float = 1000.0,
-    ) -> None:
+        continuous_sweep: bool = False,
+    ) -> float | None:
         if not self.is_vna_connected or self._vna is None:
             raise InstrumentServiceError("请先连接网分仪，再执行配置。")
 
         try:
-            self._acquisition_service().configure_trace(
+            return self._acquisition_service().configure_trace(
                 start_ghz=start_ghz,
                 stop_ghz=stop_ghz,
                 points=points,
                 parameter=parameter,
                 power_dbm=vna_power_dbm,
                 if_bandwidth_hz=if_bandwidth_hz,
+                continuous_sweep=continuous_sweep,
             )
         except AcquisitionServiceError as exc:
             raise InstrumentServiceError(f"网分仪配置失败：{exc}") from exc
@@ -430,6 +434,37 @@ class InstrumentService:
         except Exception as exc:
             logger.exception("VNA standalone sample failed.")
             raise InstrumentServiceError(f"网分仪采样失败：{exc}") from exc
+
+    def trigger_vna_sweep(self, parameter: str) -> None:
+        if not self.is_vna_connected or self._vna is None:
+            raise InstrumentServiceError("请先连接网分仪，再执行触发。")
+
+        try:
+            self._acquisition_service().trigger_trace(parameter)
+        except AcquisitionServiceError as exc:
+            raise InstrumentServiceError(f"网分仪触发失败：{exc}") from exc
+        except Exception as exc:
+            logger.exception("VNA standalone trigger failed.")
+            raise InstrumentServiceError(f"网分仪触发失败：{exc}") from exc
+
+    def read_vna_trace(self, parameter: str, file_flag: str = "") -> SParameterTrace:
+        if not self.is_vna_connected or self._vna is None:
+            raise InstrumentServiceError("请先连接网分仪，再读取曲线。")
+
+        try:
+            trace = self._acquisition_service().read_trace(parameter)
+            self._save_trace_csv(
+                trace,
+                position_mm=self._current_position_tuple(),
+                scan_mode="standalone",
+                file_flag=file_flag,
+            )
+            return trace
+        except AcquisitionServiceError as exc:
+            raise InstrumentServiceError(f"网分仪读取失败：{exc}") from exc
+        except Exception as exc:
+            logger.exception("VNA standalone read failed.")
+            raise InstrumentServiceError(f"网分仪读取失败：{exc}") from exc
 
     def run_scan(
         self,

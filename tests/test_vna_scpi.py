@@ -20,11 +20,14 @@ class _Session:
             "SENS:FREQ:STAR?": "1000000000",
             "SENS:FREQ:STOP?": "2000000000",
             "SENS:SWE:POIN?": "2",
+            "SENS1:SWE:TIME?": "0.123",
             "CALC1:PAR:CAT:EXT?": '"Existing,S11"',
+            "DISP:WIND1:CAT?": "1",
             "*OPC?": "1",
         }
         self.binary_values = [1.0, 0.0, 0.0, 1.0]
         self.fail_query: str | None = None
+        self.system_errors: list[str] = []
 
     def open(self) -> None:
         self.is_open = True
@@ -39,6 +42,8 @@ class _Session:
         self.commands.append(("query", command))
         if command == self.fail_query:
             raise ScpiCommunicationError("query failed")
+        if command == "SYST:ERR?" and self.system_errors:
+            return self.system_errors.pop(0)
         return self.responses.get(command, "")
 
     def query_binary_values(self, command: str, datatype: str, is_big_endian: bool) -> list[float]:
@@ -95,15 +100,23 @@ class ScpiVnaControllerTest(unittest.TestCase):
         self.assertIn(("query", "SENS:FREQ:STAR?"), session.commands)
         self.assertIn(("query", "SENS:SWE:POIN?"), session.commands)
 
+    def test_query_sweep_time_reads_instrument_value(self) -> None:
+        session = _Session()
+        controller = _controller(session)
+
+        self.assertEqual(controller.query_sweep_time_s(), 0.123)
+        self.assertIn(("query", "SENS1:SWE:TIME?"), session.commands)
+
     def test_power_error_is_reported_without_being_cleared(self) -> None:
         session = _Session()
-        session.responses["SYST:ERR?"] = '-222,"Data out of range"'
+        session.system_errors = ['0,"No error"', '-222,"Data out of range"']
         controller = _controller(session)
 
         with self.assertRaises(ScpiCommunicationError):
             controller.configure_power(20.0)
 
         writes = [command for operation, command in session.commands if operation == "write"]
+        self.assertIn("SOUR:POW 20", writes)
         self.assertNotIn("*CLS", writes)
 
     def test_e5080b_parameter_is_recreated_deterministically(self) -> None:
@@ -118,6 +131,67 @@ class ScpiVnaControllerTest(unittest.TestCase):
         self.assertIn("CALC1:PAR:DEF:EXT 'CH1_SPARAM','S21'", writes)
         self.assertIn("CALC1:PAR:SEL 'CH1_SPARAM'", writes)
 
+    def test_duplicate_display_trace_error_is_drained_after_parameter_switch(self) -> None:
+        session = _Session()
+        session.responses["CALC1:PAR:CAT:EXT?"] = '"CH1_SPARAM,S11"'
+        session.system_errors = ['0,"No error"', '0,"No error"', '+110,"Duplicate trace number"', '0,"No error"']
+        controller = _controller(session)
+
+        controller.configure_measurement_parameter("S21")
+        controller.configure_sweep(1.0e9, 2.0e9, 2)
+
+        writes = [command for operation, command in session.commands if operation == "write"]
+        self.assertIn("DISP:WIND1:TRAC1:DEL", writes)
+        self.assertIn("DISP:WIND1:TRAC1:FEED 'CH1_SPARAM'", writes)
+
+    def test_missing_display_trace_error_is_ignored_after_parameter_switch(self) -> None:
+        session = _Session()
+        session.responses["CALC1:PAR:CAT:EXT?"] = '"CH1_SPARAM,S21"'
+        session.responses["DISP:WIND1:CAT?"] = ""
+        session.system_errors = ['0,"No error"', '0,"No error"', '0,"No error"']
+        controller = _controller(session)
+
+        controller.configure_measurement_parameter("S11")
+        controller.configure_sweep(1.0e9, 2.0e9, 2)
+
+        writes = [command for operation, command in session.commands if operation == "write"]
+        self.assertNotIn("DISP:WIND1:TRAC1:DEL", writes)
+        self.assertIn("DISP:WIND1:TRAC1:FEED 'CH1_SPARAM'", writes)
+
+    def test_configure_continuous_sweep_writes_init_cont(self) -> None:
+        session = _Session()
+        controller = _controller(session)
+
+        controller.configure_continuous_sweep(True)
+        controller.configure_continuous_sweep(False)
+
+        writes = [command for operation, command in session.commands if operation == "write"]
+        self.assertIn("SENS1:SWE:MODE CONT", writes)
+        self.assertIn("SENS1:SWE:MODE HOLD", writes)
+
+    def test_stale_init_ignored_error_does_not_block_reconfiguration(self) -> None:
+        session = _Session()
+        session.system_errors = ['-213,"Init ignored"']
+        controller = _controller(session)
+
+        controller.configure_sweep(1.0e9, 2.0e9, 2)
+
+        writes = [command for operation, command in session.commands if operation == "write"]
+        self.assertIn("ABOR", writes)
+        self.assertIn("SENS:FREQ:STAR 1000000000", writes)
+
+    def test_pending_non_init_error_blocks_reconfiguration(self) -> None:
+        session = _Session()
+        session.system_errors = ['-222,"Data out of range"']
+        controller = _controller(session)
+
+        with self.assertRaises(ScpiCommunicationError):
+            controller.configure_sweep(1.0e9, 2.0e9, 2)
+
+        writes = [command for operation, command in session.commands if operation == "write"]
+        self.assertIn("ABOR", writes)
+        self.assertNotIn("SENS:FREQ:STAR 1000000000", writes)
+
     def test_measurement_uses_deterministic_single_trigger(self) -> None:
         session = _Session()
         controller = _controller(session)
@@ -125,10 +199,54 @@ class ScpiVnaControllerTest(unittest.TestCase):
         trace = controller.measure_s_parameter("S21")
 
         writes = [command for operation, command in session.commands if operation == "write"]
-        self.assertIn("INIT1:CONT OFF", writes)
         self.assertIn("TRIG:SOUR IMM", writes)
-        self.assertIn("INIT1:IMM", writes)
+        self.assertIn("SENS1:SWE:MODE SING", writes)
+        self.assertNotIn("INIT1:IMM", writes)
         self.assertEqual(trace.complex_values.size, 2)
+
+    def test_measurement_does_not_rewrite_sing_when_already_single_trigger(self) -> None:
+        session = _Session()
+        session.responses["SENS1:SWE:MODE?"] = "SING"
+        controller = _controller(session)
+
+        controller.measure_s_parameter("S21")
+
+        writes = [command for operation, command in session.commands if operation == "write"]
+        self.assertNotIn("SENS1:SWE:MODE SING", writes)
+        self.assertNotIn("INIT1:IMM", writes)
+
+    def test_configuration_and_measurement_wait_for_operation_complete(self) -> None:
+        session = _Session()
+        controller = _controller(session)
+
+        controller.configure_sweep(1.0e9, 2.0e9, 2)
+        controller.measure_s_parameter("S21")
+
+        commands = session.commands
+        write_commands = [command for operation, command in commands if operation == "write"]
+        self.assertIn("ABOR", write_commands)
+        self.assertIn("SENS1:SWE:MODE SING", write_commands)
+
+        sweep_stop_index = commands.index(("write", "SENS:FREQ:STOP 2000000000"))
+        points_index = commands.index(("write", "SENS:SWE:POIN 2"))
+        first_freq_read_index = commands.index(("query", "SENS:FREQ:STAR?"))
+        self.assertIn(("query", "*OPC?"), commands[points_index:first_freq_read_index])
+        self.assertGreater(first_freq_read_index, sweep_stop_index)
+
+        trigger_index = commands.index(("write", "SENS1:SWE:MODE SING"))
+        read_index = commands.index(("binary", "CALC:DATA? SDATA"))
+        self.assertIn(("query", "*OPC?"), commands[trigger_index:read_index])
+
+    def test_single_trigger_uses_sweep_mode_single_without_extra_init_trigger(self) -> None:
+        session = _Session()
+        controller = _controller(session)
+
+        controller.measure_s_parameter("S21")
+        controller.configure_sweep(1.0e9, 2.0e9, 2)
+
+        writes = [command for operation, command in session.commands if operation == "write"]
+        self.assertIn("SENS1:SWE:MODE SING", writes)
+        self.assertNotIn("INIT1:IMM", writes)
 
 
 if __name__ == "__main__":
