@@ -24,6 +24,7 @@ class VnaScpiConfig:
     timeout_ms: int = DEFAULT_VNA_TIMEOUT_MS
     retries: int = 2
     retry_delay_s: float = 0.2
+    expected_model: str | None = None
 
 
 class ScpiVnaController:
@@ -51,6 +52,13 @@ class ScpiVnaController:
         self._session.open()
         idn = self._session.query("*IDN?")
         info = self._parse_idn(idn)
+        expected_model = (self._config.expected_model or "").strip().upper()
+        actual_model = self._idn_model(idn).upper()
+        if expected_model and actual_model != expected_model:
+            self._session.close()
+            raise ScpiCommunicationError(
+                f"VNA model mismatch: configured {expected_model}, instrument reported {actual_model or 'UNKNOWN'}."
+            )
         self._connected = True
         self._info = info
         logger.info("Connected VNA: %s", info)
@@ -230,6 +238,11 @@ class ScpiVnaController:
             serial_number=serial,
             is_mock=False,
         )
+
+    @staticmethod
+    def _idn_model(idn: str) -> str:
+        parts = [part.strip() for part in idn.split(",")]
+        return parts[1] if len(parts) > 1 else ""
 
     def _ensure_connected(self) -> None:
         if not self.is_connected:

@@ -4,7 +4,7 @@ from quiet_zone_tester.domains.instrument_management import (
     InstrumentControllerFactory,
     InstrumentControllerFactoryError,
 )
-from quiet_zone_tester.hardware import MockPositionerController, MockSwitchBoxController, MockVnaController
+from quiet_zone_tester.hardware import MockPositionerController, MockSwitchBoxController, MockVnaController, ScpiVnaController
 
 
 class InstrumentControllerFactoryTest(unittest.TestCase):
@@ -68,6 +68,16 @@ class InstrumentControllerFactoryTest(unittest.TestCase):
         self.assertTrue(factory.virtual_enabled({"virtual_enabled": "虚拟连接"}))
         self.assertTrue(factory.virtual_enabled({"virtual_enabled": "yes"}))
         self.assertFalse(factory.virtual_enabled({"virtual_enabled": ""}))
+
+    def test_creates_n5245b_controller_and_rejects_unknown_model(self) -> None:
+        factory = InstrumentControllerFactory()
+
+        vna = factory.create_vna({"model": "n5245b", "resource_name": "TCPIP0::HOST::inst0::INSTR"})
+
+        self.assertIsInstance(vna, ScpiVnaController)
+        self.assertEqual(vna._config.expected_model, "N5245B")
+        with self.assertRaises(InstrumentControllerFactoryError):
+            factory.create_vna({"model": "UNKNOWN", "resource_name": "TCPIP0::HOST::inst0::INSTR"})
 
 
 if __name__ == "__main__":

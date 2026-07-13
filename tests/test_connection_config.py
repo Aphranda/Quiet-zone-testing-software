@@ -14,6 +14,7 @@ class ConnectionConfigTest(unittest.TestCase):
             {
                 "vna": {
                     "virtual_enabled": "true",
+                    "model": "N5245B",
                     "ip_address": "192.168.1.10",
                     "port": 5025,
                     "resource_name": "TCPIP0::192.168.1.10::5025::SOCKET",
@@ -43,6 +44,7 @@ class ConnectionConfigTest(unittest.TestCase):
         )
 
         self.assertTrue(config.vna.virtual_enabled)
+        self.assertEqual(config.vna.model, "N5245B")
         self.assertEqual(config.vna.ip_address, "192.168.1.10")
         self.assertEqual(config.positioner.port_name, "COM7")
         self.assertEqual(config.positioner.y_pulses_per_mm, 1001.0)

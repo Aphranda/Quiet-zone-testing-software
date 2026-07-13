@@ -29,6 +29,7 @@ class ConnectionViewModelTest(unittest.TestCase):
         config = view_model.build_config(
             vna=VnaFormState(
                 virtual_enabled=True,
+                model="N5245B",
                 ip_address="192.168.1.10",
                 port=5025,
                 timeout_ms=5000,
@@ -53,6 +54,7 @@ class ConnectionViewModelTest(unittest.TestCase):
 
         self.assertEqual(config["vna"]["resource_name"], "TCPIP0::192.168.1.10::5025::SOCKET")
         self.assertTrue(config["vna"]["virtual_enabled"])
+        self.assertEqual(config["vna"]["model"], "N5245B")
         self.assertEqual(config["positioner"]["port_name"], "COM3")
         self.assertEqual(config["positioner"]["x_axis"], 2)
         self.assertEqual(config["positioner"]["x_pulses_per_mm"], 400.0)
@@ -122,6 +124,7 @@ class ConnectionViewModelTest(unittest.TestCase):
         self.assertIn("positioner", config)
         self.assertIn("switch_box", config)
         self.assertEqual(config["vna"]["resource_name"], "TCPIP0::192.168.1.10::5025::SOCKET")
+        self.assertEqual(config["vna"]["model"], "E5080B")
         self.assertEqual(config["switch_box"]["model"], "LCD74000F")
 
 

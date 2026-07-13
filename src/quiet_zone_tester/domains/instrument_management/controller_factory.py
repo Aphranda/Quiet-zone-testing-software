@@ -38,6 +38,7 @@ from quiet_zone_tester.shared.instrument_defaults import (
     DEFAULT_SWITCH_BOX_SERIAL_PORT,
     DEFAULT_VNA_PORT,
     DEFAULT_VNA_TIMEOUT_MS,
+    SUPPORTED_VNA_MODELS,
     switch_box_model_defaults,
 )
 
@@ -64,12 +65,17 @@ class InstrumentControllerFactory:
         if resource_name.upper().startswith("MOCK"):
             raise InstrumentControllerFactoryError("当前为真实测试模式，VNA 不能使用 MOCK 资源。")
 
+        model = str(config.get("model", "")).strip().upper()
+        if model and model not in SUPPORTED_VNA_MODELS:
+            raise InstrumentControllerFactoryError(f"不支持的网分型号：{model}。")
+
         return ScpiVnaController(
             VnaScpiConfig(
                 resource_name=resource_name,
                 timeout_ms=int(config.get("timeout_ms", DEFAULT_VNA_TIMEOUT_MS)),
                 retries=int(config.get("retries", 2)),
                 retry_delay_s=float(config.get("retry_delay_s", 0.2)),
+                expected_model=model or None,
             )
         )
 

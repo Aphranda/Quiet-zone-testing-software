@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="RF test application icon">
+  <!-- Based on Lucide radio-tower, ISC License: https://lucide.dev/license -->
+  <defs>
+    <linearGradient id="bg" x1="24" y1="20" x2="232" y2="236" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0f766e"/>
+      <stop offset="0.55" stop-color="#1d4ed8"/>
+      <stop offset="1" stop-color="#111827"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="9" flood-color="#020617" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+  <rect x="18" y="18" width="220" height="220" rx="46" fill="url(#bg)"/>
+  <g filter="url(#shadow)">
+    <circle cx="128" cy="95" r="15" fill="#f8fafc"/>
+    <path d="M101 220l27-110 27 110" fill="none" stroke="#f8fafc" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M96 177h64M108 136h40" fill="none" stroke="#c7d2fe" stroke-width="10" stroke-linecap="round"/>
+    <path d="M86 61a58 58 0 0 0-9 70M170 61a58 58 0 0 1 9 70" fill="none" stroke="#dff7ff" stroke-width="13" stroke-linecap="round"/>
+    <path d="M55 35a101 101 0 0 0 0 122M201 35a101 101 0 0 1 0 122" fill="none" stroke="#a7f3d0" stroke-width="13" stroke-linecap="round"/>
+  </g>
+  <path d="M64 205h128" stroke="#f8fafc" stroke-width="12" stroke-linecap="round" opacity="0.92"/>
+</svg>

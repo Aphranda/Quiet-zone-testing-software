@@ -17,10 +17,12 @@ from quiet_zone_tester.shared.instrument_defaults import (
     DEFAULT_SWITCH_BOX_BAUDRATE,
     DEFAULT_SWITCH_BOX_CONNECTION_TYPE,
     DEFAULT_SWITCH_BOX_MODEL,
+    DEFAULT_VNA_MODEL,
     DEFAULT_VNA_IP_ADDRESS,
     DEFAULT_VNA_PORT,
     DEFAULT_VNA_TIMEOUT_MS,
     SUPPORTED_SWITCH_BOX_MODELS,
+    SUPPORTED_VNA_MODELS,
     SwitchBoxModelDefaults,
     switch_box_model_defaults,
 )
@@ -31,6 +33,7 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class VnaFormState:
     virtual_enabled: bool = False
+    model: str = DEFAULT_VNA_MODEL
     ip_address: str = DEFAULT_VNA_IP_ADDRESS
     port: int = DEFAULT_VNA_PORT
     timeout_ms: int = DEFAULT_VNA_TIMEOUT_MS
@@ -107,6 +110,10 @@ class ConnectionViewModel:
     def supported_switch_box_models() -> tuple[str, ...]:
         return SUPPORTED_SWITCH_BOX_MODELS
 
+    @staticmethod
+    def supported_vna_models() -> tuple[str, ...]:
+        return SUPPORTED_VNA_MODELS
+
     def build_config(
         self,
         *,
@@ -118,6 +125,7 @@ class ConnectionViewModel:
             {
                 "vna": {
                     "virtual_enabled": vna.virtual_enabled,
+                    "model": vna.model.strip().upper(),
                     "ip_address": vna.ip_address.strip(),
                     "port": vna.port,
                     "resource_name": self.vna_resource_name(vna.ip_address, vna.port),

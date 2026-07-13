@@ -36,6 +36,7 @@ def _bool_from_config(value: Any, default: bool = False) -> bool:
 @dataclass(frozen=True)
 class VnaConnectionConfig:
     virtual_enabled: bool = False
+    model: str = ""
     ip_address: str = ""
     port: int = DEFAULT_VNA_PORT
     resource_name: str = ""
@@ -48,6 +49,7 @@ class VnaConnectionConfig:
         config = config or {}
         return cls(
             virtual_enabled=_bool_from_config(config.get("virtual_enabled"), False),
+            model=str(config.get("model", "")).strip().upper(),
             ip_address=str(config.get("ip_address", "")).strip(),
             port=int(config.get("port", DEFAULT_VNA_PORT)),
             resource_name=str(config.get("resource_name", "")).strip(),
@@ -65,6 +67,7 @@ class VnaConnectionConfig:
             "timeout_ms": self.timeout_ms,
             "retries": self.retries,
             "retry_delay_s": self.retry_delay_s,
+            **({"model": self.model} if self.model else {}),
         }
 
 

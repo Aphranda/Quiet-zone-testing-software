@@ -86,6 +86,9 @@ class ConnectionPanel(QGroupBox):
         self._vna_connection_mode = NoWheelComboBox()
         self._vna_connection_mode.addItem("真实连接", False)
         self._vna_connection_mode.addItem("虚拟连接", True)
+        self._vna_model = NoWheelComboBox()
+        self._vna_model.addItems(self._view_model.supported_vna_models())
+        self._vna_model.setCurrentText(self._vna_defaults.model)
         self._vna_ip = QLineEdit(self._vna_defaults.ip_address)
         self._vna_port = self._port_spinbox(self._vna_defaults.port)
         self._vna_resource = QLineEdit()
@@ -167,6 +170,7 @@ class ConnectionPanel(QGroupBox):
         return self._view_model.build_config(
             vna=VnaFormState(
                 virtual_enabled=bool(self._vna_connection_mode.currentData()),
+                model=self._vna_model.currentText(),
                 ip_address=self._vna_ip.text(),
                 port=self._vna_port.value(),
                 timeout_ms=self._vna_timeout_ms.value(),
@@ -249,6 +253,7 @@ class ConnectionPanel(QGroupBox):
         form = QFormLayout(group)
         form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         form.addRow("连接模式", self._vna_connection_mode)
+        form.addRow("型号", self._vna_model)
         form.addRow("IP 地址", self._vna_ip)
         form.addRow("端口", self._vna_port)
         form.addRow("VISA 资源", self._vna_resource)

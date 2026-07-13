@@ -112,7 +112,7 @@ class MainWindow(QMainWindow):
         left_layout.addWidget(self._connection_panel, 1)
         left_layout.addWidget(self._test_setup_panel, 0)
         left_column.setMinimumWidth(620)
-        left_column.setMaximumWidth(860)
+        left_column.setMaximumWidth(1020)
         self._connection_panel.setMinimumHeight(460)
         self._connection_panel.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         self._test_setup_panel.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
