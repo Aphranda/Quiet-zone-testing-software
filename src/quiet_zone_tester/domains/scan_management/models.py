@@ -107,7 +107,7 @@ class ScanSettings:
     y_mm_per_turn: float = 24.0
     step_speed_mm_s: float = 20.0
     continuous_speed_mm_s: float = 20.0
-    settle_delay_s: float = 0.3
+    settle_delay_s: float = 0.1
     probe_offset: ProbeOffset = field(default_factory=ProbeOffset)
     file_flag: str = ""
     connection_config: Any = None
@@ -186,7 +186,7 @@ class ScanSettings:
             y_mm_per_turn=float(settings.get("y_mm_per_turn", 24.0)),
             step_speed_mm_s=step_speed,
             continuous_speed_mm_s=float(settings.get("continuous_speed_mm_s", settings.get("step_speed_mm_s", 20.0))),
-            settle_delay_s=float(settings.get("settle_delay_s", 0.3)),
+            settle_delay_s=float(settings.get("settle_delay_s", 0.1)),
             probe_offset=ProbeOffset.from_mapping(settings),
             file_flag=str(settings.get("file_flag", "")),
             connection_config=settings.get("connection_config"),

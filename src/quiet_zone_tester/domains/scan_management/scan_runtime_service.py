@@ -17,7 +17,7 @@ from quiet_zone_tester.models import SParameterTrace
 logger = logging.getLogger(__name__)
 
 DEFAULT_STEP_SPEED_MM_S = 20.0
-DEFAULT_SETTLE_DELAY_S = 0.3
+DEFAULT_SETTLE_DELAY_S = 0.1
 
 
 class ScanRuntimeMotion(Protocol):
