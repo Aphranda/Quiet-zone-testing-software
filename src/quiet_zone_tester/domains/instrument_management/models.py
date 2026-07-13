@@ -15,6 +15,7 @@ from quiet_zone_tester.shared.instrument_defaults import (
     DEFAULT_POSITIONER_TIMEOUT_MS,
     DEFAULT_POSITIONER_X_AXIS,
     DEFAULT_POSITIONER_Y_AXIS,
+    MAX_POSITIONER_SPEED_MM_S,
     DEFAULT_SWITCH_BOX_BAUDRATE,
     DEFAULT_SWITCH_BOX_CONNECTION_TYPE,
     DEFAULT_SWITCH_BOX_MODEL,
@@ -94,6 +95,13 @@ class PositionerConnectionConfig:
     y_mm_per_turn: float | None = None
     default_speed: float = DEFAULT_POSITIONER_SPEED_MM_S
     virtual_enabled: bool = False
+
+    def __post_init__(self) -> None:
+        if not 0.0 < self.default_speed <= MAX_POSITIONER_SPEED_MM_S:
+            raise ValueError(
+                f"Positioner default speed must be greater than 0 and no more than "
+                f"{MAX_POSITIONER_SPEED_MM_S:g} mm/s."
+            )
 
     @classmethod
     def from_dict(cls, config: dict[str, Any] | None) -> "PositionerConnectionConfig":

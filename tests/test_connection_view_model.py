@@ -37,7 +37,7 @@ class ConnectionViewModelTest(unittest.TestCase):
             positioner=PositionerFormState(
                 port_name="COM3",
                 baudrate=115200,
-                default_speed=80.0,
+                default_speed=50.0,
                 timeout_ms=1000,
                 pulses_per_mm=400.0,
             ),

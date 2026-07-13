@@ -7,6 +7,7 @@ from typing import Any, ClassVar, Mapping
 
 from quiet_zone_tester.models import DEFAULT_FREQUENCY_STEP_MHZ, SParameterTrace, ScanVolume
 from quiet_zone_tester.domains.scan_management.scan_planner import plan_scan_points
+from quiet_zone_tester.shared.instrument_defaults import MAX_POSITIONER_SPEED_MM_S
 
 
 @dataclass(frozen=True)
@@ -150,8 +151,12 @@ class ScanSettings:
             raise ValueError(f"Unsupported scan mode: {self.scan_mode}")
         if self.step_speed_mm_s <= 0.0:
             raise ValueError("Step scan speed must be greater than 0 mm/s.")
+        if self.step_speed_mm_s > MAX_POSITIONER_SPEED_MM_S:
+            raise ValueError(f"Step scan speed cannot exceed {MAX_POSITIONER_SPEED_MM_S:g} mm/s.")
         if abs(self.continuous_speed_mm_s) <= 1e-9:
             raise ValueError("Continuous scan speed cannot be 0 mm/s.")
+        if abs(self.continuous_speed_mm_s) > MAX_POSITIONER_SPEED_MM_S:
+            raise ValueError(f"Continuous scan speed cannot exceed {MAX_POSITIONER_SPEED_MM_S:g} mm/s.")
         if self.settle_delay_s < 0.0:
             raise ValueError("Settle delay cannot be negative.")
         object.__setattr__(self, "scan_mode", scan_mode)

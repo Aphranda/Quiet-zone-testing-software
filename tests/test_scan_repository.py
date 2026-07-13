@@ -74,7 +74,8 @@ class ScanRepositoryTest(unittest.TestCase):
             self.assertTrue(record.file_path.exists())
             with (session.output_dir / "trace_index.csv").open("r", newline="", encoding="utf-8-sig") as index_file:
                 rows = list(csv.reader(index_file))
-            self.assertEqual(rows[1][3:7], ["1", "1.000000", "2.000000", "S21"])
+            self.assertEqual(rows[1][3:7], ["1", "1.000000", "2.000000", ""])
+            self.assertEqual(rows[1][14], "S21")
 
     def test_append_event_and_finalize_update_session_facts(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

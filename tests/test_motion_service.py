@@ -1,6 +1,7 @@
 import unittest
 from dataclasses import dataclass
 
+import quiet_zone_tester.domains.motion_control.motion_service as motion_service_module
 from quiet_zone_tester.domains.motion_control import MotionService, MotionServiceError
 from quiet_zone_tester.hardware import Position
 
@@ -167,6 +168,31 @@ class MotionServiceTest(unittest.TestCase):
 
         self.assertEqual((active_axis_name, active_direction), ("X", 1))
         self.assertEqual(positioner.calls, [("position",), ("jog_axis", 2, 10.0), ("position",)])
+
+    def test_jog_axis_until_stops_axis_when_feedback_freezes(self) -> None:
+        positioner = _Positioner()
+        positioner._position = Position(0.0, 0.0)
+        original_frozen_timeout = motion_service_module.JOG_FROZEN_TIMEOUT_S
+        original_poll_interval = motion_service_module.JOG_POLL_INTERVAL_S
+        motion_service_module.JOG_FROZEN_TIMEOUT_S = 0.0
+        motion_service_module.JOG_POLL_INTERVAL_S = 0.0
+        try:
+            with self.assertRaises(MotionServiceError):
+                MotionService(positioner).jog_axis_until(
+                    axis_name="X",
+                    target_position_mm=1.0,
+                    speed_mm_s=10.0,
+                    active_axis_name=None,
+                    active_direction=0,
+                    wait_if_paused=lambda: None,
+                    raise_if_stopped=lambda: None,
+                    is_paused=lambda: False,
+                )
+        finally:
+            motion_service_module.JOG_FROZEN_TIMEOUT_S = original_frozen_timeout
+            motion_service_module.JOG_POLL_INTERVAL_S = original_poll_interval
+
+        self.assertIn(("stop_axis", 2), positioner.calls)
 
     def test_stop_axis_by_name_uses_axis_config_and_swallows_driver_errors(self) -> None:
         positioner = _Positioner()

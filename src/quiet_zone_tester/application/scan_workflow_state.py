@@ -68,6 +68,15 @@ class ScanWorkflowState:
         self.paused = False
         return stop_requested, failed
 
+    def result_state(self) -> str:
+        if self.stop_requested and self.failed:
+            return "StoppedWithError"
+        if self.stop_requested:
+            return "Stopped"
+        if self.failed:
+            return "Failed"
+        return "Completed"
+
     def finish_inactive_cleanup(self) -> None:
         self.stop_requested = False
         self.failed = False

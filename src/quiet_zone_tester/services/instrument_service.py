@@ -547,9 +547,9 @@ class InstrumentService:
     ) -> list[SParameterTrace]:
         try:
             return self._scan_runtime_service().run_step_scan(settings, on_progress)
-        except InstrumentServiceError:
+        except InstrumentServiceError as exc:
             self._stop_positioner_quietly()
-            if self._stop_event.is_set():
+            if self._stop_event.is_set() and self._is_user_stop_exception(exc):
                 logger.info("Step scan stopped by user request.")
                 return []
             raise
@@ -563,9 +563,9 @@ class InstrumentService:
     ) -> list[SParameterTrace]:
         try:
             return self._scan_runtime_service().run_continuous_scan(settings, on_progress)
-        except InstrumentServiceError:
+        except InstrumentServiceError as exc:
             self._stop_positioner_quietly()
-            if self._stop_event.is_set():
+            if self._stop_event.is_set() and self._is_user_stop_exception(exc):
                 logger.info("Continuous scan stopped by user request.")
                 return []
             raise
@@ -633,6 +633,10 @@ class InstrumentService:
         filename_tag: str = "",
         point_index: int | None = None,
         output_dir: Path | None = None,
+        logical_position_mm: tuple[float, float] | None = None,
+        physical_target_mm: tuple[float, float] | None = None,
+        actual_position_mm: tuple[float, float] | None = None,
+        position_error_mm: tuple[float, float] | None = None,
     ) -> Path:
         try:
             path = self._trace_storage.save_trace_csv(
@@ -643,6 +647,10 @@ class InstrumentService:
                 filename_tag=filename_tag,
                 point_index=point_index,
                 output_dir=output_dir,
+                logical_position_mm=logical_position_mm,
+                physical_target_mm=physical_target_mm,
+                actual_position_mm=actual_position_mm,
+                position_error_mm=position_error_mm,
             )
         except Exception as exc:
             logger.exception("Failed to save VNA trace CSV.")
@@ -783,6 +791,11 @@ class InstrumentService:
     def _raise_if_stopped(self) -> None:
         if self._stop_event.is_set():
             raise InstrumentServiceError("扫描流程已停止。")
+
+    @staticmethod
+    def _is_user_stop_exception(exc: Exception) -> bool:
+        message = str(exc)
+        return "扫描流程已停止" in message or "Acquisition stopped" in message
 
     def _controller_for_name(self, name: str):
         if name == "vna":

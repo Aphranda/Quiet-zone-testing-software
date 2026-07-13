@@ -76,6 +76,9 @@ class _Motion:
     def stop_axis_by_name_quietly(self, axis_name: str | None) -> None:
         self.calls.append(("stop_axis_by_name_quietly", axis_name))
 
+    def position_tolerance_for_axis_name(self, axis_name: str) -> float:
+        return 0.05
+
 
 class ScanRuntimeServiceTest(unittest.TestCase):
     def _service(self, motion: _Motion, state: dict | None = None) -> ScanRuntimeService:
@@ -123,15 +126,23 @@ class ScanRuntimeServiceTest(unittest.TestCase):
                 ("query_position",),
                 ("move_axis_to", "Y", 20.0, 10.0),
                 ("move_axis_to", "X", 10.0, 10.0),
+                ("query_position",),
                 ("move_axis_to", "X", 11.0, 10.0),
+                ("query_position",),
             ],
         )
         self.assertEqual([saved[1]["point_index"] for saved in state["saved"]], [1, 2])
         self.assertEqual([saved[1]["position_mm"] for saved in state["saved"]], [(0.0, 0.0), (1.0, 0.0)])
         self.assertEqual(
             state["progress"],
-            [(1, 2, True), (1, 2, False), (2, 2, True), (2, 2, False)],
+            [(1, 2, False), (2, 2, False)],
         )
+
+        first_saved = state["saved"][0][1]
+        self.assertEqual(first_saved["logical_position_mm"], (0.0, 0.0))
+        self.assertEqual(first_saved["physical_target_mm"], (10.0, 20.0))
+        self.assertEqual(first_saved["actual_position_mm"], (10.0, 20.0))
+        self.assertEqual(first_saved["position_error_mm"], (0.0, 0.0))
 
     def test_step_scan_accepts_scan_settings_dataclass(self) -> None:
         motion = _Motion()
@@ -141,13 +152,34 @@ class ScanRuntimeServiceTest(unittest.TestCase):
 
         self.assertEqual(len(traces), 2)
 
+    def test_step_scan_maps_nonzero_logical_start_to_current_physical_position(self) -> None:
+        motion = _Motion()
+        state = {"progress": []}
+        service = self._service(motion, state)
+
+        service.run_step_scan(_settings(x_start_mm=100.0, x_stop_mm=101.0, y_start_mm=50.0, y_stop_mm=50.0))
+
+        self.assertEqual(state["saved"][0][1]["physical_target_mm"], (10.0, 20.0))
+        self.assertEqual(state["saved"][1][1]["physical_target_mm"], (11.0, 20.0))
+
     def test_continuous_scan_rejects_zero_speed(self) -> None:
         service = self._service(_Motion())
 
         with self.assertRaises(ScanRuntimeServiceError):
             service.run_continuous_scan(_settings(continuous_speed_mm_s=0.0))
 
-    def test_step_scan_returns_partial_results_when_stop_requested_after_failure(self) -> None:
+    def test_step_scan_rejects_position_error_before_sampling(self) -> None:
+        class DriftingMotion(_Motion):
+            def query_position(self) -> Position:
+                self.calls.append(("query_position",))
+                return Position(self.position.x_mm + 1.0, self.position.y_mm)
+
+        service = self._service(DriftingMotion())
+
+        with self.assertRaises(ScanRuntimeServiceError):
+            service.run_step_scan(_settings())
+
+    def test_step_scan_keeps_device_error_when_stop_was_also_requested(self) -> None:
         motion = _Motion()
         state = {"saved": [], "configured": 0, "stopped": False}
         calls = {"measure": 0}
@@ -176,9 +208,41 @@ class ScanRuntimeServiceTest(unittest.TestCase):
             scan_output_dir=service.scan_output_dir,
         )
 
+        with self.assertRaises(ScanRuntimeServiceError):
+            service.run_step_scan(_settings())
+        self.assertTrue(state["stopped_quietly"])
+
+    def test_step_scan_returns_partial_results_for_explicit_user_stop(self) -> None:
+        motion = _Motion()
+        state = {"saved": [], "configured": 0, "stopped": False}
+        calls = {"checkpoint": 0}
+        base_service = self._service(motion, state)
+
+        def checkpoint():
+            calls["checkpoint"] += 1
+            if calls["checkpoint"] > 4:
+                state["stopped"] = True
+                raise RuntimeError("扫描流程已停止。")
+
+        service = ScanRuntimeService(
+            motion=base_service.motion,
+            configure_vna_for_scan=base_service.configure_vna_for_scan,
+            measure_trace=base_service.measure_trace,
+            save_trace=base_service.save_trace,
+            checkpoint=checkpoint,
+            sleep_interruptibly=base_service.sleep_interruptibly,
+            wait_if_paused=base_service.wait_if_paused,
+            raise_if_stopped=base_service.raise_if_stopped,
+            is_paused=base_service.is_paused,
+            stop_requested=base_service.stop_requested,
+            stop_positioner_quietly=base_service.stop_positioner_quietly,
+            probe_offset_filename_tag=base_service.probe_offset_filename_tag,
+            scan_output_dir=base_service.scan_output_dir,
+        )
+
         traces = service.run_step_scan(_settings())
 
-        self.assertEqual(len(traces), 1)
+        self.assertLess(len(traces), 2)
         self.assertTrue(state["stopped_quietly"])
 
 

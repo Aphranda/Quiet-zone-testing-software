@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from dataclasses import dataclass
 
@@ -38,6 +39,7 @@ class ModbusRtuSession:
     def __init__(self, config: ModbusRtuConfig) -> None:
         self._config = config
         self._serial: serial.Serial | None = None
+        self._lock = threading.RLock()
 
     @property
     def is_open(self) -> bool:
@@ -75,43 +77,44 @@ class ModbusRtuSession:
             logger.exception("Failed while closing Modbus RTU port: %s", self._config.port)
 
     def clear(self) -> None:
-        port = self._require_serial()
-        port.reset_input_buffer()
-        port.reset_output_buffer()
+        with self._lock:
+            port = self._require_serial()
+            port.reset_input_buffer()
+            port.reset_output_buffer()
 
     def transact(self, payload: bytes, expected_min_length: int = 5) -> bytes:
         attempts = max(1, self._config.retries + 1)
         last_error: Exception | None = None
         frame = payload + self.crc16(payload).to_bytes(2, byteorder="little")
 
-        for attempt in range(1, attempts + 1):
-            try:
-                port = self._require_serial()
-                logger.debug("Modbus RTU write attempt %s/%s: %s", attempt, attempts, frame.hex(" "))
-                port.reset_input_buffer()
-                time.sleep(0.01)
-                port.write(frame)
-                port.flush()
-                time.sleep(0.02)
-                response = port.read(max(expected_min_length, port.in_waiting or expected_min_length))
-                if len(response) < expected_min_length:
-                    extra = port.read(max(0, port.in_waiting))
-                    response += extra
-                self._validate_response(response)
-                logger.debug("Modbus RTU read: %s", response.hex(" "))
-                return response
-            except Exception as exc:  # noqa: BLE001 - retry boundary.
-                last_error = exc
-                logger.warning(
-                    "Modbus RTU transaction failed on %s attempt %s/%s: payload=%s error=%s",
-                    self._config.port,
-                    attempt,
-                    attempts,
-                    payload.hex(" "),
-                    exc,
-                )
-                if attempt < attempts:
-                    time.sleep(self._config.retry_delay_s)
+        with self._lock:
+            for attempt in range(1, attempts + 1):
+                try:
+                    port = self._require_serial()
+                    logger.debug("Modbus RTU write attempt %s/%s: %s", attempt, attempts, frame.hex(" "))
+                    port.reset_input_buffer()
+                    port.write(frame)
+                    port.flush()
+                    response = self._read_response_frame(port, expected_min_length)
+                    self._validate_response(response)
+                    logger.debug("Modbus RTU read: %s", response.hex(" "))
+                    return response
+                except Exception as exc:  # noqa: BLE001 - retry boundary.
+                    last_error = exc
+                    logger.warning(
+                        "Modbus RTU transaction failed on %s attempt %s/%s: payload=%s error=%s",
+                        self._config.port,
+                        attempt,
+                        attempts,
+                        payload.hex(" "),
+                        exc,
+                    )
+                    if attempt < attempts:
+                        try:
+                            self._require_serial().reset_input_buffer()
+                        except Exception:
+                            logger.debug("Failed to clear Modbus input buffer before retry.", exc_info=True)
+                        time.sleep(self._config.retry_delay_s)
 
         raise ModbusRtuError(
             f"Modbus RTU transaction failed after {attempts} attempt(s): {last_error}"
@@ -121,6 +124,39 @@ class ModbusRtuSession:
         if self._serial is None or not self._serial.is_open:
             raise ModbusRtuError(f"Serial port is not open: {self._config.port}")
         return self._serial
+
+    def _read_response_frame(self, port: serial.Serial, expected_min_length: int) -> bytes:
+        deadline = time.monotonic() + max(float(self._config.timeout_s), 0.001)
+        response = bytearray()
+        minimum = max(int(expected_min_length), 5)
+
+        while len(response) < 2:
+            response.extend(self._read_available(port, deadline, 1))
+
+        function = response[1]
+        if function & 0x80:
+            expected_length = 5
+        elif function in (0x03, 0x04):
+            while len(response) < 3:
+                response.extend(self._read_available(port, deadline, 1))
+            expected_length = 3 + int(response[2]) + 2
+        elif function in (0x05, 0x06, 0x10):
+            expected_length = 8
+        else:
+            expected_length = minimum
+
+        expected_length = max(expected_length, minimum)
+        while len(response) < expected_length:
+            response.extend(self._read_available(port, deadline, expected_length - len(response)))
+
+        return bytes(response)
+
+    def _read_available(self, port: serial.Serial, deadline: float, requested: int) -> bytes:
+        while time.monotonic() <= deadline:
+            chunk = port.read(max(1, int(requested)))
+            if chunk:
+                return chunk
+        raise ModbusRtuError(f"Modbus response timeout after {self._config.timeout_s:.3f} s.")
 
     @classmethod
     def _validate_response(cls, response: bytes) -> None:

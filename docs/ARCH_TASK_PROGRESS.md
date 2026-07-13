@@ -384,3 +384,12 @@ Last updated: 2026-07-10
 - 风险：当前超时包含理论匀速时间和固定裕量，尚未结合加速度参数建立精确梯形速度模型；真实负载下需继续验证安全系数。
 - 后续：执行 HR-P0-02，为匀速运动位置轮询增加截止时间和反馈冻结检测。
 - 涉及文件：`src/quiet_zone_tester/hardware/positioner/icl.py`、`tests/test_positioner_timeout.py`、`docs/HARDWARE_SCAN_RELIABILITY_TODO.md`。
+
+### HARDWARE-RELIABILITY-20260713-002 - 收口扫描可靠性 P0 和 Modbus 读帧
+
+- 目标：继续修复 P0-P3 可靠性清单中可自动化验证的闭环问题，重点处理匀速运动无限等待、扫描进度提前、位置事实缺失、速度上限和 Modbus 固定延时读帧。
+- 完成：扫描架速度上限统一为 50 mm/s；匀速 jog 按距离/速度计算截止时间并检测位置反馈冻结，异常时停轴；步进和匀速扫描进度只在 trace 保存后推进；步进采样前查询实际位置并按轴容差拦截超差；trace CSV 和 trace index 增加逻辑目标、物理目标、采样前实际位置和误差字段；metadata 明确坐标模式为 `relative_to_scan_start`；Modbus RTU 事务加锁并按功能码/长度字段读取完整帧；扫描运行层不再因 stop 标志吞掉设备/存储异常，应用状态机区分 `Completed`、`Stopped`、`Failed`、`StoppedWithError`。
+- 验证：运行 `tests.test_connection_view_model tests.test_motion_control_view_model tests.test_motion_service tests.test_scan_runtime_service tests.test_trace_storage tests.test_scan_repository tests.test_scan_settings tests.test_scan_runtime_geometry tests.test_modbus_rtu` 均通过；运行完整 `unittest discover -s tests`，158 个测试通过、1 个硬件测试按条件跳过。
+- 风险：P2 真实硬件闭环验证未执行，不能据此认定 E5080B/N5245B、扫描架和开关箱在实机上全部验收；P1 暂停安全点、开关箱重试语义、扫描资源仲裁及 P3 恢复续扫/长期稳定性仍需后续实现或硬件证据。
+- 后续：继续处理 HR-P1-02/05/06/07 和 P3 可观测性、质量标记、断点续扫；按 `HARDWARE_VALIDATION_CHECKLIST.md` 执行 P2 实机验证。
+- 涉及文件：`src/quiet_zone_tester/application/scan_workflow_state.py`、`src/quiet_zone_tester/domains/motion_control/motion_service.py`、`src/quiet_zone_tester/domains/scan_management/scan_runtime_service.py`、`src/quiet_zone_tester/domains/data_management/trace_storage.py`、`src/quiet_zone_tester/hardware/transport/modbus_rtu.py`、`src/quiet_zone_tester/shared/instrument_defaults.py`、`tests/`、`docs/HARDWARE_SCAN_RELIABILITY_TODO.md`。

@@ -43,6 +43,8 @@ class MotionControlViewModelTest(unittest.TestCase):
             view_model.absolute_move_command(x_mm=0.0, y_mm=0.0, speed_mm_s=0.0)
         with self.assertRaises(ValueError):
             view_model.relative_move_command(delta_x_mm=0.0, delta_y_mm=0.0, speed_mm_s=-1.0)
+        with self.assertRaises(ValueError):
+            view_model.absolute_move_command(x_mm=0.0, y_mm=0.0, speed_mm_s=50.001)
 
     def test_position_display_and_ui_state(self) -> None:
         view_model = MotionControlViewModel()
@@ -72,7 +74,7 @@ class MotionControlViewModelTest(unittest.TestCase):
         panel._emit_absolute_move()
         panel._emit_relative_move()
 
-        self.assertEqual(absolute_payloads[0], {"x_mm": 12.0, "y_mm": 34.0, "speed_mm_s": 56.0})
+        self.assertEqual(absolute_payloads[0], {"x_mm": 12.0, "y_mm": 34.0, "speed_mm_s": 50.0})
         self.assertEqual(relative_payloads[0], {"delta_x_mm": -1.5, "delta_y_mm": 2.5, "speed_mm_s": 7.5})
 
     def test_positioner_control_panel_updates_position_labels(self) -> None:

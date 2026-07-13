@@ -34,6 +34,10 @@ class TraceStorage:
         point_index: int | None = None,
         output_dir: Path | None = None,
         timestamp: datetime | None = None,
+        logical_position_mm: tuple[float, float] | None = None,
+        physical_target_mm: tuple[float, float] | None = None,
+        actual_position_mm: tuple[float, float] | None = None,
+        position_error_mm: tuple[float, float] | None = None,
     ) -> Path:
         timestamp = timestamp or datetime.now()
         should_write_index = output_dir is not None
@@ -58,6 +62,10 @@ class TraceStorage:
             scan_mode=scan_mode,
             file_flag=file_flag,
             point_index=point_index,
+            logical_position_mm=logical_position_mm,
+            physical_target_mm=physical_target_mm,
+            actual_position_mm=actual_position_mm,
+            position_error_mm=position_error_mm,
         )
         if should_write_index:
             self.append_trace_index(
@@ -69,6 +77,10 @@ class TraceStorage:
                 scan_mode=scan_mode,
                 file_flag=file_flag,
                 point_index=point_index,
+                logical_position_mm=logical_position_mm,
+                physical_target_mm=physical_target_mm,
+                actual_position_mm=actual_position_mm,
+                position_error_mm=position_error_mm,
             )
         return path
 
@@ -122,6 +134,7 @@ class TraceStorage:
                 "vna_power_dbm": float(settings.get("vna_power_dbm", 0.0)),
             },
             "scan_volume": {
+                "coordinate_mode": "relative_to_scan_start",
                 "x_start_mm": volume.x_start_mm,
                 "x_stop_mm": volume.x_stop_mm,
                 "y_start_mm": volume.y_start_mm,
@@ -153,6 +166,14 @@ class TraceStorage:
                     "point_index",
                     "x_mm",
                     "y_mm",
+                    "logical_x_mm",
+                    "logical_y_mm",
+                    "physical_target_x_mm",
+                    "physical_target_y_mm",
+                    "actual_x_mm",
+                    "actual_y_mm",
+                    "error_x_mm",
+                    "error_y_mm",
                     "parameter",
                     "frequency_start_hz",
                     "frequency_stop_hz",
@@ -172,6 +193,10 @@ class TraceStorage:
         scan_mode: str,
         file_flag: str,
         point_index: int | None,
+        logical_position_mm: tuple[float, float] | None = None,
+        physical_target_mm: tuple[float, float] | None = None,
+        actual_position_mm: tuple[float, float] | None = None,
+        position_error_mm: tuple[float, float] | None = None,
     ) -> None:
         index_path = output_dir / "trace_index.csv"
         if not index_path.exists():
@@ -179,6 +204,10 @@ class TraceStorage:
 
         x_mm = "" if position_mm is None else f"{position_mm[0]:.6f}"
         y_mm = "" if position_mm is None else f"{position_mm[1]:.6f}"
+        logical_x_mm, logical_y_mm = self._format_optional_pair(logical_position_mm)
+        physical_target_x_mm, physical_target_y_mm = self._format_optional_pair(physical_target_mm)
+        actual_x_mm, actual_y_mm = self._format_optional_pair(actual_position_mm)
+        error_x_mm, error_y_mm = self._format_optional_pair(position_error_mm)
         with index_path.open("a", newline="", encoding="utf-8-sig") as index_file:
             writer = csv.writer(index_file)
             writer.writerow(
@@ -189,6 +218,14 @@ class TraceStorage:
                     "" if point_index is None else point_index,
                     x_mm,
                     y_mm,
+                    logical_x_mm,
+                    logical_y_mm,
+                    physical_target_x_mm,
+                    physical_target_y_mm,
+                    actual_x_mm,
+                    actual_y_mm,
+                    error_x_mm,
+                    error_y_mm,
                     trace.parameter,
                     f"{float(trace.frequency_hz[0]):.12g}",
                     f"{float(trace.frequency_hz[-1]):.12g}",
@@ -215,9 +252,17 @@ class TraceStorage:
         scan_mode: str,
         file_flag: str,
         point_index: int | None,
+        logical_position_mm: tuple[float, float] | None = None,
+        physical_target_mm: tuple[float, float] | None = None,
+        actual_position_mm: tuple[float, float] | None = None,
+        position_error_mm: tuple[float, float] | None = None,
     ) -> None:
         x_mm = "" if position_mm is None else f"{position_mm[0]:.6f}"
         y_mm = "" if position_mm is None else f"{position_mm[1]:.6f}"
+        logical_x_mm, logical_y_mm = TraceStorage._format_optional_pair(logical_position_mm)
+        physical_target_x_mm, physical_target_y_mm = TraceStorage._format_optional_pair(physical_target_mm)
+        actual_x_mm, actual_y_mm = TraceStorage._format_optional_pair(actual_position_mm)
+        error_x_mm, error_y_mm = TraceStorage._format_optional_pair(position_error_mm)
         with path.open("w", newline="", encoding="utf-8-sig") as csv_file:
             writer = csv.writer(csv_file)
             writer.writerow(
@@ -228,6 +273,14 @@ class TraceStorage:
                     "point_index",
                     "x_mm",
                     "y_mm",
+                    "logical_x_mm",
+                    "logical_y_mm",
+                    "physical_target_x_mm",
+                    "physical_target_y_mm",
+                    "actual_x_mm",
+                    "actual_y_mm",
+                    "error_x_mm",
+                    "error_y_mm",
                     "parameter",
                     "frequency_hz",
                     "real",
@@ -250,6 +303,14 @@ class TraceStorage:
                         "" if point_index is None else point_index,
                         x_mm,
                         y_mm,
+                        logical_x_mm,
+                        logical_y_mm,
+                        physical_target_x_mm,
+                        physical_target_y_mm,
+                        actual_x_mm,
+                        actual_y_mm,
+                        error_x_mm,
+                        error_y_mm,
                         trace.parameter,
                         f"{float(frequency_hz):.12g}",
                         f"{float(value.real):.12g}",
@@ -262,6 +323,12 @@ class TraceStorage:
     @staticmethod
     def _settings_dict(settings: dict | ScanSettings) -> dict:
         return ScanSettings.from_mapping(settings).to_dict()
+
+    @staticmethod
+    def _format_optional_pair(pair: tuple[float, float] | None) -> tuple[str, str]:
+        if pair is None:
+            return "", ""
+        return f"{float(pair[0]):.6f}", f"{float(pair[1]):.6f}"
 
     @staticmethod
     def _build_scan_volume(settings: dict | ScanSettings) -> ScanVolume:

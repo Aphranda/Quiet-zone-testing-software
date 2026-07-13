@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 
 from quiet_zone_tester.hardware import Position
 from quiet_zone_tester.presentation.modules.motion_control import MotionControlViewModel
+from quiet_zone_tester.shared.instrument_defaults import MAX_POSITIONER_SPEED_MM_S
 
 
 class NoWheelDoubleSpinBox(QDoubleSpinBox):
@@ -203,7 +204,7 @@ class PositionerControlPanel(QGroupBox):
     @staticmethod
     def _speed_spinbox(value: float) -> QDoubleSpinBox:
         spinbox = NoWheelDoubleSpinBox()
-        spinbox.setRange(0.001, 1000000.0)
+        spinbox.setRange(0.001, MAX_POSITIONER_SPEED_MM_S)
         spinbox.setDecimals(3)
         spinbox.setSingleStep(10.0)
         spinbox.setValue(value)

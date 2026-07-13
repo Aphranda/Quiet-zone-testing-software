@@ -76,6 +76,12 @@ class ScanSettingsTest(unittest.TestCase):
         self.assertEqual(settings.scan_mode, "continuous")
         self.assertEqual(settings.continuous_speed_mm_s, -50.0)
 
+    def test_scan_settings_rejects_speed_above_limit(self) -> None:
+        with self.assertRaises(ValueError):
+            ScanSettings.from_mapping(dict(_settings_dict(), step_speed_mm_s=50.001))
+        with self.assertRaises(ValueError):
+            ScanSettings.from_mapping(dict(_settings_dict(), continuous_speed_mm_s=-50.001))
+
     def test_trace_storage_accepts_scan_settings_dataclass(self) -> None:
         scan_settings = ScanSettings.from_mapping(_settings_dict())
 
@@ -90,6 +96,7 @@ class ScanSettingsTest(unittest.TestCase):
             metadata = json.loads((output_dir / "scan_metadata.json").read_text(encoding="utf-8"))
             self.assertEqual(metadata["parameter"], "S21")
             self.assertEqual(metadata["file_flag"], "case 1")
+            self.assertEqual(metadata["scan_volume"]["coordinate_mode"], "relative_to_scan_start")
             self.assertEqual(metadata["scan_volume"]["point_count"], 6)
 
 

@@ -38,6 +38,7 @@ from quiet_zone_tester.shared.instrument_defaults import (
     DEFAULT_SWITCH_BOX_SERIAL_PORT,
     DEFAULT_VNA_PORT,
     DEFAULT_VNA_TIMEOUT_MS,
+    MAX_POSITIONER_SPEED_MM_S,
     SUPPORTED_VNA_MODELS,
     switch_box_model_defaults,
 )
@@ -94,6 +95,12 @@ class InstrumentControllerFactory:
 
         legacy_pulses_per_mm, x_pulses_per_mm, y_pulses_per_mm = self.positioner_scales_from_config(config)
 
+        default_speed = float(config.get("default_speed", DEFAULT_POSITIONER_SPEED_MM_S))
+        if not 0.0 < default_speed <= MAX_POSITIONER_SPEED_MM_S:
+            raise InstrumentControllerFactoryError(
+                f"扫描架默认速度必须大于 0 且不能超过 {MAX_POSITIONER_SPEED_MM_S:g} mm/s。"
+            )
+
         return IclPositionerController(
             IclPositionerConfig(
                 port=port_name,
@@ -109,7 +116,7 @@ class InstrumentControllerFactory:
                 pulses_per_mm=legacy_pulses_per_mm,
                 x_pulses_per_mm=x_pulses_per_mm,
                 y_pulses_per_mm=y_pulses_per_mm,
-                default_speed=float(config.get("default_speed", DEFAULT_POSITIONER_SPEED_MM_S)),
+                default_speed=default_speed,
             )
         )
 

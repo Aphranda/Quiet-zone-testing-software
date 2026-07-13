@@ -51,6 +51,12 @@ class ScanWorkflowStateTest(unittest.TestCase):
         self.assertFalse(state.stop_requested)
         self.assertFalse(state.failed)
 
+    def test_result_state_distinguishes_stop_failure_overlap(self) -> None:
+        self.assertEqual(ScanWorkflowState().result_state(), "Completed")
+        self.assertEqual(ScanWorkflowState(stop_requested=True).result_state(), "Stopped")
+        self.assertEqual(ScanWorkflowState(failed=True).result_state(), "Failed")
+        self.assertEqual(ScanWorkflowState(stop_requested=True, failed=True).result_state(), "StoppedWithError")
+
     def test_busy_helpers_include_scan_and_stop_tasks(self) -> None:
         state = ScanWorkflowState()
         self.assertFalse(state.connection_busy(False))

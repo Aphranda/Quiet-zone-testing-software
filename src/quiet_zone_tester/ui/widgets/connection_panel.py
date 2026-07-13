@@ -28,6 +28,7 @@ from quiet_zone_tester.presentation.modules.connection import (
     SwitchBoxFormState,
     VnaFormState,
 )
+from quiet_zone_tester.shared.instrument_defaults import MAX_POSITIONER_SPEED_MM_S
 
 
 logger = logging.getLogger(__name__)
@@ -383,7 +384,7 @@ class ConnectionPanel(QGroupBox):
     @staticmethod
     def _positive_double_spinbox(value: float, suffix: str) -> QDoubleSpinBox:
         spinbox = NoWheelDoubleSpinBox()
-        spinbox.setRange(0.000001, 1000000.0)
+        spinbox.setRange(0.000001, MAX_POSITIONER_SPEED_MM_S)
         spinbox.setDecimals(3)
         spinbox.setSingleStep(1.0)
         spinbox.setValue(value)

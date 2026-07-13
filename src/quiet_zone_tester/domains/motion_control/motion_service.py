@@ -12,7 +12,7 @@ from quiet_zone_tester.domains.instrument_management import (
 )
 from quiet_zone_tester.domains.scan_management import ScanRuntimeGeometry
 from quiet_zone_tester.hardware import Position
-from quiet_zone_tester.shared.instrument_defaults import DEFAULT_POSITIONER_SPEED_MM_S
+from quiet_zone_tester.shared.instrument_defaults import DEFAULT_POSITIONER_SPEED_MM_S, MAX_POSITIONER_SPEED_MM_S
 
 logger = logging.getLogger(__name__)
 
@@ -43,14 +43,21 @@ class MotionServiceError(RuntimeError):
     pass
 
 
+JOG_TIMEOUT_MARGIN_S = 5.0
+JOG_TIMEOUT_FACTOR = 1.5
+JOG_FROZEN_TIMEOUT_S = 2.0
+JOG_POLL_INTERVAL_S = 0.03
+
+
 @dataclass(frozen=True)
 class MotionService:
     positioner: MotionPositionerController
 
     def jog_axis(self, axis: int, speed_mm_s: float) -> None:
         self._ensure_connected()
+        speed_mm_s = self._validated_speed(speed_mm_s, allow_signed=True)
         try:
-            self.positioner.jog_axis(int(axis), float(speed_mm_s))
+            self.positioner.jog_axis(int(axis), speed_mm_s)
         except Exception as exc:
             logger.exception("Positioner jog failed.")
             raise MotionServiceError(f"Positioner jog failed: {exc}") from exc
@@ -65,6 +72,7 @@ class MotionService:
 
     def move_absolute(self, x_mm: float, y_mm: float, speed_mm_s: float) -> Position:
         self._ensure_connected()
+        speed_mm_s = self._validated_speed(speed_mm_s)
         try:
             return self.positioner.move_to(float(x_mm), float(y_mm), float(speed_mm_s))
         except Exception as exc:
@@ -97,6 +105,7 @@ class MotionService:
 
     def move_axis_to(self, axis_name: str, position_mm: float, speed_mm_s: float) -> Position:
         self._ensure_connected()
+        speed_mm_s = self._validated_speed(speed_mm_s)
         axis = self.axis_for_name(axis_name)
         move_axis_to = getattr(self.positioner, "move_axis_to", None)
         try:
@@ -126,7 +135,7 @@ class MotionService:
         self._ensure_connected()
         normalized_axis_name = ScanRuntimeGeometry.normalize_axis_name(axis_name)
         axis = self.axis_for_name(normalized_axis_name)
-        speed = max(abs(float(speed_mm_s)), 0.001)
+        speed = abs(self._validated_speed(speed_mm_s, allow_signed=True))
         tolerance_mm = self.position_tolerance_for_axis(axis)
 
         position = self.positioner.position
@@ -163,6 +172,11 @@ class MotionService:
             active_axis_name = normalized_axis_name
             active_direction = direction
 
+        start_time = time.monotonic()
+        timeout_s = abs(distance_mm) / speed * JOG_TIMEOUT_FACTOR + JOG_TIMEOUT_MARGIN_S
+        last_motion_time = start_time
+        last_position_mm = current_position_mm
+        stable_tolerance_mm = min(tolerance_mm, 0.01)
         while True:
             if is_paused():
                 self.stop_axis_by_name_quietly(active_axis_name)
@@ -177,13 +191,51 @@ class MotionService:
                     self.positioner.jog_axis(axis, speed * direction)
                     active_axis_name = normalized_axis_name
                     active_direction = direction
+                    start_time = time.monotonic()
+                    timeout_s = abs(float(target_position_mm) - current_position_mm) / speed * JOG_TIMEOUT_FACTOR + JOG_TIMEOUT_MARGIN_S
+                    last_motion_time = start_time
+                    last_position_mm = current_position_mm
 
             raise_if_stopped()
             position = self.positioner.position
             current_position_mm = self.position_for_axis_name(position, normalized_axis_name)
             if self.target_crossed(current_position_mm, target_position_mm, direction, tolerance_mm):
                 return active_axis_name, active_direction
-            time.sleep(0.03)
+            now = time.monotonic()
+            if abs(current_position_mm - last_position_mm) > stable_tolerance_mm:
+                last_position_mm = current_position_mm
+                last_motion_time = now
+            if now - start_time > timeout_s:
+                self.stop_axis_by_name_quietly(active_axis_name)
+                raise MotionServiceError(
+                    (
+                        f"Continuous jog timeout on {normalized_axis_name} axis: "
+                        f"target={target_position_mm:.3f} mm, actual={current_position_mm:.3f} mm, "
+                        f"speed={speed:.3f} mm/s, elapsed={now - start_time:.3f} s."
+                    )
+                )
+            if now - last_motion_time > JOG_FROZEN_TIMEOUT_S:
+                self.stop_axis_by_name_quietly(active_axis_name)
+                raise MotionServiceError(
+                    (
+                        f"Continuous jog position feedback frozen on {normalized_axis_name} axis: "
+                        f"target={target_position_mm:.3f} mm, actual={current_position_mm:.3f} mm, "
+                        f"unchanged_for={now - last_motion_time:.3f} s."
+                    )
+                )
+            time.sleep(JOG_POLL_INTERVAL_S)
+
+    @staticmethod
+    def _validated_speed(speed_mm_s: float, *, allow_signed: bool = False) -> float:
+        speed = float(speed_mm_s)
+        magnitude = abs(speed)
+        if magnitude <= 1e-9:
+            raise MotionServiceError("Positioner speed must be greater than 0 mm/s.")
+        if magnitude > MAX_POSITIONER_SPEED_MM_S:
+            raise MotionServiceError(f"Positioner speed cannot exceed {MAX_POSITIONER_SPEED_MM_S:g} mm/s.")
+        if not allow_signed and speed < 0.0:
+            raise MotionServiceError("Absolute motion speed must be positive.")
+        return speed
 
     def update_runtime_config(self, config: dict) -> None:
         self._ensure_connected()
@@ -236,6 +288,9 @@ class MotionService:
             except Exception:
                 logger.debug("Positioner-specific tolerance lookup failed.", exc_info=True)
         return 0.05
+
+    def position_tolerance_for_axis_name(self, axis_name: str) -> float:
+        return self.position_tolerance_for_axis(self.axis_for_name(axis_name))
 
     def axis_for_name(self, axis_name: str) -> int:
         config = getattr(self.positioner, "_config", None)

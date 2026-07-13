@@ -68,13 +68,13 @@ class TraceStorageTest(unittest.TestCase):
             with path.open("r", newline="", encoding="utf-8-sig") as csv_file:
                 rows = list(csv.reader(csv_file))
             self.assertEqual(rows[0][0:4], ["timestamp", "flag", "scan_mode", "point_index"])
-            self.assertEqual(rows[1][1:7], ["case 1", "step", "7", "1.000000", "2.000000", "S21"])
-            self.assertEqual(rows[1][7:10], ["1000000000", "1", "0"])
+            self.assertEqual(rows[1][1:8], ["case 1", "step", "7", "1.000000", "2.000000", "", ""])
+            self.assertEqual(rows[1][15:18], ["1000000000", "1", "0"])
 
             with (output_dir / "trace_index.csv").open("r", newline="", encoding="utf-8-sig") as index_file:
                 index_rows = list(csv.reader(index_file))
             self.assertEqual(index_rows[0][-1], "filename")
-            self.assertEqual(index_rows[1][1:7], ["case 1", "step", "7", "1.000000", "2.000000", "S21"])
+            self.assertEqual(index_rows[1][1:8], ["case 1", "step", "7", "1.000000", "2.000000", "", ""])
             self.assertEqual(index_rows[1][-1], path.name)
 
     def test_create_scan_output_dir_writes_metadata_and_unique_suffix(self) -> None:

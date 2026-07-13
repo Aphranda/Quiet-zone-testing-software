@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
+from quiet_zone_tester.shared.instrument_defaults import MAX_POSITIONER_SPEED_MM_S
+
 
 class PositionLike(Protocol):
     x_mm: float
@@ -86,4 +88,6 @@ class MotionControlViewModel:
         speed = float(speed_mm_s)
         if speed <= 0.0:
             raise ValueError("Motion speed must be greater than 0 mm/s.")
+        if speed > MAX_POSITIONER_SPEED_MM_S:
+            raise ValueError(f"Motion speed cannot exceed {MAX_POSITIONER_SPEED_MM_S:g} mm/s.")
         return speed

@@ -20,6 +20,7 @@ from quiet_zone_tester.shared.instrument_defaults import (
     DEFAULT_POSITIONER_TIMEOUT_MS,
     DEFAULT_POSITIONER_X_AXIS,
     DEFAULT_POSITIONER_Y_AXIS,
+    MAX_POSITIONER_SPEED_MM_S,
 )
 
 logger = logging.getLogger(__name__)
@@ -64,6 +65,13 @@ class IclPositionerConfig:
     default_speed: float = DEFAULT_POSITIONER_SPEED_MM_S
     default_acc: int = 100
     default_dec: int = 100
+
+    def __post_init__(self) -> None:
+        if not 0.0 < self.default_speed <= MAX_POSITIONER_SPEED_MM_S:
+            raise ValueError(
+                f"Positioner default speed must be greater than 0 and no more than "
+                f"{MAX_POSITIONER_SPEED_MM_S:g} mm/s."
+            )
 
 
 class IclPositionerController:
@@ -172,6 +180,10 @@ class IclPositionerController:
             numeric_value = float(value)
             if numeric_value <= 0.0:
                 raise IclPositionerError(f"{key} must be greater than zero.")
+            if key == "default_speed" and numeric_value > MAX_POSITIONER_SPEED_MM_S:
+                raise IclPositionerError(
+                    f"default_speed cannot exceed {MAX_POSITIONER_SPEED_MM_S:g} mm/s."
+                )
             updates[key] = numeric_value
 
         if not updates:
@@ -194,8 +206,7 @@ class IclPositionerController:
         self._ensure_connected()
         self._motion_cancelled.clear()
         speed = self._config.default_speed if speed_mm_s is None else speed_mm_s
-        if abs(speed) <= 1e-9:
-            raise IclPositionerError("扫描架绝对运动速度不能为 0。")
+        speed = self._validated_speed(speed)
 
         current = self._actual_position()
         axis_targets = {
@@ -274,8 +285,7 @@ class IclPositionerController:
         self._validate_axis(axis)
         self._motion_cancelled.clear()
         speed = self._config.default_speed if speed_mm_s is None else speed_mm_s
-        if abs(speed) <= 1e-9:
-            raise IclPositionerError("扫描架绝对运动速度不能为 0。")
+        speed = self._validated_speed(speed)
 
         current = self._actual_position()
         current_axis_position_mm = self._position_for_axis(axis, current)
@@ -329,6 +339,7 @@ class IclPositionerController:
     def jog_axis(self, axis: int, speed_mm_s: float) -> None:
         self._ensure_connected()
         self._motion_cancelled.clear()
+        speed_mm_s = self._validated_speed(speed_mm_s, allow_signed=True)
         speed_pulses = self._speed_to_pulse(axis, speed_mm_s)
         if speed_pulses == 0:
             raise IclPositionerError("扫描架点动速度不能为 0。")
@@ -445,6 +456,18 @@ class IclPositionerController:
         theoretical_s = distance_mm / speed_mm_s
         timeout_s = theoretical_s * cls.MOTION_TIMEOUT_SAFETY_FACTOR + cls.MOTION_TIMEOUT_OVERHEAD_S
         return max(int(minimum_timeout_ms), int(timeout_s * 1000.0))
+
+    @staticmethod
+    def _validated_speed(speed_mm_s: float, *, allow_signed: bool = False) -> float:
+        speed = float(speed_mm_s)
+        magnitude = abs(speed)
+        if magnitude <= 1e-9:
+            raise IclPositionerError("扫描架运动速度必须大于 0 mm/s。")
+        if magnitude > MAX_POSITIONER_SPEED_MM_S:
+            raise IclPositionerError(f"扫描架运动速度不能超过 {MAX_POSITIONER_SPEED_MM_S:g} mm/s。")
+        if not allow_signed and speed < 0.0:
+            raise IclPositionerError("扫描架绝对运动速度必须为正数。")
+        return speed
 
     def _execute_motion(self, axis: int, mode: MotionMode) -> None:
         self._prepare_motion_mode(axis, mode)

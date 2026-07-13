@@ -44,6 +44,9 @@ class ScanRuntimeMotion(Protocol):
     def stop_axis_by_name_quietly(self, axis_name: str | None) -> None:
         ...
 
+    def position_tolerance_for_axis_name(self, axis_name: str) -> float:
+        ...
+
 
 class ScanRuntimeServiceError(RuntimeError):
     def __init__(self, message: str, partial_results: list[SParameterTrace] | None = None) -> None:
@@ -176,15 +179,36 @@ class ScanRuntimeService:
                 logical_x_mm = target_x_mm
                 logical_y_mm = target_y_mm
                 self.checkpoint()
+                actual_position = self.motion.query_position()
+                error_x_mm = actual_position.x_mm - physical_target.x_mm
+                error_y_mm = actual_position.y_mm - physical_target.y_mm
+                tolerance_x_mm = self.motion.position_tolerance_for_axis_name("X")
+                tolerance_y_mm = self.motion.position_tolerance_for_axis_name("Y")
+                if abs(error_x_mm) > tolerance_x_mm or abs(error_y_mm) > tolerance_y_mm:
+                    raise ScanRuntimeServiceError(
+                        (
+                            "步进扫描到位误差超限："
+                            f"physical_target=({physical_target.x_mm:.3f}, {physical_target.y_mm:.3f}) mm, "
+                            f"actual=({actual_position.x_mm:.3f}, {actual_position.y_mm:.3f}) mm, "
+                            f"error=({error_x_mm:.3f}, {error_y_mm:.3f}) mm, "
+                            f"tolerance=({tolerance_x_mm:.3f}, {tolerance_y_mm:.3f}) mm."
+                        ),
+                        results,
+                    )
                 logger.info(
-                    "Step scan point %s/%s: logical position settled at x=%.3f mm, y=%.3f mm.",
+                    (
+                        "Step scan point %s/%s: logical position settled at x=%.3f mm, y=%.3f mm; "
+                        "physical actual x=%.3f mm, y=%.3f mm, error x=%.3f mm, y=%.3f mm."
+                    ),
                     index,
                     total,
                     target_x_mm,
                     target_y_mm,
+                    actual_position.x_mm,
+                    actual_position.y_mm,
+                    error_x_mm,
+                    error_y_mm,
                 )
-                if on_progress is not None:
-                    on_progress(index, total, None)
                 self.sleep_interruptibly(settle_delay_s)
                 self.checkpoint()
                 logger.info("Step scan point %s/%s: reading VNA trace.", index, total)
@@ -198,13 +222,17 @@ class ScanRuntimeService:
                     filename_tag=self.probe_offset_filename_tag(settings),
                     point_index=index,
                     output_dir=self.scan_output_dir(settings),
+                    logical_position_mm=(target_x_mm, target_y_mm),
+                    physical_target_mm=(physical_target.x_mm, physical_target.y_mm),
+                    actual_position_mm=(actual_position.x_mm, actual_position.y_mm),
+                    position_error_mm=(error_x_mm, error_y_mm),
                 )
                 results.append(trace)
                 if on_progress is not None:
                     on_progress(index, total, trace)
         except Exception as exc:
             self.stop_positioner_quietly()
-            if self.stop_requested():
+            if self.stop_requested() and self._is_user_stop_exception(exc):
                 logger.info("Step scan stopped by user request.")
                 return results
             raise ScanRuntimeServiceError(f"步进扫描失败，扫描架已停机：{exc}", results) from exc
@@ -261,8 +289,6 @@ class ScanRuntimeService:
 
             logical_x_mm = logical_origin_x_mm
             logical_y_mm = logical_origin_y_mm
-            if on_progress is not None:
-                on_progress(1, total, None)
             self.checkpoint()
             trace = self.measure_trace(settings)
             self.save_trace(
@@ -346,8 +372,6 @@ class ScanRuntimeService:
                     active_axis_name = None
                     active_direction = 0
 
-                if on_progress is not None:
-                    on_progress(index, total, None)
                 if self.is_paused() and active_axis_name is not None:
                     self.motion.stop_axis_by_name_quietly(active_axis_name)
                     active_axis_name = None
@@ -375,7 +399,7 @@ class ScanRuntimeService:
                 logical_y_mm = target_y_mm
         except Exception as exc:
             self.stop_positioner_quietly()
-            if self.stop_requested():
+            if self.stop_requested() and self._is_user_stop_exception(exc):
                 logger.info("Continuous scan stopped by user request.")
                 return results
             raise ScanRuntimeServiceError(f"匀速扫描失败，扫描架已停机：{exc}", results) from exc
@@ -384,3 +408,8 @@ class ScanRuntimeService:
                 self.motion.stop_axis_by_name_quietly(active_axis_name)
 
         return results
+
+    @staticmethod
+    def _is_user_stop_exception(exc: Exception) -> bool:
+        message = str(exc)
+        return "扫描流程已停止" in message or "Acquisition stopped" in message
