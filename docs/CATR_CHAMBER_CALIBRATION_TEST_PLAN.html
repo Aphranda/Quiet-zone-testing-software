@@ -35,7 +35,9 @@
     border-bottom:8px solid #d0d6e4;
   }
   .brand { font-size:14px; color:#1F3864; font-weight:700; }
-  .logo-text { color:#D60037; font-size:26px; font-weight:900; letter-spacing:1px; }
+  .page-header .logo { height:28px; width:auto; display:block; overflow:visible; }
+  .cover-page .page-header .logo, .logo-lg { height:48px; }
+  .svg-defs { position:absolute; width:0; height:0; overflow:hidden; }
   .main {
     flex:1;
     display:flex;
@@ -70,6 +72,7 @@
   .tight-table { font-size:11px; }
   .tight-table tbody td { padding:6px 8px; line-height:1.35; }
   .row2 { display:flex; gap:18px; }
+  .col2 { flex:1; }
   .row3 { display:flex; gap:14px; }
   .card { border:1px solid #ddd; border-radius:6px; overflow:hidden; flex:1; }
   .card-h { padding:9px 12px; font-size:13px; font-weight:700; color:#fff; }
@@ -145,47 +148,104 @@
 </style>
 </head>
 <body>
+<svg class="svg-defs" aria-hidden="true" focusable="false" width="0" height="0">
+  <defs>
+<g id="gts-logo">
+<path fill="#D60037" fill-rule="nonzero" d="M7173.87 7805.86c65.71,49.76 152.92,-3.45 161.5,-85.48 34.14,-326.93 59.89,-778.58 -188.29,-867.15 -134.13,-47.88 -383.2,75.16 -647.9,276.41 -56.62,43.08 -58.44,137.1 -0.49,178.37 114.42,81.53 286.45,206.09 359.03,259.42 67.74,49.78 207.26,155.97 316.15,238.43z"/>
+  <path fill="#D60037" fill-rule="nonzero" d="M7010.48 8220.07c50.61,-15.73 89.1,44.99 53.52,84.38 -476,526.88 -1651.9,1775.4 -2028.19,1645.49 -295.42,-101.97 -217.57,-697.86 -167.67,-999.8 6.59,-39.95 38.12,-86.94 76.85,-98.98 300.73,-93.45 1586.52,-482.25 2065.49,-631.09z"/>
+  <path fill="#D60037" fill-rule="nonzero" d="M6289.45 9505.32c-45.04,49.87 -39.24,134.17 19.91,165.98 487.05,261.95 883.78,383.1 1180.58,206.51 339.14,-201.84 91.52,-1044.36 -91.35,-1494.25 -37.92,-93.31 -128.44,-95.32 -184.99,-20.01 -249.69,332.51 -548.72,726.2 -924.15,1141.77z"/>
+  <path fill="#D60037" fill-rule="nonzero" d="M6973.93 8073.83c88.35,-19.74 108.24,-132.68 33.57,-183.98 -760.56,-522.38 -1894.09,-1273.18 -2308.85,-988.78 -347.98,238.59 -54.33,1130.87 115.77,1565.41 18.63,47.61 69.13,74.43 118.96,63.29l2040.55 -455.94z"/>
+  <path fill="#000" fill-rule="nonzero" d="M9171.91 9327.15c-256.06,0 -459.29,-82.56 -609.64,-247.68 -150.37,-165.1 -225.55,-388.47 -225.55,-670.04 0,-287.18 78.19,-515.1 234.52,-683.81 156.33,-168.7 367.72,-253.07 634.14,-253.07 213.77,0 389.85,53.47 528.29,160.35 138.37,106.9 219.12,251.26 242.27,433.12l-367.33 0c-9.58,-76.57 -52.72,-143.74 -129.37,-201.61 -76.67,-57.83 -161.31,-86.75 -253.93,-86.75 -159.73,0 -284.72,55.26 -374.96,165.72 -90.24,110.51 -135.35,263.83 -135.35,460.05 0,199.45 43.3,351.2 129.86,455.31 86.57,104.07 213.26,156.11 380.02,156.11l-1.19 0c142.02,0 252.93,-54.22 332.73,-162.7 43.87,-61.43 76.2,-133.59 96.96,-216.58l0 -3.6 -414.07 0 0 -302.7 736.66 0 0 948.82 -245.28 0 -35.89 -227.36 -21.54 28.74c-123.64,165.12 -291.16,247.68 -502.55,247.68l1.2 0z"/>
+  <path fill="#000" fill-rule="nonzero" d="M11057 8494.38c-7.98,-78.18 -28.71,-139.2 -62.23,-183.06 -43.88,-58.22 -112.08,-87.35 -204.58,-87.35 -88.55,0 -155.98,33.93 -202.24,101.71 -28.72,43.08 -49.45,99.29 -62.22,168.7l531.27 0zm-262.03 818.41c-197.84,0 -350.41,-61.02 -457.67,-183.06 -107.3,-122.03 -160.94,-295.93 -160.94,-521.68 0,-208.2 54.65,-371.1 163.93,-488.76 109.26,-117.66 260.84,-176.5 454.68,-176.5 198.6,0 351.57,60.03 458.85,180.08 107.28,120.06 160.91,290.93 160.91,512.7 1.61,25.55 -0.39,51.43 -5.96,77.76l-886.62 0c7.97,102.91 30.71,179.89 68.2,230.92 47.87,63.84 127.63,95.72 239.3,95.72 51.85,0 99.92,-14.74 144.17,-44.27 44.28,-29.49 70.79,-64.99 79.59,-106.47l349.38 0c-29.52,132.41 -97.93,236.11 -205.21,311.09 -107.3,74.98 -241.5,112.47 -402.61,112.47z"/>
+  <path fill="#000" fill-rule="nonzero" d="M11604.85 7977.48l162.71 0 163.92 0 0 192.65c13.57,-23.13 28.32,-45.07 44.27,-65.82 84.55,-107.67 207.38,-161.52 368.53,-161.52 137.18,0 244.69,40.69 322.46,122.03 77.78,81.37 116.66,194.25 116.66,338.6l0 875.87 -171.1 0 -172.29 0 0 -813.65c0,-80.53 -17.37,-140.15 -52.06,-178.83 -34.68,-38.72 -87.92,-58.07 -159.74,-58.07 -90.14,0 -159.32,27.14 -207.57,81.35 -48.27,54.29 -72.4,132.46 -72.4,234.53l0 734.67 -171.09 0 -172.3 0 0 -1301.81z"/>
+  <path fill="#000" fill-rule="nonzero" d="M13843.63 8494.38c-7.99,-78.18 -28.72,-139.2 -62.22,-183.06 -43.9,-58.22 -112.07,-87.35 -204.6,-87.35 -88.55,0 -155.96,33.93 -202.22,101.71 -28.72,43.08 -49.45,99.29 -62.21,168.7l531.25 0zm-262.04 818.41c-197.83,0 -350.39,-61.02 -457.67,-183.06 -107.29,-122.03 -160.91,-295.93 -160.91,-521.68 0,-208.2 54.62,-371.1 163.9,-488.76 109.28,-117.66 260.84,-176.5 454.68,-176.5 198.6,0 351.58,60.03 458.87,180.08 107.26,120.06 160.92,290.93 160.92,512.7 1.59,25.55 -0.42,51.43 -5.98,77.76l-886.61 0c7.97,102.91 30.69,179.89 68.18,230.92 47.87,63.84 127.64,95.72 239.3,95.72 51.85,0 99.92,-14.74 144.2,-44.27 44.25,-29.49 70.77,-64.99 79.56,-106.47l349.39 0c-29.53,132.41 -97.92,236.11 -205.22,311.09 -107.29,74.98 -241.5,112.47 -402.61,112.47z"/>
+  <path fill="#000" fill-rule="nonzero" d="M14390.55 7977.48l162.7 0 163.93 0 0 233.32c11.98,-25.53 25.53,-50.23 40.7,-74.19 80.57,-129.21 184.63,-193.82 312.29,-193.82l77.77 1.2 0 350.57c-30.33,-3.19 -64.61,-4.78 -102.91,-4.78 -104.5,0 -182.45,25.92 -233.9,77.75 -51.46,51.87 -77.19,130.45 -77.19,235.74l0 676.02 -171.08 0 -172.31 0 0 -1301.81z"/>
+  <path fill="#000" fill-rule="nonzero" d="M16032.68 8798.3l0 -149.57c-39.89,22.33 -92.54,40.27 -157.94,53.84l-126.83 23.94c-59.84,11.17 -105.3,31.71 -136.41,61.6 -31.1,29.92 -46.65,67.61 -46.65,113.08 0,51.87 13.94,92.57 41.87,122.05 27.91,29.51 67.01,44.28 117.27,44.28 110.05,0 197.79,-38.69 263.21,-116.07 12.75,-15.13 23.53,-37.49 32.32,-67.02 8.75,-29.5 13.16,-58.2 13.16,-86.13zm-412.8 514.49c-120.44,0 -217.37,-34.49 -290.75,-103.48 -73.4,-69.02 -110.08,-159.77 -110.08,-272.22 0,-118.82 33.09,-213.97 99.32,-285.37 66.2,-71.38 162.72,-116.26 289.53,-134.61l226.14 -31.1c59.03,-7.99 108.08,-21.56 147.18,-40.68 16.74,-7.98 29.73,-22.32 38.89,-43.09 9.17,-20.72 12.57,-41.88 10.17,-63.4 -4.78,-36.68 -23.52,-65.42 -56.24,-86.17 -39.1,-24.7 -95.31,-37.08 -168.72,-37.08 -65.4,0 -116.44,15.97 -153.14,47.88 -36.69,31.9 -56.22,76.97 -58.62,135.19l-329.05 0c7.2,-152.32 59.03,-266.43 155.55,-342.21 96.51,-75.75 238.12,-113.65 424.76,-113.65 161.94,0 289.75,34.13 383.47,102.4 93.73,68.27 140.6,161.48 140.6,279.64l0 728.12c0,58.3 4.78,99.21 14.36,122.76 9.58,23.58 28.72,42.13 57.43,55.7l0 1.18 0 46.68 -185.46 0 -185.44 0 0 -1.18c-15.19,-52.66 -25.14,-104.11 -29.92,-154.35l-1.2 -2.42c-107.69,127.65 -247.28,191.46 -418.78,191.46z"/>
+  <polygon fill="#000" fill-rule="nonzero" points="16634.66,7520.42 16805.76,7520.42 16978.05,7520.42 16978.05,9279.28 16806.96,9279.28 16634.66,9279.28 "/>
+  <polygon fill="#000" fill-rule="nonzero" points="18393.51,7832.71 17862.26,7832.71 17862.26,7677.19 17862.26,7520.42 19292.09,7520.42 19292.09,7675.94 19292.09,7832.71 18760.84,7832.71 18760.84,9279.28 18577.78,9279.28 18393.51,9279.28 "/>
+  <path fill="#000" fill-rule="nonzero" d="M20018.43 8494.38c-7.98,-78.18 -28.72,-139.2 -62.21,-183.06 -43.9,-58.22 -112.08,-87.35 -204.6,-87.35 -88.54,0 -155.96,33.93 -202.22,101.71 -28.72,43.08 -49.48,99.29 -62.22,168.7l531.25 0zm-262.03 818.41c-197.84,0 -350.4,-61.02 -457.67,-183.06 -107.3,-122.03 -160.92,-295.93 -160.92,-521.68 0,-208.2 54.62,-371.1 163.91,-488.76 109.28,-117.66 260.83,-176.5 454.68,-176.5 198.6,0 351.56,60.03 458.86,180.08 107.26,120.06 160.92,290.93 160.92,512.7 1.59,25.55 -0.41,51.43 -5.98,77.76l-886.6 0c7.94,102.91 30.68,179.89 68.17,230.92 47.88,63.84 127.64,95.72 239.3,95.72 51.87,0 99.92,-14.74 144.18,-44.27 44.27,-29.49 70.81,-64.99 79.58,-106.47l349.39 0c-29.52,132.41 -97.91,236.11 -205.21,311.09 -107.3,74.98 -241.5,112.47 -402.61,112.47z"/>
+  <path fill="#000" fill-rule="nonzero" d="M21307.05 8367.53c0,-50.23 -20.77,-90.52 -62.27,-120.85 -41.51,-30.29 -96.58,-45.43 -165.21,-45.43 -66.26,0 -117.96,11.34 -155.05,34.08 -37.14,22.74 -55.69,54.45 -55.69,95.13 0,28.69 21.13,53.46 63.42,74.19 41.48,19.95 115.3,41.87 221.4,65.79 210.64,47.07 351.47,98.52 422.5,154.35 71.18,55.86 106.78,143.61 106.78,263.25 0,127.62 -51.67,230.31 -154.97,308.09 -103.31,77.77 -239.54,116.67 -408.67,116.67 -200.28,0 -354.43,-38.31 -462.55,-114.87 -108.09,-76.6 -165.72,-188.25 -172.91,-335.02l349.38 0c2.4,59.83 28.94,106.67 79.58,140.58 50.68,33.92 119.5,50.84 206.46,50.84 68.6,0 122.28,-11.74 160.99,-35.29 38.69,-23.5 58.04,-56.41 58.04,-98.72 0,-29.48 -18.74,-54.62 -56.21,-75.37 -37.49,-19.9 -103.33,-40.27 -197.46,-61.01 -220.2,-49.45 -367.39,-101.72 -441.58,-156.75 -74.08,-54.25 -111.11,-138.38 -111.11,-252.46 0,-129.23 48.03,-233.51 144.14,-312.88 96.08,-79.35 222.71,-119.06 379.81,-119.06 177.05,0 319.8,38.89 428.28,116.66 108.48,77.77 162.71,180.5 162.71,308.08l-339.81 0z"/>
+  <path fill="#000" fill-rule="nonzero" d="M22489.62 9286.48c-57.44,4.78 -128.03,7.16 -211.8,7.16 -121.27,0 -208.38,-21.71 -261.43,-65.2 -53.05,-43.47 -79.57,-114.67 -79.57,-213.59l0 -796.85 -180.66 0 0 -240.52 180.66 0 0 -350.57 343.39 0 0 350.57 209.41 0 0 240.52 -209.41 0 0 739.43c0,30.31 9,50.25 26.93,59.82 17.96,9.58 55.21,14.35 111.88,14.35l70.6 0 0 254.88z"/>
+ </g>
+  </defs>
+</svg>
 
 <!-- P1 -->
 <div class="page cover-page">
-  <div class="page-header"><div class="logo-text">GTS</div></div>
+  <div class="page-header"><svg class="logo logo-lg" viewBox="4400 6500 18750 3520" role="img" aria-label="GTS"><use href="#gts-logo"></use></svg></div>
   <div class="main">
     <h1 class="cover-title">CATR暗室<br>校准测试方案</h1>
     <div class="cover-divider"></div>
     <div class="cover-subtitle">链路命令、校准模板与测试项封装草案</div>
     <div class="cover-info">Quiet Zone Tester 项目<br>版本日期：2026-07-17</div>
   </div>
-  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">1 / 20</span></span></div>
+  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">1 / 25</span></span></div>
 </div>
 
 <!-- P2 -->
 <div class="page">
-  <div class="page-header"><span class="brand">目录</span><div class="logo-text">GTS</div></div>
+  <div class="page-header" style="justify-content:flex-end;"><svg class="logo" viewBox="4400 6500 18750 3520" role="img" aria-label="GTS"><use href="#gts-logo"></use></svg></div>
   <div class="main">
-    <div class="h1">报告结构</div>
-    <div class="sub">以“测试项操作”视角组织链路箱指令，便于后续封装为测试项模型。</div>
-    <div class="row2">
-      <div class="card cb"><div class="card-h">01 操作架构</div><div class="card-b"><ul><li>测试项 ID</li><li>仪表角色</li><li>DUT/校准件状态</li><li>链路模板</li></ul></div></div>
-      <div class="card cg"><div class="card-h">02 校准操作</div><div class="card-b"><ul><li>暗室内部链路校准</li><li>VNA 链路损耗校准</li><li>AUX-D 回传段校准</li><li>SA 校准</li><li>SG 校准</li></ul></div></div>
-    </div>
-    <div style="height:18px"></div>
-    <div class="row2">
-      <div class="card co"><div class="card-h">03 DUT 测试链路</div><div class="card-b"><ul><li>DUT 通道校准</li><li>方向图测试</li><li>有源增益测试</li><li>天线板 EIRP</li><li>G/T 测试</li><li>整机发射</li><li>整机接收</li></ul></div></div>
-      <div class="card cr"><div class="card-h">04 禁止项</div><div class="card-b"><ul><li>接 DUT 测试时不切 DUT→VNA2</li><li>G/T 不使用 AMP2</li><li>转台DUT到VNA的损耗辅助线阶段不下发链路箱命令</li></ul></div></div>
+    <div class="h1">目 录</div>
+    <div class="row2" style="margin-top:16px; gap:30px;">
+      <div class="col2">
+        <div style="margin-bottom:18px;">
+          <div style="font-size:15px; font-weight:700; color:#1F3864; padding-bottom:6px; border-bottom:2px solid #1F3864; margin-bottom:10px;">Part 1 &nbsp; 报告基础</div>
+          <div style="font-size:13px; line-height:2.05; color:#333;">
+            <span style="color:#999; margin-right:8px;">P1</span> 封面<br>
+            <span style="color:#999; margin-right:8px;">P2</span> 目录<br>
+            <span style="color:#999; margin-right:8px;">P3</span> 参数与符号约定<br>
+            <span style="color:#999; margin-right:8px;">P4</span> 暗室整体链路图<br>
+            <span style="color:#999; margin-right:8px;">P5</span> 链路箱实际链路图<br>
+            <span style="color:#999; margin-right:8px;">P6</span> 测试项操作清单
+          </div>
+        </div>
+        <div>
+          <div style="font-size:15px; font-weight:700; color:#1F3864; padding-bottom:6px; border-bottom:2px solid #1F3864; margin-bottom:10px;">Part 2 &nbsp; 校准方案</div>
+          <div style="font-size:13px; line-height:2.05; color:#333;">
+            <span style="color:#999; margin-right:8px;">P7</span> 校准模板总览<br>
+            <span style="color:#999; margin-right:8px;">P8-9</span> LINK-CAL-001 暗室内部链路校准<br>
+            <span style="color:#999; margin-right:8px;">P10-11</span> LINK-CAL-002 VNA 链路损耗校准<br>
+            <span style="color:#999; margin-right:8px;">P12-13</span> LINK-CAL-003 SA 校准<br>
+            <span style="color:#999; margin-right:8px;">P14-15</span> LINK-CAL-004 SG 校准
+          </div>
+        </div>
+      </div>
+      <div class="col2">
+        <div style="margin-bottom:18px;">
+          <div style="font-size:15px; font-weight:700; color:#1F3864; padding-bottom:6px; border-bottom:2px solid #1F3864; margin-bottom:10px;">Part 3 &nbsp; 测试项操作</div>
+          <div style="font-size:13px; line-height:2.05; color:#333;">
+            <span style="color:#999; margin-right:8px;">P16</span> LINK-TXR-001 DUT 通道校准<br>
+            <span style="color:#999; margin-right:8px;">P17</span> LINK-TXR-002 方向图测试<br>
+            <span style="color:#999; margin-right:8px;">P18</span> LINK-TXR-003 有源增益测试<br>
+            <span style="color:#999; margin-right:8px;">P19</span> LINK-TXR-004 天线板 EIRP 测试<br>
+            <span style="color:#999; margin-right:8px;">P20</span> LINK-GT-001 G/T 测试<br>
+            <span style="color:#999; margin-right:8px;">P21</span> LINK-SYS-001 整机发射测试<br>
+            <span style="color:#999; margin-right:8px;">P22</span> LINK-SYS-002 整机接收测试
+          </div>
+        </div>
+        <div>
+          <div style="font-size:15px; font-weight:700; color:#1F3864; padding-bottom:6px; border-bottom:2px solid #1F3864; margin-bottom:10px;">Part 4 &nbsp; 文件与落地</div>
+          <div style="font-size:13px; line-height:2.05; color:#333;">
+            <span style="color:#999; margin-right:8px;">P23</span> 实际路损文件命名规则<br>
+            <span style="color:#999; margin-right:8px;">P24</span> 路损文件示例与 CSV 字段<br>
+            <span style="color:#999; margin-right:8px;">P25</span> 后续封装与落地建议
+          </div>
+        </div>
+      </div>
     </div>
   </div>
-  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">2 / 20</span></span></div>
+  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">2 / 25</span></span></div>
 </div>
-
 <!-- P3 -->
 <div class="page">
-  <div class="page-header"><span class="brand">参数与符号约定</span><div class="logo-text">GTS</div></div>
+  <div class="page-header"><span class="brand">参数与符号约定</span><svg class="logo" viewBox="4400 6500 18750 3520" role="img" aria-label="GTS"><use href="#gts-logo"></use></svg></div>
   <div class="main">
     <div class="h1">路损计算参数速览</div>
     <div class="sub">本方案中校准结果最终进入路损数学计算。为避免符号方向混淆，先统一参数命名、单位和端口含义。</div>
     <div class="row2">
-      <div class="card cb"><div class="card-h">损耗参数</div><div class="card-b"><ul><li><code>L_*</code> 表示 Loss，单位 dB</li><li>作为正的损耗量参与计算</li><li>例如 <code>L_VNA_H</code>、<code>L_DUT_VNA</code></li></ul></div></div>
-      <div class="card co"><div class="card-h">辅助临时变量</div><div class="card-b"><ul><li><code>L_AUX_*</code> 表示辅助链路自身损耗</li><li><code>T_*</code> 表示带辅助链路的临时闭合环路损耗</li><li>二者都需保存，用于计算最终 <code>L_*</code></li></ul></div></div>
+      <div class="card cb"><div class="card-h">损耗参数</div><div class="card-b"><ul><li><code>L_*</code> 表示链路损耗/传输损耗，单位 dB</li><li>符号由参数定义决定，不由名称决定</li><li>含放大器链路可能为正值，表示净增益</li></ul></div></div>
+      <div class="card co"><div class="card-h">辅助临时变量</div><div class="card-b"><ul><li><code>L_AUX_*</code> 表示辅助线缆损耗量，由原始 <code>S21_AUX_*</code> 转换得到</li><li><code>T_*</code> 表示带辅助链路的临时闭合环路损耗</li><li>二者都需保存，用于计算最终 <code>L_*</code></li></ul></div></div>
       <div class="card cg"><div class="card-h">原始测量</div><div class="card-b"><ul><li><code>S21_*</code> 表示网分原始 S21</li><li>单位 dB，用于追溯和复算</li><li>不直接替代 <code>L_*</code></li></ul></div></div>
     </div>
     <div class="h2">核心参数简称</div>
@@ -193,18 +253,20 @@
       <thead><tr><th>参数</th><th>含义</th><th>来源</th></tr></thead>
       <tbody>
         <tr><td><code>L_AUX_A/B/C</code></td><td>三根 3M 辅助线自身损耗，临时变量</td><td>LINK-CAL-001 辅助线独立测试</td></tr>
-        <tr><td><code>L_CH_INT_H/V/DUT</code></td><td>暗室内部链路损耗：<code>CP-H/V</code> 或 <code>TD</code> 至 <code>CP-DUT</code></td><td>LINK-CAL-001 暗室内部链路校准</td></tr>
+        <tr><td><code>L_CH_INT_H/V/DUT</code></td><td>暗室内部链路损耗：<code>CP-H/V</code> 经馈源、反射面、标准增益喇叭至 <code>CP-DUT</code>，或 <code>TD</code> 至 <code>CP-DUT</code></td><td>LINK-CAL-001 暗室内部链路校准</td></tr>
         <tr><td><code>L_VNA_*</code></td><td>网分 VNA 测试链路等效损耗，覆盖两边直通、AMP1 回传、AMP2 发射侧三种工况</td><td>LINK-CAL-002 VNA 链路损耗校准</td></tr>
         <tr><td><code>L_AUX_D</code></td><td>AUX-D 辅助线自身损耗，临时变量</td><td>LINK-CAL-002 AUX-D 单独测试</td></tr>
         <tr><td><code>L_DUT_VNA</code> / <code>L_DUT_VNA_AMP1</code></td><td><code>TD</code> 至 <code>LB-VNA2</code> 的直通/AMP1 回传损耗</td><td>LINK-CAL-002 AUX-D 回传段校准</td></tr>
-        <tr><td><code>L_VNA_FEED_*</code></td><td><code>LB-VNA1</code> 至 <code>DUT_REF</code> / <code>FH/FV</code> 的派生等效损耗</td><td><code>L_VNA_* - L_DUT_VNA</code></td></tr>
+        <tr><td><code>G_STD_HORN_H/V</code></td><td>标准增益喇叭增益，单位 dBi，按频点保存</td><td>由标准喇叭增益文件/证书导入</td></tr>
+        <tr><td><code>L_VNA_FEED_*</code></td><td><code>LB-VNA1</code> 至 <code>DUT_REF</code> / <code>FH/FV</code> 的派生等效损耗；LINK-CAL 输出时已去嵌标准喇叭增益</td><td><code>L_VNA_* - G_STD_HORN_H/V - L_DUT_VNA</code></td></tr>
         <tr><td><code>L_AUX_E</code></td><td>AUX-E 辅助线自身损耗，临时变量</td><td>LINK-CAL-003 AUX-E 单独测试</td></tr>
         <tr><td><code>T_VNA1_SA_*</code></td><td>VNA1 到 SA 的完整闭合环路临时损耗，覆盖两边直通、AMP1、AMP2 三种工况</td><td>LINK-CAL-003 VNA1 到 SA 校准原始闭合环路</td></tr>
-        <tr><td><code>L_DUT_SA</code> / <code>L_DUT_SA_AMP1</code></td><td><code>DUT_REF</code> 至 <code>LB-SA</code> 的直通/AMP1 等效接收链路损耗</td><td><code>T_AUXE_DUT_SA* - L_AUX_E</code></td></tr>
+        <tr><td><code>L_DUT_SA</code> / <code>L_DUT_SA_AMP1</code></td><td><code>DUT_REF</code> 至 <code>LB-SA</code> 的直通/AMP1 等效接收链路损耗</td><td><code>T_AUXE_DUT_SA* + L_AUX_E</code></td></tr>
+        <tr><td><code>L_SYS_TX_SA_H/V</code> / <code>L_SYS_TX_SA_H/V_AMP1</code></td><td>整机发射时，DUT 空间发射经 H/V 接收链路到 <code>LB-SA</code> 的等效接收修正参数</td><td><code>T_VNA1_SA_* - G_STD_HORN_H/V</code></td></tr>
         <tr><td><code>L_AUX_F</code></td><td>AUX-F 辅助线自身损耗，临时变量</td><td>LINK-CAL-004 AUX-F 单独测试</td></tr>
         <tr><td><code>L_DUT_VNA_F</code> / <code>L_DUT_VNA_F_AMP1</code></td><td>LINK-CAL-004 中重复测得的直通/AMP1 回传损耗</td><td>LINK-CAL-004 AUX-F 回传段校准</td></tr>
         <tr><td><code>T_SG_*</code></td><td>SG 到 VNA2 的完整闭合环路临时损耗，覆盖两边直通、AMP1、AMP2 三种工况</td><td>LINK-CAL-004 SG 校准原始闭合环路</td></tr>
-        <tr><td><code>L_SG_DUT_*</code></td><td><code>LB-SG</code> 至 <code>DUT_REF</code> 的等效发射链路损耗，覆盖三种工况</td><td><code>T_SG_* - L_DUT_VNA_F*</code></td></tr>
+        <tr><td><code>L_SG_DUT_*</code></td><td><code>LB-SG</code> 至 <code>DUT_REF</code> 的等效发射链路损耗，覆盖三种工况；LINK-CAL 输出时已去嵌标准喇叭增益</td><td><code>T_SG_* - G_STD_HORN_H/V - L_DUT_VNA_F*</code></td></tr>
       </tbody>
     </table>
     <div class="h2">端口/参考面英文简称</div>
@@ -220,14 +282,14 @@
         <tr><td><code>POL-H</code> / <code>POL-V</code></td><td>Polarization H / V</td><td>仅表示极化选择，不代表具体物理端口。</td></tr>
       </tbody>
     </table>
-    <div class="note">参数名保持短，例如 <code>L_DUT_SA</code>、<code>L_DUT_SA_AMP1</code>；物理端口和参考面用 <code>LB/CP/TD/DUT_REF/FH/FV</code> 在定义与公式说明中限定，避免把长端口名塞进参数名。</div>
+    <div class="note">最终路损文件的数据源来自网分提取的 S21/Trace 曲线；文件中的最终 <code>value_db</code> 应保存为经过 <code>LINK-CAL</code> 公式换算后的带符号链路损耗 <code>L_*</code>。含放大器链路可能为正值，表示该链路在当前频点呈现净增益；不得仅凭参数名称判断数值正负。辅助线原始实测量记为 <code>S21_AUX_*</code>，通常为负值；进入校准公式前转换为线缆损耗量 <code>L_AUX_* = -S21_AUX_*</code>，通常为正值。去嵌规则统一为：目标链路 = 原始闭合测量 + 被去嵌线缆损耗 - 被去嵌喇叭增益。因此最终输出公式中对辅助线损耗项使用加号 <code>+ L_AUX_*</code>，对标准增益喇叭使用减号 <code>- G_STD_HORN_H/V</code>。例如标准喇叭增益 <code>+20 dBi</code>、网分提取 <code>S21_RAW=-80 dB</code>，则最终链路损耗为 <code>-80 - 20 = -100 dB</code>。凡经过标准增益喇叭的闭合测量，都应在对应 <code>LINK-CAL</code> 内完成 <code>G_STD_HORN_H/V</code> 处理；测试项只读取最终路损文件，不再二次扣除标准喇叭增益。</div>
   </div>
-  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">3 / 20</span></span></div>
+  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">3 / 25</span></span></div>
 </div>
 
 <!-- P4 -->
 <div class="page">
-  <div class="page-header"><span class="brand">暗室整体链路图</span><div class="logo-text">GTS</div></div>
+  <div class="page-header"><span class="brand">暗室整体链路图</span><svg class="logo" viewBox="4400 6500 18750 3520" role="img" aria-label="GTS"><use href="#gts-logo"></use></svg></div>
   <div class="main">
     <div class="h1">暗室接口板与整体物理链路</div>
     <div class="sub">底图来自 <code>resource/暗室整体链路.png</code>，用于说明链路箱外部的暗室接口板、馈源、反射面、DUT/标准增益喇叭之间的物理关系。</div>
@@ -241,12 +303,12 @@
       <div><b>测试对象</b><br>按测试项为 DUT 或标准增益喇叭。</div>
     </div>
   </div>
-  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">4 / 20</span></span></div>
+  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">4 / 25</span></span></div>
 </div>
 
 <!-- P5 -->
 <div class="page">
-  <div class="page-header"><span class="brand">链路箱实际链路图</span><div class="logo-text">GTS</div></div>
+  <div class="page-header"><span class="brand">链路箱实际链路图</span><svg class="logo" viewBox="4400 6500 18750 3520" role="img" aria-label="GTS"><use href="#gts-logo"></use></svg></div>
   <div class="main">
     <div class="h1">链路箱实际链路图</div>
     <div class="sub">底图来自 <code>resource/原始链路图.png</code>，用于说明链路箱实际端口关系，后续校准与测试连接图均以此为端口依据。</div>
@@ -265,43 +327,43 @@
       <div><b>虚线框</b><br>链路箱内部边界</div>
     </div>
   </div>
-  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">5 / 20</span></span></div>
+  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">5 / 25</span></span></div>
 </div>
 
 <!-- P6 -->
 <div class="page">
-  <div class="page-header"><span class="brand">测试项操作清单</span><div class="logo-text">GTS</div></div>
+  <div class="page-header"><span class="brand">测试项操作清单</span><svg class="logo" viewBox="4400 6500 18750 3520" role="img" aria-label="GTS"><use href="#gts-logo"></use></svg></div>
   <div class="main">
     <div class="h1">测试项操作总表</div>
     <div class="sub">每个测试项绑定一个链路模板；运行时根据极化和馈源接收方向 AMP2 选项生成指令。</div>
     <table class="tight-table">
       <thead><tr><th>测试项 ID</th><th>名称</th><th>仪表角色</th><th>DUT/校准件状态</th><th>链路模板</th></tr></thead>
       <tbody>
-        <tr><td><code>LINK-CAL-001</code></td><td>暗室内部链路校准</td><td>VNA S21 闭环</td><td>三根 3M 辅助线直接接网分和暗室接口板 H/V/DUT</td><td>暗室内部辅助线链路</td></tr>
+        <tr><td><code>LINK-CAL-001</code></td><td>暗室内部链路校准</td><td>VNA S21 闭环</td><td>三根 3M 辅助线直接接网分、暗室接口板 H/V/DUT 和转台DUT接口；H/V 闭合测量包含馈源、反射面、标准增益喇叭</td><td>暗室内部辅助线链路</td></tr>
         <tr><td><code>LINK-CAL-002</code></td><td>VNA 链路损耗校准</td><td>VNA 发射 + 接收</td><td>标准增益喇叭；AUX-D 接转台DUT接口</td><td>三种工况：两边直通、AMP1 开启、AMP2 开启；并校准 AUX-D 回传段</td></tr>
         <tr><td><code>LINK-CAL-003</code></td><td>SA 校准</td><td>VNA S21 闭环</td><td>PORT1 接 VNA1 或 H/V 参考端，PORT2 接 SA</td><td>SA 校准链路</td></tr>
         <tr><td><code>LINK-CAL-004</code></td><td>SG 校准</td><td>VNA S21 闭环</td><td>PORT1 接 SG，PORT2 接 VNA2</td><td>SG 校准链路</td></tr>
-        <tr><td><code>LINK-TXR-001</code></td><td>通道校准 TX&amp;RX</td><td>VNA</td><td>接上 DUT；不使用 DUT→VNA2</td><td>DUT TX&amp;RX：通道校准链路</td></tr>
-        <tr><td><code>LINK-TXR-002</code></td><td>方向图 TX&amp;RX 测试</td><td>VNA</td><td>接上 DUT；不使用 DUT→VNA2</td><td>DUT TX&amp;RX：方向图链路</td></tr>
-        <tr><td><code>LINK-TXR-003</code></td><td>有源增益 TX&amp;RX 测试</td><td>VNA</td><td>接上 DUT；不使用 DUT→VNA2</td><td>DUT TX&amp;RX：有源增益链路</td></tr>
-        <tr><td><code>LINK-TXR-004</code></td><td>天线板 EIRP 测试</td><td>VNA</td><td>接上 DUT；不使用 DUT→VNA2</td><td>DUT TX&amp;RX：天线板 EIRP 链路</td></tr>
-        <tr><td><code>LINK-GT-001</code></td><td>G/T 测试</td><td>SG 发射 + SA 接收</td><td>DUT 接收侧切到 SA</td><td>SG/SA 链路</td></tr>
-        <tr><td><code>LINK-SYS-001</code></td><td>整机发射测试</td><td>SA 接收；SG 不输出功率</td><td>DUT 自身发射</td><td>SG/SA 链路</td></tr>
-        <tr><td><code>LINK-SYS-002</code></td><td>整机接收测试</td><td>SG 输出测试信号</td><td>DUT 自身接收；SA 不参与</td><td>SG-only 链路</td></tr>
+        <tr><td><code>LINK-TXR-001</code></td><td>通道校准 TX&amp;RX</td><td>VNA S21 闭环</td><td>接上 DUT；使用 VNA1→DUT→VNA2 直通链路</td><td>DUT VNA：VNA1 到 VNA2 直通链路</td></tr>
+        <tr><td><code>LINK-TXR-002</code></td><td>方向图 TX&amp;RX 测试</td><td>VNA S21 闭环</td><td>接上 DUT；使用 VNA1→DUT→VNA2 直通链路</td><td>DUT VNA：VNA1 到 VNA2 直通链路</td></tr>
+        <tr><td><code>LINK-TXR-003</code></td><td>有源增益 TX&amp;RX 测试</td><td>VNA S21 闭环</td><td>接上 DUT；使用 VNA1→DUT→VNA2 直通链路</td><td>DUT VNA：VNA1 到 VNA2 直通链路</td></tr>
+        <tr><td><code>LINK-TXR-004</code></td><td>天线板 EIRP 测试</td><td>VNA S21 闭环</td><td>接上 DUT；使用 VNA1→DUT→VNA2 直通链路</td><td>DUT VNA：VNA1 到 VNA2 直通链路</td></tr>
+        <tr><td><code>LINK-GT-001</code></td><td>G/T 测试</td><td>SG 直通发射 + SA 放大接收</td><td>DUT 接收侧经 AMP1 切到 SA</td><td>SG 直通发射 / SA 放大接收链路</td></tr>
+        <tr><td><code>LINK-SYS-001</code></td><td>整机发射测试</td><td>SA 接收；SG 不输出功率</td><td>终端/DUT 直接发射给到馈源，SA 接收</td><td>SA-H/V 接收链路；默认直通，可选 AMP1</td></tr>
+        <tr><td><code>LINK-SYS-002</code></td><td>整机接收测试</td><td>SG 直通发射；SA 不开通</td><td>SG 通过馈源直通路径发射，DUT 终端接收</td><td>SG-only 直通发射链路</td></tr>
       </tbody>
     </table>
   </div>
-  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">6 / 20</span></span></div>
+  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">6 / 25</span></span></div>
 </div>
 
 <!-- P7 -->
 <div class="page">
-  <div class="page-header"><span class="brand">校准操作</span><div class="logo-text">GTS</div></div>
+  <div class="page-header"><span class="brand">校准操作</span><svg class="logo" viewBox="4400 6500 18750 3520" role="img" aria-label="GTS"><use href="#gts-logo"></use></svg></div>
   <div class="main">
     <div class="h1">校准模板</div>
     <div class="sub">校准分为暗室内部链路、VNA 链路损耗、SA 校准、SG 校准四类；转台DUT到VNA的损耗作为 LINK-CAL-002 的 AUX-D 回传段一起完成。</div>
     <div class="row3">
-      <div class="card cb"><div class="card-h">LINK-CAL-001 暗室内部链路校准</div><div class="card-b"><ul><li>三根 3M 辅助线先独立测试</li><li>辅助线直接接网分和暗室接口板</li><li>再依次测 DUT-H、DUT-V、DUT 内部段</li><li>链路箱不下发命令</li></ul></div></div>
+      <div class="card cb"><div class="card-h">LINK-CAL-001 暗室内部链路校准</div><div class="card-b"><ul><li>三根 3M 辅助线先独立测试</li><li>辅助线直接接网分、暗室接口板和转台DUT接口</li><li>DUT-H/V 闭合测量包含馈源、反射面、标准增益喇叭</li><li>再测 DUT 内部段；链路箱不下发命令</li></ul></div></div>
       <div class="card cg"><div class="card-h">LINK-CAL-002 VNA 链路损耗校准</div><div class="card-b"><ul><li>主链路：转台DUT接口换标准增益喇叭</li><li>三种工况：两边直通、AMP1 开启、AMP2 开启</li><li>H/V 到 VNA1；DUT 到 VNA2 可直通或经 AMP1</li><li>AUX-D 子步骤：校准转台DUT到VNA的损耗</li></ul></div></div>
       <div class="card cr"><div class="card-h">LINK-CAL-003/004 SA 与 SG 校准</div><div class="card-b"><ul><li>校准仍用网分 S21，因此必须形成 PORT1→PORT2 环路</li><li>CAL-003：SA 接网分 PORT2，PORT1 侧经 VNA1→H/V 发射</li><li>CAL-004：SG 接网分 PORT1，PORT2 侧经 DUT→VNA2 接收</li><li>两类校准分开执行</li></ul></div></div>
     </div>
@@ -309,20 +371,21 @@
     <table class="tight-table">
       <thead><tr><th>校准项</th><th>主要测量/临时量</th><th>最终输出参数</th><th>核心扣除关系</th></tr></thead>
       <tbody>
-        <tr><td><code>LINK-CAL-001</code><br>暗室内部链路</td><td><code>S21_CH_INT_*</code>，<code>L_AUX_A/B/C</code></td><td><code>L_CH_INT_H/V/DUT</code><br><code>L_CH_INT_FEED_H/V</code></td><td>先扣除 AUX-A/B/C；再由 <code>L_CH_INT_H/V - L_CH_INT_DUT</code> 得到馈源到 DUT 参考面损耗。</td></tr>
-        <tr><td><code>LINK-CAL-002</code><br>VNA 链路损耗</td><td><code>L_VNA_*</code>，<code>L_AUX_D</code></td><td><code>L_DUT_VNA</code> / <code>L_DUT_VNA_AMP1</code><br><code>L_VNA_FEED_*</code></td><td>AUX-D 回传段得到 DUT 到 VNA2 的关键回传损耗；VNA 主闭合环路扣除对应的 <code>L_DUT_VNA</code> / <code>L_DUT_VNA_AMP1</code>，得到 VNA 发射侧到 DUT/馈源参考面的等效损耗。</td></tr>
-        <tr><td><code>LINK-CAL-003</code><br>SA 校准</td><td><code>L_AUX_E</code>，<code>T_AUXE_DUT_SA*</code>，<code>T_VNA1_SA_*</code></td><td><code>L_DUT_SA</code><br><code>L_DUT_SA_AMP1</code></td><td>AUX-E 接转台DUT接口直接得到 DUT 到 SA 的关键接收损耗；VNA1 到 SA 三工况仅作为一致性校验。</td></tr>
-        <tr><td><code>LINK-CAL-004</code><br>SG 校准</td><td><code>L_AUX_F</code>，<code>L_DUT_VNA_F</code> / <code>L_DUT_VNA_F_AMP1</code><br><code>T_SG_H/V</code><br><code>T_SG_H/V_AMP1</code><br><code>T_SG_H/V_AMP2</code></td><td><code>L_SG_DUT_H/V</code><br><code>L_SG_DUT_H/V_AMP1</code><br><code>L_SG_DUT_H/V_AMP2</code></td><td>SG 校准内先用 AUX-F 重复测回传段，再用 SG 到 VNA2 闭合环路扣除对应回传段，得到三工况等效发射链路损耗。</td></tr>
+        <tr><td><code>LINK-CAL-001</code><br>暗室内部链路</td><td><code>S21_CH_INT_*</code>，<code>S21_AUX_A/B/C</code>，<code>L_AUX_A/B/C</code>，<code>G_STD_HORN_H/V</code></td><td><code>L_CH_INT_H/V/DUT</code><br><code>L_CH_INT_FEED_H/V</code></td><td>H/V 闭合测量先加上线缆损耗量 <code>L_AUX_A/B/C</code>，并减去标准增益喇叭；再由 <code>L_CH_INT_H/V - L_CH_INT_DUT</code> 得到馈源/反射面到 DUT 参考面损耗。</td></tr>
+        <tr><td><code>LINK-CAL-002</code><br>VNA 链路损耗</td><td><code>L_VNA_*</code>，<code>L_AUX_D</code>，<code>G_STD_HORN_H/V</code></td><td><code>L_DUT_VNA</code> / <code>L_DUT_VNA_AMP1</code><br><code>L_VNA_FEED_*</code></td><td>AUX-D 回传段得到 DUT 到 VNA2 的关键回传损耗；VNA 主闭合环路在 LINK-CAL 内先去嵌标准喇叭增益，再扣除对应的回传段。</td></tr>
+        <tr><td><code>LINK-CAL-003</code><br>SA 校准</td><td><code>L_AUX_E</code>，<code>T_AUXE_DUT_SA*</code>，<code>T_VNA1_SA_*</code></td><td><code>L_DUT_SA</code><br><code>L_DUT_SA_AMP1</code><br><code>L_SYS_TX_SA_H/V</code><br><code>L_SYS_TX_SA_H/V_AMP1</code></td><td>AUX-E 接转台DUT接口直接得到 DUT 到 SA 的关键接收损耗；VNA1 到 SA 闭合量用于生成整机发射 SA 接收侧修正参数，并与 VNA 链路参数做一致性核对。</td></tr>
+        <tr><td><code>LINK-CAL-004</code><br>SG 校准</td><td><code>L_AUX_F</code>，<code>L_DUT_VNA_F</code> / <code>L_DUT_VNA_F_AMP1</code><br><code>T_SG_H/V</code><br><code>T_SG_H/V_AMP1</code><br><code>T_SG_H/V_AMP2</code><br><code>G_STD_HORN_H/V</code></td><td><code>L_SG_DUT_H/V</code><br><code>L_SG_DUT_H/V_AMP1</code><br><code>L_SG_DUT_H/V_AMP2</code></td><td>SG 校准内先用 AUX-F 重复测回传段；SG 到 VNA2 闭合环路在 LINK-CAL 内先去嵌标准喇叭增益，再扣除对应回传段。</td></tr>
       </tbody>
     </table>
     <div class="h2">闭合环路扣除关系</div>
     <table class="tight-table">
       <thead><tr><th>公式</th><th>说明</th></tr></thead>
       <tbody>
-        <tr><td><code>L_CH_INT_FEED_H/V = L_CH_INT_H/V - L_CH_INT_DUT</code></td><td>由暗室内部 H/V 链路扣除 DUT 内部段，得到馈源到 DUT 参考面的暗室内部损耗。</td></tr>
-        <tr><td><code>L_VNA_FEED_* = L_VNA_* - L_DUT_VNA</code></td><td>VNA 主链路闭合损耗扣除对应的 DUT 到 VNA2 回传段（直通或 AMP1）。</td></tr>
-        <tr><td><code>L_DUT_SA = T_AUXE_DUT_SA - L_AUX_E</code><br><code>L_DUT_SA_AMP1 = T_AUXE_DUT_SA_AMP1 - L_AUX_E</code></td><td>AUX-E 接转台DUT接口，扣除 AUX-E 自身损耗后得到 DUT 参考面至 SA 端口的接收链路损耗；VNA1 到 SA 三工况仅用于一致性校验。</td></tr>
-        <tr><td><code>L_SG_DUT_H/V = T_SG_H/V - L_DUT_VNA_F</code><br><code>L_SG_DUT_H/V_AMP1 = T_SG_H/V_AMP1 - L_DUT_VNA_F_AMP1</code><br><code>L_SG_DUT_H/V_AMP2 = T_SG_H/V_AMP2 - L_DUT_VNA_F</code></td><td>SG 到 VNA2 闭合环路扣除 LINK-CAL-004 内由 AUX-F 重复测得的回传段；AMP1 工况扣除 <code>L_DUT_VNA_F_AMP1</code>，直通和 AMP2 工况扣除 <code>L_DUT_VNA_F</code>。</td></tr>
+        <tr><td><code>L_CH_INT_FEED_H/V = L_CH_INT_H/V - L_CH_INT_DUT</code></td><td>由包含馈源、反射面、标准增益喇叭且已完成喇叭去嵌的 H/V 闭合链路，扣除 DUT 内部段，得到馈源/反射面到 DUT 参考面的暗室内部损耗。</td></tr>
+        <tr><td><code>L_VNA_FEED_* = L_VNA_* - G_STD_HORN_H/V - L_DUT_VNA</code></td><td>LINK-CAL-002 内 VNA 主链路闭合 S21 先去嵌标准喇叭增益，再扣除对应的 DUT 到 VNA2 回传段。</td></tr>
+        <tr><td><code>L_DUT_SA = T_AUXE_DUT_SA + L_AUX_E</code><br><code>L_DUT_SA_AMP1 = T_AUXE_DUT_SA_AMP1 + L_AUX_E</code></td><td>AUX-E 接转台DUT接口，加上由 <code>S21_AUX_E</code> 转换得到的线缆损耗量后得到 DUT 参考面至 SA 端口的接收链路损耗；VNA1 到 SA 的直通/AMP1 闭合量另用于生成整机发射 SA 接收侧修正参数，AMP2 工况仅用于一致性校验。</td></tr>
+        <tr><td><code>L_SYS_TX_SA_H/V = T_VNA1_SA_H/V - G_STD_HORN_H/V</code><br><code>L_SYS_TX_SA_H/V_AMP1 = T_VNA1_SA_H/V_AMP1 - G_STD_HORN_H/V</code></td><td>整机发射时使用的 SA 接收侧等效修正参数；从 VNA1 到 SA 闭合测量中去嵌标准喇叭增益后得到。AMP2 工况仅保留为一致性校验，不作为整机发射默认输出。</td></tr>
+        <tr><td><code>L_SG_DUT_H/V = T_SG_H/V - G_STD_HORN_H/V - L_DUT_VNA_F</code><br><code>L_SG_DUT_H/V_AMP1 = T_SG_H/V_AMP1 - G_STD_HORN_H/V - L_DUT_VNA_F_AMP1</code><br><code>L_SG_DUT_H/V_AMP2 = T_SG_H/V_AMP2 - G_STD_HORN_H/V - L_DUT_VNA_F</code></td><td>LINK-CAL-004 内 SG 到 VNA2 闭合环路先去嵌标准喇叭增益，再扣除 AUX-F 重复测得的回传段。</td></tr>
       </tbody>
     </table>
     <div class="h2">关键链路箱指令速览</div>
@@ -330,18 +393,18 @@
       <thead><tr><th>校准场景</th><th>链路箱指令</th><th>备注</th></tr></thead>
       <tbody>
         <tr><td>LINK-CAL-001 暗室内部链路</td><td>不下发</td><td>AUX-A/B/C 直接接网分和暗室接口板/转台DUT接口。</td></tr>
-        <tr><td>LINK-CAL-002 VNA 主链路</td><td><code>DUT,VNA2</code> 或 <code>DUT,AMP1,VNA2</code> + <code>H/V[,AMP2],VNA1</code></td><td>三种工况：两边直通、AMP1 开启且馈源侧直通、AMP2 开启且 DUT 侧直通。</td></tr>
+        <tr><td>LINK-CAL-002 VNA 主链路</td><td><code>CONFigure:LINK DUT,VNA2</code> 或 <code>CONFigure:LINK DUT,AMP1,VNA2</code> + <code>CONFigure:LINK H/V[,AMP2],VNA1</code></td><td>三种工况：两边直通、AMP1 开启且馈源侧直通、AMP2 开启且 DUT 侧直通。</td></tr>
         <tr><td>LINK-CAL-003 VNA1 到 SA</td><td><code>CONFigure:LINK H/V[,AMP2], VNA1</code> + <code>CONFigure:LINK DUT,SA</code> 或 <code>CONFigure:LINK DUT,AMP1,SA</code></td><td>三种工况：两边直通、AMP1 开启且馈源侧直通、AMP2 开启且 DUT 侧直通。</td></tr>
         <tr><td>LINK-CAL-004 SG 到 VNA2</td><td><code>CONFigure:LINK H/V, SG</code> + <code>CONFigure:LINK DUT,VNA2</code><br><code>CONFigure:LINK H/V, SG</code> + <code>CONFigure:LINK DUT,AMP1,VNA2</code><br><code>CONFigure:LINK H/V,AMP2,SG</code> + <code>CONFigure:LINK DUT,VNA2</code></td><td>三种工况：两边直通、AMP1 开启且发射侧直通、AMP2 开启且 DUT 侧直通。</td></tr>
       </tbody>
     </table>
   </div>
-  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">7 / 20</span></span></div>
+  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">7 / 25</span></span></div>
 </div>
 
 <!-- P8 -->
 <div class="page">
-  <div class="page-header"><span class="brand">LINK-CAL-001 校准端口连接图</span><div class="logo-text">GTS</div></div>
+  <div class="page-header"><span class="brand">LINK-CAL-001 校准端口连接图</span><svg class="logo" viewBox="4400 6500 18750 3520" role="img" aria-label="GTS"><use href="#gts-logo"></use></svg></div>
   <div class="main">
     <div class="h1">LINK-CAL-001：暗室内部链路校准端口连接图</div>
     <div class="sub">暗室内部链路校准使用三根 3M 辅助线；先分别独立测试辅助线，再直接接到网分、转台DUT接口与暗室接口板；不经过链路箱，不下发链路箱指令。</div>
@@ -356,16 +419,16 @@
       <div class="diagram">
         <div class="diagram-title">步骤 1：DUT-H 内部链路</div>
         <div class="flow">
-          <span class="node">网分 PORT1</span><span class="arrow">→</span><span class="node warn">AUX-A</span><span class="arrow">→</span><span class="node">暗室接口板 H</span><span class="arrow">→</span><span class="node">暗室内部 H 链路</span><span class="arrow">→</span><span class="node">暗室接口板 DUT</span><span class="arrow">→</span><span class="node warn">AUX-C</span><span class="arrow">→</span><span class="node">网分 PORT2</span>
+          <span class="node">网分 PORT1</span><span class="arrow">→</span><span class="node warn">AUX-A</span><span class="arrow">→</span><span class="node">暗室接口板 H</span><span class="arrow">→</span><span class="node">馈源 H</span><span class="arrow">→</span><span class="node">反射面</span><span class="arrow">→</span><span class="node alt">标准增益喇叭</span><span class="arrow">→</span><span class="node">暗室接口板 DUT</span><span class="arrow">→</span><span class="node warn">AUX-C</span><span class="arrow">→</span><span class="node">网分 PORT2</span>
         </div>
-        <div class="caption">测量 DUT-H。链路箱不参与；链路箱指令：不下发。</div>
+        <div class="caption">测量 DUT-H，闭合路径包含馈源 H、反射面、标准增益喇叭。链路箱不参与；链路箱指令：不下发。</div>
       </div>
       <div class="diagram">
         <div class="diagram-title">步骤 2：DUT-V 内部链路</div>
         <div class="flow">
-          <span class="node">网分 PORT1</span><span class="arrow">→</span><span class="node warn">AUX-B</span><span class="arrow">→</span><span class="node">暗室接口板 V</span><span class="arrow">→</span><span class="node">暗室内部 V 链路</span><span class="arrow">→</span><span class="node">暗室接口板 DUT</span><span class="arrow">→</span><span class="node warn">AUX-C</span><span class="arrow">→</span><span class="node">网分 PORT2</span>
+          <span class="node">网分 PORT1</span><span class="arrow">→</span><span class="node warn">AUX-B</span><span class="arrow">→</span><span class="node">暗室接口板 V</span><span class="arrow">→</span><span class="node">馈源 V</span><span class="arrow">→</span><span class="node">反射面</span><span class="arrow">→</span><span class="node alt">标准增益喇叭</span><span class="arrow">→</span><span class="node">暗室接口板 DUT</span><span class="arrow">→</span><span class="node warn">AUX-C</span><span class="arrow">→</span><span class="node">网分 PORT2</span>
         </div>
-        <div class="caption">测量 DUT-V。链路箱不参与；链路箱指令：不下发。</div>
+        <div class="caption">测量 DUT-V，闭合路径包含馈源 V、反射面、标准增益喇叭。链路箱不参与；链路箱指令：不下发。</div>
       </div>
       <div class="diagram">
         <div class="diagram-title">步骤 3：DUT 内部段链路</div>
@@ -376,23 +439,23 @@
       </div>
     </div>
   </div>
-  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">8 / 20</span></span></div>
+  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">8 / 25</span></span></div>
 </div>
 
 <!-- P9 -->
 <div class="page">
-  <div class="page-header"><span class="brand">LINK-CAL-001 参数计算与输出归类</span><div class="logo-text">GTS</div></div>
+  <div class="page-header"><span class="brand">LINK-CAL-001 参数计算与输出归类</span><svg class="logo" viewBox="4400 6500 18750 3520" role="img" aria-label="GTS"><use href="#gts-logo"></use></svg></div>
   <div class="main">
     <div class="h1">LINK-CAL-001：暗室内部链路参数计算与输出归类</div>
-    <div class="sub">本页区分最终输出参数与临时/追溯参数；AUX-A/B/C 用于扣除三根 3M 辅助线自身损耗。</div>
+    <div class="sub">本页区分最终输出参数与临时/追溯参数；AUX-A/B/C 的原始实测量为 S21_AUX，计算时转换为线缆损耗量 L_AUX 后参与公式。</div>
     <div class="final-output-box">
       <div class="h2">最终输出参数<span class="final-badge">重点</span></div>
       <table class="tight-table final-output-table">
         <thead><tr><th>参数</th><th>输入端口/参考面</th><th>输出端口/参考面</th><th>路径</th><th>计算公式</th></tr></thead>
         <tbody>
-          <tr><td><code>L_CH_INT_H</code></td><td><code>CP-H</code></td><td><code>CP-DUT</code></td><td>暗室内部 H 链路</td><td><code>L_CH_INT_H = -S21_CH_INT_H_RAW - L_AUX_A - L_AUX_C</code></td></tr>
-          <tr><td><code>L_CH_INT_V</code></td><td><code>CP-V</code></td><td><code>CP-DUT</code></td><td>暗室内部 V 链路</td><td><code>L_CH_INT_V = -S21_CH_INT_V_RAW - L_AUX_B - L_AUX_C</code></td></tr>
-          <tr><td><code>L_CH_INT_DUT</code></td><td><code>TD</code></td><td><code>CP-DUT</code></td><td>DUT 内部段</td><td><code>L_CH_INT_DUT = -S21_CH_INT_DUT_RAW - L_AUX_A - L_AUX_C</code></td></tr>
+          <tr><td><code>L_CH_INT_H</code></td><td><code>CP-H</code></td><td><code>CP-DUT</code></td><td>H 馈源 -> 反射面 -> 标准增益喇叭闭合链路，已去嵌喇叭增益</td><td><code>L_CH_INT_H = S21_CH_INT_H_RAW + L_AUX_A + L_AUX_C - G_STD_HORN_H</code></td></tr>
+          <tr><td><code>L_CH_INT_V</code></td><td><code>CP-V</code></td><td><code>CP-DUT</code></td><td>V 馈源 -> 反射面 -> 标准增益喇叭闭合链路，已去嵌喇叭增益</td><td><code>L_CH_INT_V = S21_CH_INT_V_RAW + L_AUX_B + L_AUX_C - G_STD_HORN_V</code></td></tr>
+          <tr><td><code>L_CH_INT_DUT</code></td><td><code>TD</code></td><td><code>CP-DUT</code></td><td>DUT 内部段</td><td><code>L_CH_INT_DUT = S21_CH_INT_DUT_RAW + L_AUX_A + L_AUX_C</code></td></tr>
           <tr><td><code>L_CH_INT_FEED_H</code></td><td><code>FH</code></td><td><code>TD/DUT_REF</code></td><td>H 馈源到 DUT 参考面</td><td><code>L_CH_INT_FEED_H = L_CH_INT_H - L_CH_INT_DUT</code></td></tr>
           <tr><td><code>L_CH_INT_FEED_V</code></td><td><code>FV</code></td><td><code>TD/DUT_REF</code></td><td>V 馈源到 DUT 参考面</td><td><code>L_CH_INT_FEED_V = L_CH_INT_V - L_CH_INT_DUT</code></td></tr>
         </tbody>
@@ -405,19 +468,19 @@
         <tr><td><code>L_AUX_A</code></td><td><code>P1</code></td><td><code>P2</code></td><td>AUX-A 自身损耗，<code>L_AUX_A = -S21_AUX_A</code>。</td></tr>
         <tr><td><code>L_AUX_B</code></td><td><code>P1</code></td><td><code>P2</code></td><td>AUX-B 自身损耗，<code>L_AUX_B = -S21_AUX_B</code>。</td></tr>
         <tr><td><code>L_AUX_C</code></td><td><code>P1</code></td><td><code>P2</code></td><td>AUX-C 自身损耗，<code>L_AUX_C = -S21_AUX_C</code>。</td></tr>
-        <tr><td><code>S21_CH_INT_H_RAW</code></td><td><code>P1/AUX-A/CP-H</code></td><td><code>CP-DUT/AUX-C/P2</code></td><td>DUT-H 原始闭合测量。</td></tr>
-        <tr><td><code>S21_CH_INT_V_RAW</code></td><td><code>P1/AUX-B/CP-V</code></td><td><code>CP-DUT/AUX-C/P2</code></td><td>DUT-V 原始闭合测量。</td></tr>
+        <tr><td><code>S21_CH_INT_H_RAW</code></td><td><code>P1/AUX-A/CP-H</code></td><td><code>CP-DUT/AUX-C/P2</code></td><td>DUT-H 原始闭合测量，物理路径包含馈源 H、反射面、标准增益喇叭。</td></tr>
+        <tr><td><code>S21_CH_INT_V_RAW</code></td><td><code>P1/AUX-B/CP-V</code></td><td><code>CP-DUT/AUX-C/P2</code></td><td>DUT-V 原始闭合测量，物理路径包含馈源 V、反射面、标准增益喇叭。</td></tr>
         <tr><td><code>S21_CH_INT_DUT_RAW</code></td><td><code>P1/AUX-A/TD</code></td><td><code>CP-DUT/AUX-C/P2</code></td><td>DUT 内部段原始闭合测量。</td></tr>
       </tbody>
     </table>
-    <div class="note">依赖关系：<code>L_CH_INT_FEED_H/V</code> 由 <code>L_CH_INT_H/V</code> 扣除 <code>L_CH_INT_DUT</code> 得到；三者均已扣除对应 AUX 辅助线损耗。</div>
+    <div class="note">依赖关系：<code>L_CH_INT_H/V</code> 的原始闭合测量包含馈源、反射面、标准增益喇叭，因此最终输出时需要加上对应 AUX 线缆损耗量，并减去 <code>G_STD_HORN_H/V</code>；<code>L_CH_INT_DUT</code> 不经过标准喇叭，只加上对应 AUX 线缆损耗量。<code>L_CH_INT_FEED_H/V</code> 由 <code>L_CH_INT_H/V</code> 扣除 <code>L_CH_INT_DUT</code> 得到。</div>
   </div>
-  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">9 / 20</span></span></div>
+  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">9 / 25</span></span></div>
 </div>
 
 <!-- P10 -->
 <div class="page">
-  <div class="page-header"><span class="brand">LINK-CAL-002 校准端口连接图</span><div class="logo-text">GTS</div></div>
+  <div class="page-header"><span class="brand">LINK-CAL-002 校准端口连接图</span><svg class="logo" viewBox="4400 6500 18750 3520" role="img" aria-label="GTS"><use href="#gts-logo"></use></svg></div>
   <div class="main">
     <div class="h1">LINK-CAL-002：VNA 链路损耗校准端口连接图</div>
     <div class="sub">LINK-CAL-002 合并 VNA 主链路校准和 AUX-D 回传段校准；主链路使用网分 + 标准增益喇叭，并按两边直通、AMP1 开启、AMP2 开启三种工况分别测量。</div>
@@ -434,44 +497,44 @@
         <div class="flow">
           <span class="node">网分 PORT1</span><span class="arrow">→</span><span class="node warn">AUX-D</span><span class="arrow">→</span><span class="node alt">转台DUT接口</span><span class="arrow">→</span><span class="node warn">暗室接口板 DUT</span><span class="arrow">→</span><span class="node">链路箱 VNA2</span><span class="arrow">→</span><span class="node">网分 PORT2</span>
         </div>
-        <div class="caption">网分 PORT1 通过 AUX-D 接到转台DUT接口；接收侧经 DUT→VNA2 直通链路回到网分 PORT2，下发 <code>CONFigure:LINK DUT, VNA2</code>；得到 <code>L_DUT_VNA</code>。</div>
+        <div class="caption">网分 PORT1 通过 AUX-D 接到转台DUT接口；接收侧经 DUT→VNA2 直通链路回到网分 PORT2，下发 <code>CONFigure:LINK DUT, VNA2</code>；本步骤生成原始数据 <code>S21_DUT_VNA_RAW</code>。</div>
       </div>
       <div class="diagram">
         <div class="diagram-title">AUX-D 接转台DUT接口 + VNA2 经 AMP1 接收</div>
         <div class="flow">
           <span class="node">网分 PORT1</span><span class="arrow">→</span><span class="node warn">AUX-D</span><span class="arrow">→</span><span class="node alt">转台DUT接口</span><span class="arrow">→</span><span class="node warn">暗室接口板 DUT</span><span class="arrow">→</span><span class="node">AMP1</span><span class="arrow">→</span><span class="node">链路箱 VNA2</span><span class="arrow">→</span><span class="node">网分 PORT2</span>
         </div>
-        <div class="caption">网分 PORT1 通过 AUX-D 接到转台DUT接口；接收侧经 DUT→AMP1→VNA2 回到网分 PORT2，下发 <code>CONFigure:LINK DUT, AMP1, VNA2</code>；得到 <code>L_DUT_VNA_AMP1</code>。</div>
+        <div class="caption">网分 PORT1 通过 AUX-D 接到转台DUT接口；接收侧经 DUT→AMP1→VNA2 回到网分 PORT2，下发 <code>CONFigure:LINK DUT, AMP1, VNA2</code>；本步骤生成原始数据 <code>S21_DUT_VNA_AMP1_RAW</code>。</div>
       </div>
       <div class="diagram">
         <div class="diagram-title">工况 1：两边都是直通</div>
         <div class="flow">
           <span class="node">网分 PORT1</span><span class="arrow">→</span><span class="node">链路箱 VNA1</span><span class="arrow">→</span><span class="node">链路箱 H/V</span><span class="arrow">→</span><span class="node warn">暗室接口板 H/V</span><span class="arrow">→</span><span class="node">馈源</span><span class="arrow">→</span><span class="node">反射面</span><span class="arrow">→</span><span class="node alt">标准喇叭</span><span class="arrow">→</span><span class="node warn">暗室接口板 DUT</span><span class="arrow">→</span><span class="node">链路箱 VNA2</span><span class="arrow">→</span><span class="node">网分 PORT2</span>
         </div>
-        <div class="caption">指令：<code>CONFigure:LINK DUT, VNA2</code> + <code>CONFigure:LINK H/V, VNA1</code>；得到 <code>L_VNA_H/V</code>。</div>
+        <div class="caption">指令：<code>CONFigure:LINK DUT, VNA2</code> + <code>CONFigure:LINK H/V, VNA1</code>；本步骤生成主闭合链路数据 <code>L_VNA_H/V</code>。</div>
       </div>
       <div class="diagram">
         <div class="diagram-title">工况 2：AMP1 开启，馈源侧直通</div>
         <div class="flow">
           <span class="node">网分 PORT1</span><span class="arrow">→</span><span class="node">链路箱 VNA1</span><span class="arrow">→</span><span class="node">链路箱 H/V</span><span class="arrow">→</span><span class="node warn">暗室接口板 H/V</span><span class="arrow">→</span><span class="node">馈源</span><span class="arrow">→</span><span class="node">反射面</span><span class="arrow">→</span><span class="node alt">标准喇叭</span><span class="arrow">→</span><span class="node warn">暗室接口板 DUT</span><span class="arrow">→</span><span class="node">AMP1</span><span class="arrow">→</span><span class="node">链路箱 VNA2</span><span class="arrow">→</span><span class="node">网分 PORT2</span>
         </div>
-        <div class="caption">指令：<code>CONFigure:LINK DUT, AMP1, VNA2</code> + <code>CONFigure:LINK H/V, VNA1</code>；得到 <code>L_VNA_H/V_AMP1</code>。</div>
+        <div class="caption">指令：<code>CONFigure:LINK DUT, AMP1, VNA2</code> + <code>CONFigure:LINK H/V, VNA1</code>；本步骤生成主闭合链路数据 <code>L_VNA_H/V_AMP1</code>。</div>
       </div>
       <div class="diagram">
         <div class="diagram-title">工况 3：AMP2 开启，DUT 侧直通</div>
         <div class="flow">
           <span class="node">网分 PORT1</span><span class="arrow">→</span><span class="node">链路箱 VNA1</span><span class="arrow">→</span><span class="node">AMP2</span><span class="arrow">→</span><span class="node">链路箱 H/V</span><span class="arrow">→</span><span class="node warn">暗室接口板 H/V</span><span class="arrow">→</span><span class="node">馈源</span><span class="arrow">→</span><span class="node">反射面</span><span class="arrow">→</span><span class="node alt">标准喇叭</span><span class="arrow">→</span><span class="node warn">暗室接口板 DUT</span><span class="arrow">→</span><span class="node">链路箱 VNA2</span><span class="arrow">→</span><span class="node">网分 PORT2</span>
         </div>
-        <div class="caption">指令：<code>CONFigure:LINK DUT, VNA2</code> + <code>CONFigure:LINK H/V, AMP2, VNA1</code>；得到 <code>L_VNA_H/V_AMP2</code>。</div>
+        <div class="caption">指令：<code>CONFigure:LINK DUT, VNA2</code> + <code>CONFigure:LINK H/V, AMP2, VNA1</code>；本步骤生成主闭合链路数据 <code>L_VNA_H/V_AMP2</code>。</div>
       </div>
     </div>
   </div>
-  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">10 / 20</span></span></div>
+  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">10 / 25</span></span></div>
 </div>
 
 <!-- P11 -->
 <div class="page">
-  <div class="page-header"><span class="brand">LINK-CAL-002 参数计算与输出归类</span><div class="logo-text">GTS</div></div>
+  <div class="page-header"><span class="brand">LINK-CAL-002 参数计算与输出归类</span><svg class="logo" viewBox="4400 6500 18750 3520" role="img" aria-label="GTS"><use href="#gts-logo"></use></svg></div>
   <div class="main">
     <div class="h1">LINK-CAL-002：VNA 链路损耗参数计算与输出归类</div>
     <div class="sub">本页区分最终输出参数与临时/追溯参数；AUX-D 回传段用于扣除接收回传路径，得到 VNA 发射侧到馈源/DUT 参考面的等效损耗。</div>
@@ -480,11 +543,11 @@
       <table class="tight-table final-output-table">
         <thead><tr><th>参数</th><th>输入端口/参考面</th><th>输出端口/参考面</th><th>极化/路径</th><th>计算公式</th></tr></thead>
         <tbody>
-          <tr><td><code>L_VNA_FEED_H</code> / <code>L_VNA_FEED_V</code></td><td><code>LB-VNA1</code></td><td><code>DUT_REF</code> / <code>FH/FV</code></td><td><code>POL-H/V</code>，两边直通</td><td><code>L_VNA_FEED_H/V = L_VNA_H/V - L_DUT_VNA</code></td></tr>
-          <tr><td><code>L_VNA_FEED_H_AMP1</code> / <code>L_VNA_FEED_V_AMP1</code></td><td><code>LB-VNA1</code></td><td><code>DUT_REF</code> / <code>FH/FV</code></td><td><code>POL-H/V</code>，AMP1 开启，馈源侧直通</td><td><code>L_VNA_FEED_H/V_AMP1 = L_VNA_H/V_AMP1 - L_DUT_VNA_AMP1</code></td></tr>
-          <tr><td><code>L_VNA_FEED_H_AMP2</code> / <code>L_VNA_FEED_V_AMP2</code></td><td><code>LB-VNA1</code></td><td><code>DUT_REF</code> / <code>FH/FV</code></td><td><code>POL-H/V</code>，AMP2 开启，DUT 侧直通</td><td><code>L_VNA_FEED_H/V_AMP2 = L_VNA_H/V_AMP2 - L_DUT_VNA</code></td></tr>
-          <tr><td><code>L_DUT_VNA</code></td><td><code>TD</code></td><td><code>LB-VNA2</code></td><td>回传段，DUT 侧直通</td><td><code>L_DUT_VNA = -S21_DUT_VNA_RAW - L_AUX_D</code></td></tr>
-          <tr><td><code>L_DUT_VNA_AMP1</code></td><td><code>TD</code></td><td><code>LB-VNA2</code></td><td>回传段，经 <code>AMP1</code></td><td><code>L_DUT_VNA_AMP1 = -S21_DUT_VNA_AMP1_RAW - L_AUX_D</code></td></tr>
+          <tr><td><code>L_DUT_VNA</code></td><td><code>TD</code></td><td><code>LB-VNA2</code></td><td>回传段，DUT 侧直通</td><td><code>L_DUT_VNA = S21_DUT_VNA_RAW + L_AUX_D</code></td></tr>
+          <tr><td><code>L_DUT_VNA_AMP1</code></td><td><code>TD</code></td><td><code>LB-VNA2</code></td><td>回传段，经 <code>AMP1</code></td><td><code>L_DUT_VNA_AMP1 = S21_DUT_VNA_AMP1_RAW + L_AUX_D</code></td></tr>
+          <tr><td><code>L_VNA_FEED_H</code> / <code>L_VNA_FEED_V</code></td><td><code>LB-VNA1</code></td><td><code>DUT_REF</code> / <code>FH/FV</code></td><td><code>POL-H/V</code>，两边直通</td><td><code>L_VNA_FEED_H/V = L_VNA_H/V - G_STD_HORN_H/V - L_DUT_VNA</code></td></tr>
+          <tr><td><code>L_VNA_FEED_H_AMP1</code> / <code>L_VNA_FEED_V_AMP1</code></td><td><code>LB-VNA1</code></td><td><code>DUT_REF</code> / <code>FH/FV</code></td><td><code>POL-H/V</code>，AMP1 开启，馈源侧直通</td><td><code>L_VNA_FEED_H/V_AMP1 = L_VNA_H/V_AMP1 - G_STD_HORN_H/V - L_DUT_VNA_AMP1</code></td></tr>
+          <tr><td><code>L_VNA_FEED_H_AMP2</code> / <code>L_VNA_FEED_V_AMP2</code></td><td><code>LB-VNA1</code></td><td><code>DUT_REF</code> / <code>FH/FV</code></td><td><code>POL-H/V</code>，AMP2 开启，DUT 侧直通</td><td><code>L_VNA_FEED_H/V_AMP2 = L_VNA_H/V_AMP2 - G_STD_HORN_H/V - L_DUT_VNA</code></td></tr>
         </tbody>
       </table>
     </div>
@@ -493,73 +556,76 @@
       <thead><tr><th>参数</th><th>输入端口/参考面</th><th>输出端口/参考面</th><th>极化/路径</th><th>含义/公式</th></tr></thead>
       <tbody>
         <tr><td><code>L_AUX_D</code></td><td><code>P1</code></td><td><code>P2</code></td><td>AUX-D</td><td>AUX-D 自身损耗，<code>L_AUX_D = -S21_AUX_D</code>。</td></tr>
+        <tr><td><code>S21_DUT_VNA_RAW</code></td><td><code>P1/AUX-D/TD</code></td><td><code>LB-VNA2/P2</code></td><td>DUT 侧直通</td><td>AUX-D 接转台DUT接口后的 DUT→VNA2 直通回传段原始网分读数。</td></tr>
+        <tr><td><code>S21_DUT_VNA_AMP1_RAW</code></td><td><code>P1/AUX-D/TD</code></td><td><code>AMP1/LB-VNA2/P2</code></td><td>DUT 侧经过 AMP1</td><td>AUX-D 接转台DUT接口后的 DUT→AMP1→VNA2 回传段原始网分读数。</td></tr>
         <tr><td><code>L_VNA_H</code> / <code>L_VNA_V</code></td><td><code>LB-VNA1</code></td><td><code>LB-VNA2</code></td><td><code>POL-H/V</code>，两边直通，含回传段</td><td>VNA 主链路闭合损耗。</td></tr>
         <tr><td><code>L_VNA_H_AMP1</code> / <code>L_VNA_V_AMP1</code></td><td><code>LB-VNA1</code></td><td><code>LB-VNA2</code></td><td><code>POL-H/V</code>，AMP1 开启，馈源侧直通，含回传段</td><td>经 AMP1 回传的 VNA 主链路闭合损耗。</td></tr>
         <tr><td><code>L_VNA_H_AMP2</code> / <code>L_VNA_V_AMP2</code></td><td><code>LB-VNA1</code></td><td><code>LB-VNA2</code></td><td><code>POL-H/V</code>，AMP2 开启，DUT 侧直通，含回传段</td><td>经过 AMP2 发射侧的 VNA 主链路闭合损耗。</td></tr>
       </tbody>
     </table>
-    <div class="note">依赖关系：三种工况分别对应“两边直通”“AMP1 开启、馈源侧直通”“AMP2 开启、DUT 侧直通”。<code>L_VNA_FEED_*</code> 必须扣除同一工况下的 DUT 到 VNA2 回传段；不默认组合 AMP1 与 AMP2 同时开启。</div>
+    <div class="note">依赖关系：三种工况分别对应“两边直通”“AMP1 开启、馈源侧直通”“AMP2 开启、DUT 侧直通”。<code>L_VNA_FEED_*</code> 在 LINK-CAL-002 内必须先去嵌标准喇叭增益，再扣除同一工况下的 DUT 到 VNA2 回传段；不默认组合 AMP1 与 AMP2 同时开启。</div>
+    <div class="note"><code>S21_DUT_VNA_RAW</code> 来源于 LINK-CAL-002 的 AUX-D 回传段校准原始网分读数：网分 PORT1 → AUX-D → 转台DUT接口（TD）→ 链路箱 DUT → 链路箱 VNA2 → 网分 PORT2，下发 <code>CONFigure:LINK DUT, VNA2</code> 后由网分采集 S21 得到。<code>S21_DUT_VNA_AMP1_RAW</code> 来源相同，但 DUT 回传侧下发 <code>CONFigure:LINK DUT, AMP1, VNA2</code>。</div>
   </div>
-  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">11 / 20</span></span></div>
+  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">11 / 25</span></span></div>
 </div>
 
 <!-- P12 -->
 <div class="page">
-  <div class="page-header"><span class="brand">SA 校准端口连接图</span><div class="logo-text">GTS</div></div>
+  <div class="page-header"><span class="brand">SA 校准端口连接图</span><svg class="logo" viewBox="4400 6500 18750 3520" role="img" aria-label="GTS"><use href="#gts-logo"></use></svg></div>
   <div class="main">
     <div class="h1">LINK-CAL-003：SA 校准</div>
-    <div class="sub">SA 校准使用网分形成完整 S21 环路；主输出参考 LINK-CAL-002 的 AUX 方式：先测 AUX-E，再将 AUX-E 接到转台DUT接口，直接得到 DUT 参考面至 SA 端口的等效接收链路损耗。VNA1 到 SA 三种工况作为一致性校验。</div>
+    <div class="sub">SA 校准使用网分形成完整 S21 环路；主输出参考 LINK-CAL-002 的 AUX 方式：先测 AUX-E，再将 AUX-E 接到转台DUT接口，直接得到 DUT 参考面至 SA 端口的等效接收链路损耗。VNA1 到 SA 闭合量用于生成整机发射 SA 接收侧修正参数，并作为一致性校验。</div>
     <div class="diagram-grid">
       <div class="diagram">
         <div class="diagram-title">AUX-E 单独测试</div>
         <div class="flow">
           <span class="node warn">网分 PORT1</span><span class="arrow">→</span><span class="node warn">AUX-E</span><span class="arrow">→</span><span class="node warn">网分 PORT2</span>
         </div>
-        <div class="caption">AUX-E 单独测试不经过链路箱，得到 <code>L_AUX_E</code>。</div>
+        <div class="caption">AUX-E 单独测试不经过链路箱；本步骤生成辅助线数据 <code>L_AUX_E</code>。</div>
       </div>
       <div class="diagram">
         <div class="diagram-title">AUX-E 接转台DUT接口 + SA 直通接收</div>
         <div class="flow">
           <span class="node warn">网分 PORT1</span><span class="arrow">→</span><span class="node warn">AUX-E</span><span class="arrow">→</span><span class="node alt">转台DUT接口</span><span class="arrow">→</span><span class="node warn">暗室接口板 DUT</span><span class="arrow">→</span><span class="node">链路箱 SA</span><span class="arrow">→</span><span class="node warn">网分 PORT2</span>
         </div>
-        <div class="caption">指令：<code>CONFigure:LINK DUT,SA</code>；扣除 <code>L_AUX_E</code> 后得到 <code>L_DUT_SA</code>。</div>
+        <div class="caption">指令：<code>CONFigure:LINK DUT,SA</code>；本步骤生成临时闭合数据 <code>T_AUXE_DUT_SA</code>。</div>
       </div>
       <div class="diagram">
         <div class="diagram-title">AUX-E 接转台DUT接口 + SA 经 AMP1 接收</div>
         <div class="flow">
           <span class="node warn">网分 PORT1</span><span class="arrow">→</span><span class="node warn">AUX-E</span><span class="arrow">→</span><span class="node alt">转台DUT接口</span><span class="arrow">→</span><span class="node warn">暗室接口板 DUT</span><span class="arrow">→</span><span class="node">AMP1</span><span class="arrow">→</span><span class="node">链路箱 SA</span><span class="arrow">→</span><span class="node warn">网分 PORT2</span>
         </div>
-        <div class="caption">指令：<code>CONFigure:LINK DUT,AMP1,SA</code>；扣除 <code>L_AUX_E</code> 后得到 <code>L_DUT_SA_AMP1</code>。</div>
+        <div class="caption">指令：<code>CONFigure:LINK DUT,AMP1,SA</code>；本步骤生成临时闭合数据 <code>T_AUXE_DUT_SA_AMP1</code>。</div>
       </div>
       <div class="diagram">
         <div class="diagram-title">VNA1 到 SA 一致性校验，工况 1：两边都是直通</div>
         <div class="flow">
           <span class="node warn">网分 PORT1</span><span class="arrow">→</span><span class="node">链路箱 VNA1</span><span class="arrow">→</span><span class="node">链路箱 H/V</span><span class="arrow">→</span><span class="node warn">暗室接口板 H/V</span><span class="arrow">→</span><span class="node">馈源</span><span class="arrow">→</span><span class="node">反射面</span><span class="arrow">→</span><span class="node alt">标准喇叭</span><span class="arrow">→</span><span class="node warn">暗室接口板 DUT</span><span class="arrow">→</span><span class="node">链路箱 SA</span><span class="arrow">→</span><span class="node warn">网分 PORT2</span>
         </div>
-        <div class="caption">指令：<code>CONFigure:LINK H/V, VNA1</code> + <code>CONFigure:LINK DUT,SA</code>；校验 <code>T_VNA1_SA_H/V ≈ L_VNA_FEED_H/V + L_DUT_SA</code>。</div>
+        <div class="caption">指令：<code>CONFigure:LINK H/V, VNA1</code> + <code>CONFigure:LINK DUT,SA</code>；生成 <code>L_SYS_TX_SA_H/V</code>，并校验 <code>T_VNA1_SA_H/V - G_STD_HORN_H/V ≈ L_VNA_FEED_H/V + L_DUT_SA</code>。</div>
       </div>
       <div class="diagram">
         <div class="diagram-title">VNA1 到 SA 一致性校验，工况 2：AMP1 开启，馈源侧直通</div>
         <div class="flow">
           <span class="node warn">网分 PORT1</span><span class="arrow">→</span><span class="node">链路箱 VNA1</span><span class="arrow">→</span><span class="node">链路箱 H/V</span><span class="arrow">→</span><span class="node warn">暗室接口板 H/V</span><span class="arrow">→</span><span class="node">馈源</span><span class="arrow">→</span><span class="node">反射面</span><span class="arrow">→</span><span class="node alt">标准喇叭</span><span class="arrow">→</span><span class="node warn">暗室接口板 DUT</span><span class="arrow">→</span><span class="node">AMP1</span><span class="arrow">→</span><span class="node">链路箱 SA</span><span class="arrow">→</span><span class="node warn">网分 PORT2</span>
         </div>
-        <div class="caption">指令：<code>CONFigure:LINK H/V, VNA1</code> + <code>CONFigure:LINK DUT,AMP1,SA</code>；校验 <code>T_VNA1_SA_H/V_AMP1 ≈ L_VNA_FEED_H/V + L_DUT_SA_AMP1</code>。</div>
+        <div class="caption">指令：<code>CONFigure:LINK H/V, VNA1</code> + <code>CONFigure:LINK DUT,AMP1,SA</code>；生成 <code>L_SYS_TX_SA_H/V_AMP1</code>，并校验 <code>T_VNA1_SA_H/V_AMP1 - G_STD_HORN_H/V ≈ L_VNA_FEED_H/V + L_DUT_SA_AMP1</code>。</div>
       </div>
       <div class="diagram">
         <div class="diagram-title">VNA1 到 SA 一致性校验，工况 3：AMP2 开启，DUT 侧直通</div>
         <div class="flow">
           <span class="node warn">网分 PORT1</span><span class="arrow">→</span><span class="node">链路箱 VNA1</span><span class="arrow">→</span><span class="node">AMP2</span><span class="arrow">→</span><span class="node">链路箱 H/V</span><span class="arrow">→</span><span class="node warn">暗室接口板 H/V</span><span class="arrow">→</span><span class="node">馈源</span><span class="arrow">→</span><span class="node">反射面</span><span class="arrow">→</span><span class="node alt">标准喇叭</span><span class="arrow">→</span><span class="node warn">暗室接口板 DUT</span><span class="arrow">→</span><span class="node">链路箱 SA</span><span class="arrow">→</span><span class="node warn">网分 PORT2</span>
         </div>
-        <div class="caption">指令：<code>CONFigure:LINK H/V, AMP2, VNA1</code> + <code>CONFigure:LINK DUT,SA</code>；校验 <code>T_VNA1_SA_H/V_AMP2 ≈ L_VNA_FEED_H/V_AMP2 + L_DUT_SA</code>。</div>
+        <div class="caption">指令：<code>CONFigure:LINK H/V, AMP2, VNA1</code> + <code>CONFigure:LINK DUT,SA</code>；校验 <code>T_VNA1_SA_H/V_AMP2 - G_STD_HORN_H/V ≈ L_VNA_FEED_H/V_AMP2 + L_DUT_SA</code>。</div>
       </div>
     </div>
   </div>
-  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">12 / 20</span></span></div>
+  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">12 / 25</span></span></div>
 </div>
 
 <!-- P13 -->
 <div class="page">
-  <div class="page-header"><span class="brand">LINK-CAL-003 参数计算与输出归类</span><div class="logo-text">GTS</div></div>
+  <div class="page-header"><span class="brand">LINK-CAL-003 参数计算与输出归类</span><svg class="logo" viewBox="4400 6500 18750 3520" role="img" aria-label="GTS"><use href="#gts-logo"></use></svg></div>
   <div class="main">
     <div class="h1">LINK-CAL-003：SA 校准参数计算与输出归类</div>
     <div class="sub">本页区分最终输出参数与临时/追溯参数；带 AUX-E 或 VNA1 发射侧的闭合环路均不能直接作为最终测试修正量。</div>
@@ -568,8 +634,10 @@
       <table class="tight-table final-output-table">
         <thead><tr><th>参数</th><th>端口/参考面</th><th>含义</th><th>计算公式</th></tr></thead>
         <tbody>
-          <tr><td><code>L_DUT_SA</code></td><td><code>DUT_REF → LB-SA</code></td><td>DUT 参考面至 SA 端口的等效接收链路损耗，DUT 侧直通</td><td><code>L_DUT_SA = T_AUXE_DUT_SA - L_AUX_E</code></td></tr>
-          <tr><td><code>L_DUT_SA_AMP1</code></td><td><code>DUT_REF → LB-SA</code></td><td>DUT 参考面至 SA 端口的等效接收链路损耗，DUT 侧经过 AMP1</td><td><code>L_DUT_SA_AMP1 = T_AUXE_DUT_SA_AMP1 - L_AUX_E</code></td></tr>
+          <tr><td><code>L_DUT_SA</code></td><td><code>DUT_REF → LB-SA</code></td><td>DUT 参考面至 SA 端口的等效接收链路损耗，DUT 侧直通</td><td><code>L_DUT_SA = T_AUXE_DUT_SA + L_AUX_E</code></td></tr>
+          <tr><td><code>L_DUT_SA_AMP1</code></td><td><code>DUT_REF → LB-SA</code></td><td>DUT 参考面至 SA 端口的等效接收链路损耗，DUT 侧经过 AMP1</td><td><code>L_DUT_SA_AMP1 = T_AUXE_DUT_SA_AMP1 + L_AUX_E</code></td></tr>
+          <tr><td><code>L_SYS_TX_SA_H</code> / <code>L_SYS_TX_SA_V</code></td><td><code>DUT_REF → LB-SA</code></td><td>整机发射时 H/V 直通接收至 SA 的等效修正参数</td><td><code>L_SYS_TX_SA_H/V = T_VNA1_SA_H/V - G_STD_HORN_H/V</code></td></tr>
+          <tr><td><code>L_SYS_TX_SA_H_AMP1</code> / <code>L_SYS_TX_SA_V_AMP1</code></td><td><code>DUT_REF → LB-SA</code></td><td>整机发射时 H/V 经 AMP1 接收至 SA 的等效修正参数</td><td><code>L_SYS_TX_SA_H/V_AMP1 = T_VNA1_SA_H/V_AMP1 - G_STD_HORN_H/V</code></td></tr>
         </tbody>
       </table>
     </div>
@@ -578,21 +646,21 @@
       <thead><tr><th>参数</th><th>端口/参考面</th><th>含义</th><th>说明</th></tr></thead>
       <tbody>
         <tr><td><code>L_AUX_E</code></td><td><code>P1 ↔ CP-DUT</code></td><td>辅助线损耗</td><td>AUX-E 自身损耗，<code>L_AUX_E = -S21_AUX_E</code>。</td></tr>
-        <tr><td><code>T_AUXE_DUT_SA</code></td><td><code>P1 → AUX-E → DUT_REF → LB-SA → P2</code></td><td>AUX-E 接转台DUT接口的直通接收闭合环路</td><td><code>T_AUXE_DUT_SA = -S21_AUXE_DUT_SA_RAW</code>。</td></tr>
-        <tr><td><code>T_AUXE_DUT_SA_AMP1</code></td><td><code>P1 → AUX-E → DUT_REF → AMP1 → LB-SA → P2</code></td><td>AUX-E 接转台DUT接口的 AMP1 接收闭合环路</td><td><code>T_AUXE_DUT_SA_AMP1 = -S21_AUXE_DUT_SA_AMP1_RAW</code>。</td></tr>
-        <tr><td><code>T_VNA1_SA_H</code> / <code>T_VNA1_SA_V</code></td><td><code>P1 → LB-VNA1 → ... → CP-DUT → LB-SA → P2</code></td><td>VNA1 到 SA 两边直通一致性校验量</td><td><code>T_VNA1_SA_H/V ≈ L_VNA_FEED_H/V + L_DUT_SA</code>。</td></tr>
-        <tr><td><code>T_VNA1_SA_H_AMP1</code> / <code>T_VNA1_SA_V_AMP1</code></td><td><code>P1 → LB-VNA1 → ... → CP-DUT → AMP1 → LB-SA → P2</code></td><td>VNA1 到 SA 的 AMP1 一致性校验量</td><td><code>T_VNA1_SA_H/V_AMP1 ≈ L_VNA_FEED_H/V + L_DUT_SA_AMP1</code>。</td></tr>
-        <tr><td><code>T_VNA1_SA_H_AMP2</code> / <code>T_VNA1_SA_V_AMP2</code></td><td><code>P1 → LB-VNA1 → AMP2 → ... → CP-DUT → LB-SA → P2</code></td><td>VNA1 到 SA 的 AMP2 一致性校验量</td><td><code>T_VNA1_SA_H/V_AMP2 ≈ L_VNA_FEED_H/V_AMP2 + L_DUT_SA</code>。</td></tr>
+        <tr><td><code>T_AUXE_DUT_SA</code></td><td><code>P1 → AUX-E → DUT_REF → LB-SA → P2</code></td><td>AUX-E 接转台DUT接口的直通接收闭合环路</td><td><code>T_AUXE_DUT_SA = S21_AUXE_DUT_SA_RAW</code>。</td></tr>
+        <tr><td><code>T_AUXE_DUT_SA_AMP1</code></td><td><code>P1 → AUX-E → DUT_REF → AMP1 → LB-SA → P2</code></td><td>AUX-E 接转台DUT接口的 AMP1 接收闭合环路</td><td><code>T_AUXE_DUT_SA_AMP1 = S21_AUXE_DUT_SA_AMP1_RAW</code>。</td></tr>
+        <tr><td><code>T_VNA1_SA_H</code> / <code>T_VNA1_SA_V</code></td><td><code>P1 → LB-VNA1 → ... → CP-DUT → LB-SA → P2</code></td><td>VNA1 到 SA 两边直通闭合量</td><td>生成 <code>L_SYS_TX_SA_H/V</code>，并校验 <code>T_VNA1_SA_H/V - G_STD_HORN_H/V ≈ L_VNA_FEED_H/V + L_DUT_SA</code>。</td></tr>
+        <tr><td><code>T_VNA1_SA_H_AMP1</code> / <code>T_VNA1_SA_V_AMP1</code></td><td><code>P1 → LB-VNA1 → ... → CP-DUT → AMP1 → LB-SA → P2</code></td><td>VNA1 到 SA 的 AMP1 闭合量</td><td>生成 <code>L_SYS_TX_SA_H/V_AMP1</code>，并校验 <code>T_VNA1_SA_H/V_AMP1 - G_STD_HORN_H/V ≈ L_VNA_FEED_H/V + L_DUT_SA_AMP1</code>。</td></tr>
+        <tr><td><code>T_VNA1_SA_H_AMP2</code> / <code>T_VNA1_SA_V_AMP2</code></td><td><code>P1 → LB-VNA1 → AMP2 → ... → CP-DUT → LB-SA → P2</code></td><td>VNA1 到 SA 的 AMP2 一致性校验量</td><td><code>T_VNA1_SA_H/V_AMP2 - G_STD_HORN_H/V ≈ L_VNA_FEED_H/V_AMP2 + L_DUT_SA</code>。</td></tr>
       </tbody>
     </table>
-    <div class="note">依赖关系：<code>L_DUT_SA</code> / <code>L_DUT_SA_AMP1</code> 由 AUX-E 接转台DUT接口直接得到，是 LINK-CAL-003 的主输出；VNA1 到 SA 三种工况只作为一致性校验，不再作为主计算来源。</div>
+    <div class="note">依赖关系：<code>L_DUT_SA</code> / <code>L_DUT_SA_AMP1</code> 由 AUX-E 接转台DUT接口直接得到，供 DUT 到 SA 类测试使用；<code>L_SYS_TX_SA_H/V</code> / <code>L_SYS_TX_SA_H/V_AMP1</code> 由 VNA1 到 SA 闭合量去嵌标准喇叭增益得到，供整机发射测试使用。AMP2 工况只作为一致性校验，不作为整机发射默认修正参数。</div>
   </div>
-  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">13 / 20</span></span></div>
+  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">13 / 25</span></span></div>
 </div>
 
 <!-- P14 -->
 <div class="page">
-  <div class="page-header"><span class="brand">SG 校准端口连接图</span><div class="logo-text">GTS</div></div>
+  <div class="page-header"><span class="brand">SG 校准端口连接图</span><svg class="logo" viewBox="4400 6500 18750 3520" role="img" aria-label="GTS"><use href="#gts-logo"></use></svg></div>
   <div class="main">
     <div class="h1">LINK-CAL-004：SG 校准</div>
     <div class="sub">SG 校准使用网分 + 标准增益喇叭；外部网分 PORT1 接链路箱 SG，PORT2 侧需通过 DUT→VNA2 接收，形成完整 S21 环路。为便于自动化，LINK-CAL-004 内使用 AUX-F 重复测回传段，再按两边直通、AMP1 开启、AMP2 开启三种工况分别测量 SG 闭合环路。</div>
@@ -602,51 +670,51 @@
         <div class="flow">
           <span class="node warn">网分 PORT1</span><span class="arrow">→</span><span class="node warn">AUX-F</span><span class="arrow">→</span><span class="node warn">网分 PORT2</span>
         </div>
-        <div class="caption">AUX-F 单独测试不经过链路箱，得到 <code>L_AUX_F</code>。</div>
+        <div class="caption">AUX-F 单独测试不经过链路箱；本步骤生成辅助线数据 <code>L_AUX_F</code>。</div>
       </div>
       <div class="diagram">
         <div class="diagram-title">AUX-F 接转台DUT接口 + VNA2 直通接收</div>
         <div class="flow">
           <span class="node warn">网分 PORT1</span><span class="arrow">→</span><span class="node warn">AUX-F</span><span class="arrow">→</span><span class="node alt">转台DUT接口</span><span class="arrow">→</span><span class="node warn">暗室接口板 DUT</span><span class="arrow">→</span><span class="node">链路箱 VNA2</span><span class="arrow">→</span><span class="node warn">网分 PORT2</span>
         </div>
-        <div class="caption">指令：<code>CONFigure:LINK DUT, VNA2</code>；扣除 <code>L_AUX_F</code> 后得到 <code>L_DUT_VNA_F</code>。</div>
+        <div class="caption">指令：<code>CONFigure:LINK DUT, VNA2</code>；本步骤生成原始数据 <code>S21_DUT_VNA_F_RAW</code>。</div>
       </div>
       <div class="diagram">
         <div class="diagram-title">AUX-F 接转台DUT接口 + VNA2 经 AMP1 接收</div>
         <div class="flow">
           <span class="node warn">网分 PORT1</span><span class="arrow">→</span><span class="node warn">AUX-F</span><span class="arrow">→</span><span class="node alt">转台DUT接口</span><span class="arrow">→</span><span class="node warn">暗室接口板 DUT</span><span class="arrow">→</span><span class="node">AMP1</span><span class="arrow">→</span><span class="node">链路箱 VNA2</span><span class="arrow">→</span><span class="node warn">网分 PORT2</span>
         </div>
-        <div class="caption">指令：<code>CONFigure:LINK DUT, AMP1, VNA2</code>；扣除 <code>L_AUX_F</code> 后得到 <code>L_DUT_VNA_F_AMP1</code>。</div>
+        <div class="caption">指令：<code>CONFigure:LINK DUT, AMP1, VNA2</code>；本步骤生成原始数据 <code>S21_DUT_VNA_F_AMP1_RAW</code>。</div>
       </div>
       <div class="diagram">
         <div class="diagram-title">SG-H/V 工况 1：两边都是直通</div>
         <div class="flow">
           <span class="node warn">网分 PORT1</span><span class="arrow">→</span><span class="node">链路箱 SG</span><span class="arrow">→</span><span class="node">链路箱 H</span><span class="arrow">→</span><span class="node warn">暗室接口板 H</span><span class="arrow">→</span><span class="node">馈源</span><span class="arrow">→</span><span class="node">反射面</span><span class="arrow">→</span><span class="node alt">标准喇叭</span><span class="arrow">→</span><span class="node warn">暗室接口板 DUT</span><span class="arrow">→</span><span class="node">链路箱 VNA2</span><span class="arrow">→</span><span class="node warn">网分 PORT2</span>
         </div>
-        <div class="caption">链路箱指令：<code>CONFigure:LINK H/V, SG</code> + <code>CONFigure:LINK DUT, VNA2</code>；得到 <code>T_SG_H/V</code>。</div>
+        <div class="caption">链路箱指令：<code>CONFigure:LINK H/V, SG</code> + <code>CONFigure:LINK DUT, VNA2</code>；本步骤生成临时闭合数据 <code>T_SG_H/V</code>。</div>
       </div>
       <div class="diagram">
         <div class="diagram-title">SG-H/V 工况 2：AMP1 开启，发射侧直通</div>
         <div class="flow">
           <span class="node warn">网分 PORT1</span><span class="arrow">→</span><span class="node">链路箱 SG</span><span class="arrow">→</span><span class="node">链路箱 H/V</span><span class="arrow">→</span><span class="node warn">暗室接口板 H/V</span><span class="arrow">→</span><span class="node">馈源</span><span class="arrow">→</span><span class="node">反射面</span><span class="arrow">→</span><span class="node alt">标准喇叭</span><span class="arrow">→</span><span class="node warn">暗室接口板 DUT</span><span class="arrow">→</span><span class="node">AMP1</span><span class="arrow">→</span><span class="node">链路箱 VNA2</span><span class="arrow">→</span><span class="node warn">网分 PORT2</span>
         </div>
-        <div class="caption">链路箱指令：<code>CONFigure:LINK H/V, SG</code> + <code>CONFigure:LINK DUT, AMP1, VNA2</code>；得到 <code>T_SG_H/V_AMP1</code>。</div>
+        <div class="caption">链路箱指令：<code>CONFigure:LINK H/V, SG</code> + <code>CONFigure:LINK DUT, AMP1, VNA2</code>；本步骤生成临时闭合数据 <code>T_SG_H/V_AMP1</code>。</div>
       </div>
       <div class="diagram">
         <div class="diagram-title">SG-H/V 工况 3：AMP2 开启，DUT 侧直通</div>
         <div class="flow">
           <span class="node warn">网分 PORT1</span><span class="arrow">→</span><span class="node">链路箱 SG</span><span class="arrow">→</span><span class="node">AMP2</span><span class="arrow">→</span><span class="node">链路箱 H/V</span><span class="arrow">→</span><span class="node warn">暗室接口板 H/V</span><span class="arrow">→</span><span class="node">馈源</span><span class="arrow">→</span><span class="node">反射面</span><span class="arrow">→</span><span class="node alt">标准喇叭</span><span class="arrow">→</span><span class="node warn">暗室接口板 DUT</span><span class="arrow">→</span><span class="node">链路箱 VNA2</span><span class="arrow">→</span><span class="node warn">网分 PORT2</span>
         </div>
-        <div class="caption">链路箱指令：<code>CONFigure:LINK H/V, AMP2, SG</code> + <code>CONFigure:LINK DUT, VNA2</code>；得到 <code>T_SG_H/V_AMP2</code>。</div>
+        <div class="caption">链路箱指令：<code>CONFigure:LINK H/V, AMP2, SG</code> + <code>CONFigure:LINK DUT, VNA2</code>；本步骤生成临时闭合数据 <code>T_SG_H/V_AMP2</code>。</div>
       </div>
     </div>
   </div>
-  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">14 / 20</span></span></div>
+  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">14 / 25</span></span></div>
 </div>
 
 <!-- P15 -->
 <div class="page">
-  <div class="page-header"><span class="brand">LINK-CAL-004 参数计算与输出归类</span><div class="logo-text">GTS</div></div>
+  <div class="page-header"><span class="brand">LINK-CAL-004 参数计算与输出归类</span><svg class="logo" viewBox="4400 6500 18750 3520" role="img" aria-label="GTS"><use href="#gts-logo"></use></svg></div>
   <div class="main">
     <div class="h1">LINK-CAL-004：SG 校准参数计算与输出归类</div>
     <div class="sub">本页区分最终输出参数与临时/追溯参数；SG 校准内使用 AUX-F 重复测得回传段，避免自动化流程跨校准项引用 LINK-CAL-002 的 AUX-D 结果。</div>
@@ -655,11 +723,11 @@
       <table class="tight-table final-output-table">
         <thead><tr><th>参数</th><th>输入端口/参考面</th><th>输出端口/参考面</th><th>极化/路径</th><th>计算公式</th></tr></thead>
         <tbody>
-          <tr><td><code>L_DUT_VNA_F</code></td><td><code>TD</code></td><td><code>LB-VNA2</code></td><td>LINK-CAL-004 回传段，DUT 侧直通</td><td><code>L_DUT_VNA_F = -S21_DUT_VNA_F_RAW - L_AUX_F</code></td></tr>
-          <tr><td><code>L_DUT_VNA_F_AMP1</code></td><td><code>TD</code></td><td><code>LB-VNA2</code></td><td>LINK-CAL-004 回传段，经 <code>AMP1</code></td><td><code>L_DUT_VNA_F_AMP1 = -S21_DUT_VNA_F_AMP1_RAW - L_AUX_F</code></td></tr>
-          <tr><td><code>L_SG_DUT_H</code> / <code>L_SG_DUT_V</code></td><td><code>LB-SG</code></td><td><code>DUT_REF</code></td><td><code>POL-H/V</code>，两边直通</td><td><code>L_SG_DUT_H/V = T_SG_H/V - L_DUT_VNA_F</code></td></tr>
-          <tr><td><code>L_SG_DUT_H_AMP1</code> / <code>L_SG_DUT_V_AMP1</code></td><td><code>LB-SG</code></td><td><code>DUT_REF</code></td><td><code>POL-H/V</code>，AMP1 开启，发射侧直通</td><td><code>L_SG_DUT_H/V_AMP1 = T_SG_H/V_AMP1 - L_DUT_VNA_F_AMP1</code></td></tr>
-          <tr><td><code>L_SG_DUT_H_AMP2</code> / <code>L_SG_DUT_V_AMP2</code></td><td><code>LB-SG</code></td><td><code>DUT_REF</code></td><td><code>POL-H/V</code>，AMP2 开启，DUT 侧直通</td><td><code>L_SG_DUT_H/V_AMP2 = T_SG_H/V_AMP2 - L_DUT_VNA_F</code></td></tr>
+          <tr><td><code>L_DUT_VNA_F</code></td><td><code>TD</code></td><td><code>LB-VNA2</code></td><td>LINK-CAL-004 回传段，DUT 侧直通</td><td><code>L_DUT_VNA_F = S21_DUT_VNA_F_RAW + L_AUX_F</code></td></tr>
+          <tr><td><code>L_DUT_VNA_F_AMP1</code></td><td><code>TD</code></td><td><code>LB-VNA2</code></td><td>LINK-CAL-004 回传段，经 <code>AMP1</code></td><td><code>L_DUT_VNA_F_AMP1 = S21_DUT_VNA_F_AMP1_RAW + L_AUX_F</code></td></tr>
+          <tr><td><code>L_SG_DUT_H</code> / <code>L_SG_DUT_V</code></td><td><code>LB-SG</code></td><td><code>DUT_REF</code></td><td><code>POL-H/V</code>，两边直通</td><td><code>L_SG_DUT_H/V = T_SG_H/V - G_STD_HORN_H/V - L_DUT_VNA_F</code></td></tr>
+          <tr><td><code>L_SG_DUT_H_AMP1</code> / <code>L_SG_DUT_V_AMP1</code></td><td><code>LB-SG</code></td><td><code>DUT_REF</code></td><td><code>POL-H/V</code>，AMP1 开启，发射侧直通</td><td><code>L_SG_DUT_H/V_AMP1 = T_SG_H/V_AMP1 - G_STD_HORN_H/V - L_DUT_VNA_F_AMP1</code></td></tr>
+          <tr><td><code>L_SG_DUT_H_AMP2</code> / <code>L_SG_DUT_V_AMP2</code></td><td><code>LB-SG</code></td><td><code>DUT_REF</code></td><td><code>POL-H/V</code>，AMP2 开启，DUT 侧直通</td><td><code>L_SG_DUT_H/V_AMP2 = T_SG_H/V_AMP2 - G_STD_HORN_H/V - L_DUT_VNA_F</code></td></tr>
         </tbody>
       </table>
     </div>
@@ -668,98 +736,194 @@
       <thead><tr><th>参数</th><th>输入端口/参考面</th><th>输出端口/参考面</th><th>极化/路径</th><th>含义/公式</th></tr></thead>
       <tbody>
         <tr><td><code>L_AUX_F</code></td><td><code>P1</code></td><td><code>P2</code></td><td>AUX-F</td><td>AUX-F 自身损耗，<code>L_AUX_F = -S21_AUX_F</code>。</td></tr>
-        <tr><td><code>T_SG_H</code> / <code>T_SG_V</code></td><td><code>LB-SG</code></td><td><code>LB-VNA2</code></td><td><code>POL-H/V</code>，两边直通，含直通回传段</td><td>SG 校准完整闭合环路临时损耗，<code>T_SG_H/V = -S21_SG_H/V_RAW</code>。</td></tr>
-        <tr><td><code>T_SG_H_AMP1</code> / <code>T_SG_V_AMP1</code></td><td><code>LB-SG</code></td><td><code>LB-VNA2</code></td><td><code>POL-H/V</code>，AMP1 开启，含 AMP1 回传段</td><td>SG 校准 AMP1 闭合环路临时损耗，<code>T_SG_H/V_AMP1 = -S21_SG_H/V_AMP1_RAW</code>。</td></tr>
-        <tr><td><code>T_SG_H_AMP2</code> / <code>T_SG_V_AMP2</code></td><td><code>LB-SG</code></td><td><code>LB-VNA2</code></td><td><code>POL-H/V</code>，AMP2 开启，含直通回传段</td><td>SG 校准 AMP2 闭合环路临时损耗，<code>T_SG_H/V_AMP2 = -S21_SG_H/V_AMP2_RAW</code>。</td></tr>
+        <tr><td><code>S21_DUT_VNA_F_RAW</code></td><td><code>P1/AUX-F/TD</code></td><td><code>LB-VNA2/P2</code></td><td>LINK-CAL-004 回传段，DUT 侧直通</td><td>AUX-F 接转台DUT接口后的 DUT→VNA2 直通回传段原始网分读数。</td></tr>
+        <tr><td><code>S21_DUT_VNA_F_AMP1_RAW</code></td><td><code>P1/AUX-F/TD</code></td><td><code>AMP1/LB-VNA2/P2</code></td><td>LINK-CAL-004 回传段，经 AMP1</td><td>AUX-F 接转台DUT接口后的 DUT→AMP1→VNA2 回传段原始网分读数。</td></tr>
+        <tr><td><code>S21_SG_H/V_RAW</code></td><td><code>LB-SG</code></td><td><code>LB-VNA2</code></td><td><code>POL-H/V</code>，两边直通，含直通回传段</td><td>SG 校准完整闭合环路原始网分读数，保存为 <code>T_SG_H/V</code>。</td></tr>
+        <tr><td><code>S21_SG_H/V_AMP1_RAW</code></td><td><code>LB-SG</code></td><td><code>LB-VNA2</code></td><td><code>POL-H/V</code>，AMP1 开启，含 AMP1 回传段</td><td>SG 校准 AMP1 闭合环路原始网分读数，保存为 <code>T_SG_H/V_AMP1</code>。</td></tr>
+        <tr><td><code>S21_SG_H/V_AMP2_RAW</code></td><td><code>LB-SG</code></td><td><code>LB-VNA2</code></td><td><code>POL-H/V</code>，AMP2 开启，含直通回传段</td><td>SG 校准 AMP2 闭合环路原始网分读数，保存为 <code>T_SG_H/V_AMP2</code>。</td></tr>
+        <tr><td><code>T_SG_H</code> / <code>T_SG_V</code></td><td><code>LB-SG</code></td><td><code>LB-VNA2</code></td><td><code>POL-H/V</code>，两边直通，含直通回传段</td><td>SG 校准完整闭合环路临时损耗，<code>T_SG_H/V = S21_SG_H/V_RAW</code>。</td></tr>
+        <tr><td><code>T_SG_H_AMP1</code> / <code>T_SG_V_AMP1</code></td><td><code>LB-SG</code></td><td><code>LB-VNA2</code></td><td><code>POL-H/V</code>，AMP1 开启，含 AMP1 回传段</td><td>SG 校准 AMP1 闭合环路临时损耗，<code>T_SG_H/V_AMP1 = S21_SG_H/V_AMP1_RAW</code>。</td></tr>
+        <tr><td><code>T_SG_H_AMP2</code> / <code>T_SG_V_AMP2</code></td><td><code>LB-SG</code></td><td><code>LB-VNA2</code></td><td><code>POL-H/V</code>，AMP2 开启，含直通回传段</td><td>SG 校准 AMP2 闭合环路临时损耗，<code>T_SG_H/V_AMP2 = S21_SG_H/V_AMP2_RAW</code>。</td></tr>
       </tbody>
     </table>
     <div class="note">依赖关系：<code>T_SG_*</code> 不能直接作为 SG 发射链路最终路损；它包含 LINK-CAL-004 内通过 AUX-F 重复测得的 DUT 到 VNA2 回传段。两边直通和 AMP2 工况扣除 <code>L_DUT_VNA_F</code>，AMP1 工况扣除 <code>L_DUT_VNA_F_AMP1</code>。</div>
   </div>
-  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">15 / 20</span></span></div>
+  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">15 / 25</span></span></div>
 </div>
 
 <!-- P16 -->
 <div class="page">
-  <div class="page-header"><span class="brand">DUT TX&amp;RX 细分链路</span><div class="logo-text">GTS</div></div>
+  <div class="page-header"><span class="brand">LINK-TXR-001 测试项操作</span><svg class="logo" viewBox="4400 6500 18750 3520" role="img" aria-label="GTS"><use href="#gts-logo"></use></svg></div>
   <div class="main">
-    <div class="h1">DUT 接入后的 VNA 测试链路细分</div>
-    <div class="sub">DUT 侧 VNA 测试链路按测试项细分；命令组合相同，但测试项语义、记录字段和 UI 名称必须独立。</div>
-    <table class="tight-table">
-      <thead><tr><th>测试项</th><th>馈源接收直通用途</th><th>馈源接收经过 AMP2 用途</th></tr></thead>
-      <tbody>
-        <tr><td>DUT 通道校准</td><td>DUT 通道校准直通链路</td><td>DUT 通道校准含 馈源接收路径链路</td></tr>
-        <tr><td>方向图测试</td><td>方向图直通链路</td><td>方向图含 馈源接收路径链路</td></tr>
-        <tr><td>有源增益测试</td><td>有源增益直通链路</td><td>有源增益含 馈源接收路径链路</td></tr>
-        <tr><td>天线板 EIRP 测试</td><td>天线板 EIRP 直通链路</td><td>天线板 EIRP 含 馈源接收路径链路</td></tr>
-      </tbody>
-    </table>
-    <div class="h2">细分指令组合</div>
+    <div class="h1">LINK-TXR-001：DUT 通道校准</div>
+    <div class="sub">DUT 接入后使用 VNA S21 闭环；链路为 VNA1 发射，经 H/V 馈源、反射面、DUT，再由 DUT 侧直通回 VNA2。</div>
+    <div class="diagram">
+      <div class="diagram-title">DUT 通道校准 VNA 直通链路</div>
+      <div class="flow">
+        <span class="node">VNA1</span><span class="arrow">→</span><span class="node">链路箱 H/V</span><span class="arrow">→</span><span class="node warn">暗室接口板 H/V</span><span class="arrow">→</span><span class="node">馈源</span><span class="arrow">→</span><span class="node">反射面</span><span class="arrow">→</span><span class="node alt">DUT</span><span class="arrow">→</span><span class="node warn">暗室接口板 DUT</span><span class="arrow">→</span><span class="node">链路箱 VNA2</span>
+      </div>
+      <div class="caption">用途：校准 DUT 通道自身响应；接收侧直通，不经过 AMP1；发射侧直通，不经过 AMP2。</div>
+    </div>
+    <div class="h2">操作定义</div>
     <table>
-      <thead><tr><th>TX 路径</th><th>H 极化指令</th><th>V 极化指令</th></tr></thead>
+      <thead><tr><th>字段</th><th>定义</th></tr></thead>
       <tbody>
-        <tr><td>馈源接收直通</td><td><code>CONFigure:LINK H, VNA1</code></td><td><code>CONFigure:LINK V, VNA1</code></td></tr>
-        <tr><td>馈源接收经过 AMP2</td><td><code>CONFigure:LINK H, AMP2, VNA1</code></td><td><code>CONFigure:LINK V, AMP2, VNA1</code></td></tr>
+        <tr><td>仪表角色</td><td>VNA S21 闭环</td></tr>
+        <tr><td>DUT 状态</td><td>接上 DUT，DUT 处于通道校准状态</td></tr>
+        <tr><td>可选参数</td><td>极化 H/V</td></tr>
+        <tr><td>禁止项</td><td>不使用 <code>DUT, AMP1, VNA2</code>；不使用 <code>H/V, AMP2, VNA1</code></td></tr>
       </tbody>
     </table>
-    <div class="note">关键约束：接上 DUT 时，上述 DUT 侧 VNA 测试链路接 DUT 时均不使用 <code>CONFigure:LINK DUT, VNA2</code>。</div>
+    <div class="h2">所需路损文件/参数</div>
+    <table class="tight-table"><thead><tr><th>校准文件</th><th>参数</th><th>用途</th></tr></thead><tbody>
+      <tr><td><code>LINK-CAL-002</code> VNA 链路损耗校准</td><td><code>L_VNA_FEED_H/V</code> + <code>L_DUT_VNA</code></td><td>按极化使用馈源侧等效损耗与 DUT 回传段组合，修正 VNA1 到 VNA2 直通测试链路；不直接使用闭合临时量 <code>L_VNA_H/V</code>。</td></tr>
+    </tbody></table>
+    <div class="h2">链路箱指令</div>
+    <table><thead><tr><th>极化</th><th>链路箱指令</th></tr></thead><tbody>
+      <tr><td>H</td><td><code>CONFigure:LINK DUT, VNA2</code> + <code>CONFigure:LINK H, VNA1</code></td></tr>
+      <tr><td>V</td><td><code>CONFigure:LINK DUT, VNA2</code> + <code>CONFigure:LINK V, VNA1</code></td></tr>
+    </tbody></table>
   </div>
-  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">16 / 20</span></span></div>
+  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">16 / 25</span></span></div>
 </div>
 
 <!-- P17 -->
 <div class="page">
-  <div class="page-header"><span class="brand">测试端口连接图</span><div class="logo-text">GTS</div></div>
+  <div class="page-header"><span class="brand">LINK-TXR-002 测试项操作</span><svg class="logo" viewBox="4400 6500 18750 3520" role="img" aria-label="GTS"><use href="#gts-logo"></use></svg></div>
   <div class="main">
-    <div class="h1">测试项目端口连接图</div>
-    <div class="sub">按测试模板给出端口连接关系；H/V 表示按极化二选一。</div>
-    <div class="diagram-grid">
-      <div class="diagram">
-        <div class="diagram-title">DUT TX&amp;RX 细分链路，馈源接收直通</div>
-        <div class="flow">
-          <span class="node">VNA1</span><span class="arrow">→</span><span class="node">链路箱 H/V</span><span class="arrow">→</span><span class="node warn">暗室接口板 H/V</span><span class="arrow">→</span><span class="node">馈源</span><span class="arrow">→</span><span class="node">反射面</span><span class="arrow">→</span><span class="node alt">DUT</span>
-        </div>
-        <div class="caption">适用：DUT 通道校准、方向图、有源增益、天线板 EIRP；各测试项独立记录。指令：<code>CONFigure:LINK H/V, VNA1</code></div>
+    <div class="h1">LINK-TXR-002：方向图 TX&amp;RX 测试</div>
+    <div class="sub">方向图测试使用与通道校准一致的 VNA1 到 VNA2 直通 S21 链路；测试差异体现在转台/扫描角度与记录字段。</div>
+    <div class="diagram">
+      <div class="diagram-title">方向图 VNA 直通链路</div>
+      <div class="flow">
+        <span class="node">VNA1</span><span class="arrow">→</span><span class="node">链路箱 H/V</span><span class="arrow">→</span><span class="node warn">暗室接口板 H/V</span><span class="arrow">→</span><span class="node">馈源</span><span class="arrow">→</span><span class="node">反射面</span><span class="arrow">→</span><span class="node alt">DUT</span><span class="arrow">→</span><span class="node warn">暗室接口板 DUT</span><span class="arrow">→</span><span class="node">链路箱 VNA2</span>
       </div>
-      <div class="diagram">
-        <div class="diagram-title">DUT TX&amp;RX 细分链路，馈源接收经过 AMP2</div>
-        <div class="flow">
-          <span class="node">VNA1</span><span class="arrow">→</span><span class="node">AMP2</span><span class="arrow">→</span><span class="node">链路箱 H/V</span><span class="arrow">→</span><span class="node warn">暗室接口板 H/V</span><span class="arrow">→</span><span class="node">馈源</span><span class="arrow">→</span><span class="node">反射面</span><span class="arrow">→</span><span class="node alt">DUT</span>
-        </div>
-        <div class="caption">指令：<code>CONFigure:LINK H/V, AMP2, VNA1</code>；接 DUT 时不切 <code>DUT, VNA2</code>。</div>
-      </div>
-      <div class="diagram">
-        <div class="diagram-title">G/T 与整机发射 SG/SA 链路</div>
-        <div class="flow">
-          <span class="node">SG</span><span class="arrow">→</span><span class="node">链路箱 H/V</span><span class="arrow">→</span><span class="node warn">暗室接口板 H/V</span><span class="arrow">→</span><span class="node">馈源</span><span class="arrow">→</span><span class="node">反射面</span><span class="arrow">→</span><span class="node alt">DUT</span><span class="arrow">→</span><span class="node warn">暗室接口板 DUT</span><span class="arrow">→</span><span class="node">AMP1</span><span class="arrow">→</span><span class="node">SA</span>
-        </div>
-        <div class="caption">指令：<code>CONFigure:LINK DUT, AMP1, SA</code> + <code>CONFigure:LINK H/V, SG</code>；不使用 AMP2。</div>
-      </div>
-      <div class="diagram">
-        <div class="diagram-title">整机接收 SG-only 链路</div>
-        <div class="flow">
-          <span class="node">SG</span><span class="arrow">→</span><span class="node">链路箱 H/V</span><span class="arrow">→</span><span class="node warn">暗室接口板 H/V</span><span class="arrow">→</span><span class="node">馈源</span><span class="arrow">→</span><span class="node">反射面</span><span class="arrow">→</span><span class="node alt">DUT 接收</span>
-        </div>
-        <div class="caption">指令：<code>CONFigure:LINK H/V, SG</code>；SA 不参与，不下发 <code>DUT, AMP1, SA</code>。</div>
-      </div>
+      <div class="caption">用途：随角度采集 DUT 方向图响应；链路本身仍为 VNA 直通。</div>
     </div>
+    <div class="h2">操作定义</div>
+    <table>
+      <thead><tr><th>字段</th><th>定义</th></tr></thead>
+      <tbody>
+        <tr><td>仪表角色</td><td>VNA S21 闭环</td></tr>
+        <tr><td>DUT 状态</td><td>接上 DUT，按方向图测试流程转动/步进</td></tr>
+        <tr><td>可选参数</td><td>极化 H/V</td></tr>
+        <tr><td>禁止项</td><td>不使用 <code>DUT, AMP1, VNA2</code>；不使用 <code>H/V, AMP2, VNA1</code></td></tr>
+      </tbody>
+    </table>
+    <div class="h2">所需路损文件/参数</div>
+    <table class="tight-table"><thead><tr><th>校准文件</th><th>参数</th><th>用途</th></tr></thead><tbody>
+      <tr><td><code>LINK-CAL-002</code> VNA 链路损耗校准</td><td><code>L_VNA_FEED_H/V</code> + <code>L_DUT_VNA</code></td><td>按极化使用馈源侧等效损耗与 DUT 回传段组合，修正方向图 VNA 直通测试链路；不直接使用闭合临时量 <code>L_VNA_H/V</code>。</td></tr>
+    </tbody></table>
+    <div class="h2">链路箱指令</div>
+    <table><thead><tr><th>极化</th><th>链路箱指令</th></tr></thead><tbody>
+      <tr><td>H</td><td><code>CONFigure:LINK DUT, VNA2</code> + <code>CONFigure:LINK H, VNA1</code></td></tr>
+      <tr><td>V</td><td><code>CONFigure:LINK DUT, VNA2</code> + <code>CONFigure:LINK V, VNA1</code></td></tr>
+    </tbody></table>
   </div>
-  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">17 / 20</span></span></div>
+  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">17 / 25</span></span></div>
 </div>
 
 <!-- P18 -->
 <div class="page">
-  <div class="page-header"><span class="brand">SG / SA 测试链路</span><div class="logo-text">GTS</div></div>
+  <div class="page-header"><span class="brand">LINK-TXR-003 测试项操作</span><svg class="logo" viewBox="4400 6500 18750 3520" role="img" aria-label="GTS"><use href="#gts-logo"></use></svg></div>
   <div class="main">
-    <div class="h1">G/T 与整机发射</div>
-    <div class="sub">两类测试使用 SG/SA 链路，但功率来源不同。</div>
+    <div class="h1">LINK-TXR-003：有源增益 TX&amp;RX 测试</div>
+    <div class="sub">有源增益测试使用 VNA1 到 VNA2 直通 S21 链路；DUT 有源状态、供电/控制状态由测试流程单独管理。</div>
+    <div class="diagram">
+      <div class="diagram-title">有源增益 VNA 直通链路</div>
+      <div class="flow">
+        <span class="node">VNA1</span><span class="arrow">→</span><span class="node">链路箱 H/V</span><span class="arrow">→</span><span class="node warn">暗室接口板 H/V</span><span class="arrow">→</span><span class="node">馈源</span><span class="arrow">→</span><span class="node">反射面</span><span class="arrow">→</span><span class="node alt">DUT</span><span class="arrow">→</span><span class="node warn">暗室接口板 DUT</span><span class="arrow">→</span><span class="node">链路箱 VNA2</span>
+      </div>
+      <div class="caption">用途：采集 DUT 有源状态下的传输响应；链路箱仍只切 VNA1 与 VNA2 直通。</div>
+    </div>
+    <div class="h2">操作定义</div>
     <table>
-      <thead><tr><th>测试项</th><th>功率/仪表状态</th><th>H 极化指令</th><th>V 极化指令</th></tr></thead>
+      <thead><tr><th>字段</th><th>定义</th></tr></thead>
       <tbody>
-        <tr><td>G/T 测试</td><td>SG 发射，SA 接收；不允许 AMP2</td><td><code>DUT, AMP1, SA</code> + <code>H, SG</code></td><td><code>DUT, AMP1, SA</code> + <code>V, SG</code></td></tr>
-        <tr><td>整机发射测试</td><td>DUT 发射，SA 接收；SG 不输出功率</td><td><code>DUT, AMP1, SA</code> + <code>H, SG</code></td><td><code>DUT, AMP1, SA</code> + <code>V, SG</code></td></tr>
+        <tr><td>仪表角色</td><td>VNA S21 闭环</td></tr>
+        <tr><td>DUT 状态</td><td>接上 DUT，DUT 处于有源增益测试状态</td></tr>
+        <tr><td>可选参数</td><td>极化 H/V</td></tr>
+        <tr><td>禁止项</td><td>不使用 <code>DUT, AMP1, VNA2</code>；不使用 <code>H/V, AMP2, VNA1</code></td></tr>
       </tbody>
     </table>
-    <div class="h2">完整指令</div>
+    <div class="h2">所需路损文件/参数</div>
+    <table class="tight-table"><thead><tr><th>校准文件</th><th>参数</th><th>用途</th></tr></thead><tbody>
+      <tr><td><code>LINK-CAL-002</code> VNA 链路损耗校准</td><td><code>L_VNA_FEED_H/V</code> + <code>L_DUT_VNA</code></td><td>按极化使用馈源侧等效损耗与 DUT 回传段组合，修正有源增益 VNA 直通测试链路；不直接使用闭合临时量 <code>L_VNA_H/V</code>。</td></tr>
+    </tbody></table>
+    <div class="h2">链路箱指令</div>
+    <table><thead><tr><th>极化</th><th>链路箱指令</th></tr></thead><tbody>
+      <tr><td>H</td><td><code>CONFigure:LINK DUT, VNA2</code> + <code>CONFigure:LINK H, VNA1</code></td></tr>
+      <tr><td>V</td><td><code>CONFigure:LINK DUT, VNA2</code> + <code>CONFigure:LINK V, VNA1</code></td></tr>
+    </tbody></table>
+  </div>
+  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">18 / 25</span></span></div>
+</div>
+
+<!-- P19 -->
+<div class="page">
+  <div class="page-header"><span class="brand">LINK-TXR-004 测试项操作</span><svg class="logo" viewBox="4400 6500 18750 3520" role="img" aria-label="GTS"><use href="#gts-logo"></use></svg></div>
+  <div class="main">
+    <div class="h1">LINK-TXR-004：天线板 EIRP 测试</div>
+    <div class="sub">天线板 EIRP 测试当前按 VNA 直通链路定义；后续如切换为 DUT 自发射功率测试，应作为独立测试项重新定义链路。</div>
+    <div class="diagram">
+      <div class="diagram-title">天线板 EIRP VNA 直通链路</div>
+      <div class="flow">
+        <span class="node">VNA1</span><span class="arrow">→</span><span class="node">链路箱 H/V</span><span class="arrow">→</span><span class="node warn">暗室接口板 H/V</span><span class="arrow">→</span><span class="node">馈源</span><span class="arrow">→</span><span class="node">反射面</span><span class="arrow">→</span><span class="node alt">DUT</span><span class="arrow">→</span><span class="node warn">暗室接口板 DUT</span><span class="arrow">→</span><span class="node">链路箱 VNA2</span>
+      </div>
+      <div class="caption">用途：按当前测试定义采集天线板 VNA 传输响应；链路不经过 AMP1/AMP2。</div>
+    </div>
+    <div class="h2">操作定义</div>
+    <table>
+      <thead><tr><th>字段</th><th>定义</th></tr></thead>
+      <tbody>
+        <tr><td>仪表角色</td><td>VNA S21 闭环</td></tr>
+        <tr><td>DUT 状态</td><td>接上 DUT，按天线板 EIRP 测试流程设置 DUT</td></tr>
+        <tr><td>可选参数</td><td>极化 H/V</td></tr>
+        <tr><td>禁止项</td><td>不使用 <code>DUT, AMP1, VNA2</code>；不使用 <code>H/V, AMP2, VNA1</code></td></tr>
+      </tbody>
+    </table>
+    <div class="h2">所需路损文件/参数</div>
+    <table class="tight-table"><thead><tr><th>校准文件</th><th>参数</th><th>用途</th></tr></thead><tbody>
+      <tr><td><code>LINK-CAL-002</code> VNA 链路损耗校准</td><td><code>L_VNA_FEED_H/V</code> + <code>L_DUT_VNA</code></td><td>按极化使用馈源侧等效损耗与 DUT 回传段组合，修正天线板 EIRP 当前 VNA 直通测试链路；不直接使用闭合临时量 <code>L_VNA_H/V</code>。</td></tr>
+    </tbody></table>
+    <div class="h2">链路箱指令</div>
+    <table><thead><tr><th>极化</th><th>链路箱指令</th></tr></thead><tbody>
+      <tr><td>H</td><td><code>CONFigure:LINK DUT, VNA2</code> + <code>CONFigure:LINK H, VNA1</code></td></tr>
+      <tr><td>V</td><td><code>CONFigure:LINK DUT, VNA2</code> + <code>CONFigure:LINK V, VNA1</code></td></tr>
+    </tbody></table>
+  </div>
+  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">19 / 25</span></span></div>
+</div>
+
+<!-- P20 -->
+<div class="page">
+  <div class="page-header"><span class="brand">LINK-GT-001 测试项操作</span><svg class="logo" viewBox="4400 6500 18750 3520" role="img" aria-label="GTS"><use href="#gts-logo"></use></svg></div>
+  <div class="main">
+    <div class="h1">LINK-GT-001：G/T 测试</div>
+    <div class="sub">G/T 使用 SG 直通发射、SA 放大接收：SG 端按 H/V 极化直通到馈源，不经过 AMP2；DUT 接收侧经 AMP1 到 SA。</div>
+    <div class="diagram">
+      <div class="diagram-title">G/T：SG 直通发射 + SA 放大接收</div>
+      <div class="flow">
+        <span class="node">SG</span><span class="arrow">→</span><span class="node">链路箱 H/V</span><span class="arrow">→</span><span class="node warn">暗室接口板 H/V</span><span class="arrow">→</span><span class="node">馈源</span><span class="arrow">→</span><span class="node">反射面</span><span class="arrow">→</span><span class="node alt">DUT</span><span class="arrow">→</span><span class="node warn">暗室接口板 DUT</span><span class="arrow">→</span><span class="node">AMP1</span><span class="arrow">→</span><span class="node">SA</span>
+      </div>
+      <div class="caption">用途：SG 输出测试信号，经 CATR 空间链路到 DUT；SA 侧通过 AMP1 放大接收。</div>
+    </div>
+    <div class="h2">操作定义</div>
+    <table>
+      <thead><tr><th>字段</th><th>定义</th></tr></thead>
+      <tbody>
+        <tr><td>仪表角色</td><td>SG 直通发射 + SA 放大接收</td></tr>
+        <tr><td>DUT 状态</td><td>DUT 接收侧经 AMP1 切到 SA</td></tr>
+        <tr><td>可选参数</td><td>极化 H/V</td></tr>
+        <tr><td>禁止项</td><td>SG 发射侧不使用 <code>H/V, AMP2, SG</code>；SA 接收侧固定使用 <code>DUT, AMP1, SA</code></td></tr>
+      </tbody>
+    </table>
+    <div class="h2">所需路损文件/参数</div>
+    <table class="tight-table"><thead><tr><th>校准文件</th><th>参数</th><th>用途</th></tr></thead><tbody>
+      <tr><td><code>LINK-CAL-004</code> SG 校准</td><td><code>L_SG_DUT_H</code> / <code>L_SG_DUT_V</code></td><td>按极化扣除 SG 直通发射至 DUT 参考面的等效发射链路损耗。</td></tr>
+      <tr><td><code>LINK-CAL-003</code> SA 校准</td><td><code>L_DUT_SA_AMP1</code></td><td>扣除 DUT 参考面至 SA 的 AMP1 放大接收链路损耗。</td></tr>
+    </tbody></table>
+    <div class="h2">链路箱指令</div>
     <table>
       <thead><tr><th>极化</th><th>链路箱指令</th></tr></thead>
       <tbody>
@@ -767,36 +931,188 @@
         <tr><td>V</td><td><code>CONFigure:LINK DUT, AMP1, SA</code> + <code>CONFigure:LINK V, SG</code></td></tr>
       </tbody>
     </table>
-    <div class="note">G/T 测试不选择 AMP2，因为信号源发、频谱仪收，放大器为单向器件。</div>
+    <div class="note">链路定义：<code>H/V, SG</code> 表示 SG 直通发射；<code>DUT, AMP1, SA</code> 表示 SA 放大接收。由于 AMP2 是单向放大链路，G/T 不提供 SG 发射侧加 AMP2 选项。</div>
   </div>
-  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">18 / 20</span></span></div>
+  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">20 / 25</span></span></div>
 </div>
 
-<!-- P19 -->
+<!-- P21 -->
 <div class="page">
-  <div class="page-header"><span class="brand">整机接收与 SA/SG 校准</span><div class="logo-text">GTS</div></div>
+  <div class="page-header"><span class="brand">LINK-SYS-001 测试项操作</span><svg class="logo" viewBox="4400 6500 18750 3520" role="img" aria-label="GTS"><use href="#gts-logo"></use></svg></div>
   <div class="main">
-    <div class="h1">整机接收与等效校准</div>
-    <div class="sub">整机接收只使用 SG；SA/SG 正式测试链路的损耗仍由 VNA 等效校准。</div>
-    <div class="row2">
-      <div class="card cb"><div class="card-h">整机接收链路</div><div class="card-b"><ul><li>SG 输出测试信号</li><li>DUT 自身接收</li><li>SA 不参与</li><li>不切 <code>DUT, AMP1, SA</code></li></ul></div></div>
-      <div class="card cg"><div class="card-h">指令</div><div class="card-b"><ul><li>H：<code>CONFigure:LINK H, SG</code></li><li>V：<code>CONFigure:LINK V, SG</code></li></ul></div></div>
+    <div class="h1">LINK-SYS-001：整机发射测试</div>
+    <div class="sub">整机发射由终端/DUT 直接发射给到馈源；链路箱开通 SA-H/V 接收链路，SA 接收侧默认直通，可选 AMP1 放大。</div>
+    <div class="diagram">
+      <div class="diagram-title">整机发射：终端发射 + SA-H/V 接收链路</div>
+      <div class="flow">
+        <span class="node alt">终端/DUT</span><span class="arrow">→</span><span class="node">反射面/馈源</span><span class="arrow">→</span><span class="node warn">暗室接口板 H/V</span><span class="arrow">→</span><span class="node">链路箱 H/V</span><span class="arrow">→</span><span class="node">SA</span>
+      </div>
+      <div class="caption">用途：DUT 自身产生发射功率，SA 作为接收仪表；SG 不输出功率。默认接收链路直通，需要提高接收动态范围时可选择 AMP1。</div>
     </div>
-    <div class="h2">SA/SG 校准对应关系</div>
+    <div class="h2">操作定义</div>
     <table>
-      <thead><tr><th>正式测试链路</th><th>校准时使用的 VNA 链路</th><th>校准指令</th></tr></thead>
+      <thead><tr><th>字段</th><th>定义</th></tr></thead>
       <tbody>
-        <tr><td>LINK-CAL-003 SA 校准</td><td>网分 PORT1 接链路箱 VNA1，网分 PORT2 接链路箱 SA</td><td><code>CONFigure:LINK H/V[,AMP2], VNA1</code> + <code>CONFigure:LINK DUT,SA</code> 或 <code>CONFigure:LINK DUT,AMP1,SA</code></td></tr>
-        <tr><td>LINK-CAL-004 SG 校准</td><td>网分 PORT1 接链路箱 SG，网分 PORT2 接链路箱 VNA2</td><td><code>CONFigure:LINK H/V, SG</code> + <code>CONFigure:LINK DUT, VNA2</code></td></tr>
+        <tr><td>仪表角色</td><td>SA 接收；SG 不输出功率</td></tr>
+        <tr><td>DUT 状态</td><td>终端/DUT 自身发射，信号到达馈源后进入 H/V 接收链路</td></tr>
+        <tr><td>可选参数</td><td>极化 H/V；SA 接收侧直通或 AMP1，默认直通</td></tr>
+        <tr><td>禁止项</td><td>不使用 <code>H/V, SG</code> 作为发射源；不使用 <code>H/V, AMP2, SG</code></td></tr>
       </tbody>
     </table>
+    <div class="h2">所需路损文件/参数</div>
+    <table class="tight-table"><thead><tr><th>校准文件</th><th>参数</th><th>用途</th></tr></thead><tbody>
+      <tr><td><code>LINK-CAL-003</code> SA 校准</td><td><code>L_SYS_TX_SA_H</code> / <code>L_SYS_TX_SA_V</code></td><td>默认直通接收时，按极化扣除整机发射到 SA 的接收侧等效链路损耗。</td></tr>
+      <tr><td><code>LINK-CAL-003</code> SA 校准</td><td><code>L_SYS_TX_SA_H_AMP1</code> / <code>L_SYS_TX_SA_V_AMP1</code></td><td>选择 AMP1 接收时，按极化扣除整机发射到 SA 的 AMP1 接收侧等效链路损耗。</td></tr>
+    </tbody></table>
+    <div class="h2">链路箱指令</div>
+    <table>
+      <thead><tr><th>条件</th><th>链路箱指令</th></tr></thead>
+      <tbody>
+        <tr><td>H 极化，SA 直通接收（默认）</td><td><code>CONFigure:LINK H, SA</code></td></tr>
+        <tr><td>V 极化，SA 直通接收（默认）</td><td><code>CONFigure:LINK V, SA</code></td></tr>
+        <tr><td>H 极化，SA 经 AMP1 接收</td><td><code>CONFigure:LINK H, AMP1, SA</code></td></tr>
+        <tr><td>V 极化，SA 经 AMP1 接收</td><td><code>CONFigure:LINK V, AMP1, SA</code></td></tr>
+      </tbody>
+    </table>
+    <div class="note">这里的 <code>H/V, SA</code> 表示只开通馈源侧到 SA 的 H/V 接收链路；整机发射的能量来自终端/DUT，不由 SG 或 VNA 发射，也不下发 <code>DUT,SA</code> 或 <code>DUT,AMP1,SA</code>。</div>
   </div>
-  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">19 / 20</span></span></div>
+  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">21 / 25</span></span></div>
 </div>
 
-<!-- P20 -->
+<!-- P22 -->
 <div class="page">
-  <div class="page-header"><span class="brand">落地建议</span><div class="logo-text">GTS</div></div>
+  <div class="page-header"><span class="brand">LINK-SYS-002 测试项操作</span><svg class="logo" viewBox="4400 6500 18750 3520" role="img" aria-label="GTS"><use href="#gts-logo"></use></svg></div>
+  <div class="main">
+    <div class="h1">LINK-SYS-002：整机接收测试</div>
+    <div class="sub">整机接收由 SG 通过馈源直通路径发射，DUT 终端接收；SA 不参与、不切换 DUT 到 SA。</div>
+    <div class="diagram">
+      <div class="diagram-title">整机接收：SG 直通发射 + DUT 终端接收</div>
+      <div class="flow">
+        <span class="node">SG</span><span class="arrow">→</span><span class="node">链路箱 H/V</span><span class="arrow">→</span><span class="node warn">暗室接口板 H/V</span><span class="arrow">→</span><span class="node">馈源</span><span class="arrow">→</span><span class="node">反射面</span><span class="arrow">→</span><span class="node alt">DUT 终端</span>
+      </div>
+      <div class="caption">用途：SG 输出测试信号，沿 H/V 直通发射路径进入 CATR 空间链路；DUT 终端自身接收，SA 不开通。</div>
+    </div>
+    <div class="h2">操作定义</div>
+    <table>
+      <thead><tr><th>字段</th><th>定义</th></tr></thead>
+      <tbody>
+        <tr><td>仪表角色</td><td>SG 直通发射；SA 不开通</td></tr>
+        <tr><td>DUT 状态</td><td>DUT 终端通过空间链路接收 SG 测试信号</td></tr>
+        <tr><td>可选参数</td><td>极化 H/V</td></tr>
+        <tr><td>禁止项</td><td>不使用 <code>DUT, SA</code> / <code>DUT, AMP1, SA</code>；不使用 <code>H/V, AMP2, SG</code></td></tr>
+      </tbody>
+    </table>
+    <div class="h2">所需路损文件/参数</div>
+    <table class="tight-table"><thead><tr><th>校准文件</th><th>参数</th><th>用途</th></tr></thead><tbody>
+      <tr><td><code>LINK-CAL-004</code> SG 校准</td><td><code>L_SG_DUT_H</code> / <code>L_SG_DUT_V</code></td><td>按极化扣除 SG 直通发射至 DUT 参考面的等效发射链路损耗。</td></tr>
+    </tbody></table>
+    <div class="h2">链路箱指令</div>
+    <table>
+      <thead><tr><th>极化</th><th>链路箱指令</th></tr></thead>
+      <tbody>
+        <tr><td>H</td><td><code>CONFigure:LINK H, SG</code></td></tr>
+        <tr><td>V</td><td><code>CONFigure:LINK V, SG</code></td></tr>
+      </tbody>
+    </table>
+    <div class="note">整机接收只需要开通 SG 到 H/V 的直通发射路径；不下发任何 <code>DUT,SA</code> 或 <code>DUT,AMP1,SA</code> 指令，避免误把 SA 接入链路。</div>
+  </div>
+  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">22 / 25</span></span></div>
+</div>
+
+<!-- P23 -->
+<div class="page">
+  <div class="page-header"><span class="brand">实际路损文件命名规则</span><svg class="logo" viewBox="4400 6500 18750 3520" role="img" aria-label="GTS"><use href="#gts-logo"></use></svg></div>
+  <div class="main">
+    <div class="h1">实际路损文件命名规则</div>
+    <div class="sub">实际落地保存的路损文件应能唯一标识“参数、频段、馈源型号、标准喇叭型号”。建议文件名使用稳定英文短码，不使用中文、空格或特殊符号，便于程序检索、批量加载和归档。</div>
+    <div class="final-output-box">
+      <div class="h2">推荐格式<span class="final-badge">重点</span></div>
+      <div class="note"><code>{PARAM}_{BAND}_{FEED}_{HORN}.csv</code></div>
+      <table class="tight-table">
+        <thead><tr><th>字段</th><th>含义</th><th>示例</th></tr></thead>
+        <tbody>
+          <tr><td><code>PARAM</code></td><td>路损参数名，只使用报告中定义的最终输出参数；原始 <code>S21_*</code>、临时 <code>T_*</code> 和闭合临时量不进入正式路损文件命名</td><td><code>L_VNA_FEED_H</code>、<code>L_SYS_TX_SA_H_AMP1</code>、<code>L_SG_DUT_V</code></td></tr>
+          <tr><td><code>BAND</code></td><td>当前路损文件实际适用频段；必须落在馈源频段与喇叭频段的交集内</td><td><code>10_15G</code>、<code>14P5_17G</code>、<code>17_22G</code>、<code>21P7_31G</code></td></tr>
+          <tr><td><code>FEED</code></td><td>馈源型号/频段短码</td><td><code>F10_17G</code>、<code>F17_31G</code></td></tr>
+          <tr><td><code>HORN</code></td><td>标准增益喇叭型号/频段短码；若该参数不涉及标准喇叭，可填 <code>NOHORN</code></td><td><code>H10_15G</code>、<code>H14P5_22G</code>、<code>H21P7_33G</code>、<code>NOHORN</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="row2">
+      <div>
+        <div class="h2">当前馈源短码</div>
+        <table class="tight-table">
+          <thead><tr><th>馈源短码</th><th>频段</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td><code>F10_17G</code></td><td>10–17 GHz</td><td>低频段馈源</td></tr>
+            <tr><td><code>F17_31G</code></td><td>17–31 GHz</td><td>高频段馈源</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <div class="h2">当前标准喇叭短码</div>
+        <table class="tight-table">
+          <thead><tr><th>喇叭短码</th><th>频段</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td><code>H10_15G</code></td><td>10–15 GHz</td><td>标准增益喇叭</td></tr>
+            <tr><td><code>H14P5_22G</code></td><td>14.5–22 GHz</td><td>标准增益喇叭；小数点用 <code>P</code> 表示</td></tr>
+            <tr><td><code>H21P7_33G</code></td><td>21.7–33 GHz</td><td>标准增益喇叭；小数点用 <code>P</code> 表示</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="h2">馈源与标准喇叭的有效频段交集</div>
+    <table class="tight-table">
+      <thead><tr><th>馈源</th><th>标准喇叭</th><th>可生成的 <code>BAND</code></th><th>实际频段</th></tr></thead>
+      <tbody>
+        <tr><td><code>F10_17G</code></td><td><code>H10_15G</code></td><td><code>10_15G</code></td><td>10–15 GHz</td></tr>
+        <tr><td><code>F10_17G</code></td><td><code>H14P5_22G</code></td><td><code>14P5_17G</code></td><td>14.5–17 GHz</td></tr>
+        <tr><td><code>F17_31G</code></td><td><code>H14P5_22G</code></td><td><code>17_22G</code></td><td>17–22 GHz</td></tr>
+        <tr><td><code>F17_31G</code></td><td><code>H21P7_33G</code></td><td><code>21P7_31G</code></td><td>21.7–31 GHz</td></tr>
+      </tbody>
+    </table>
+    <div class="note">当 <code>HORN</code> 不是 <code>NOHORN</code> 时，文件名中的 <code>BAND</code> 必须取 <code>FEED</code> 与 <code>HORN</code> 的有效频段交集，不能超过任一器件的频段范围。</div>
+  </div>
+  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">23 / 25</span></span></div>
+</div>
+
+<!-- P24 -->
+<div class="page">
+  <div class="page-header"><span class="brand">路损文件示例与字段</span><svg class="logo" viewBox="4400 6500 18750 3520" role="img" aria-label="GTS"><use href="#gts-logo"></use></svg></div>
+  <div class="main">
+    <div class="h1">路损文件示例与字段定义</div>
+    <div class="sub">本页列举实际文件名示例，并定义 CSV 内部建议字段。文件值必须保存经过 LINK-CAL 公式计算后的最终带符号链路损耗。</div>
+    <div class="h2">示例文件名</div>
+    <table class="tight-table">
+      <thead><tr><th>文件名</th><th>含义</th></tr></thead>
+      <tbody>
+        <tr><td><code>L_VNA_FEED_H_10_15G_F10_17G_H10_15G.csv</code></td><td>H 极化 VNA 馈源侧等效损耗，10–15 GHz，10–17G 馈源，10–15G 标准喇叭。</td></tr>
+        <tr><td><code>L_VNA_FEED_V_21P7_31G_F17_31G_H21P7_33G.csv</code></td><td>V 极化 VNA 馈源侧等效损耗，21.7–31 GHz，17–31G 馈源，21.7–33G 标准喇叭。</td></tr>
+        <tr><td><code>L_SYS_TX_SA_H_AMP1_10_17G_F10_17G_H10_15G.csv</code></td><td>整机发射 H 极化经 AMP1 接收至 SA 的等效修正参数，10–15 GHz，10–17G 馈源，10–15G 标准喇叭。</td></tr>
+        <tr><td><code>L_SG_DUT_H_17_22G_F17_31G_H14P5_22G.csv</code></td><td>SG 到 DUT H 极化等效发射链路损耗，17–22 GHz，使用 14.5–22G 标准喇叭校准段。</td></tr>
+      </tbody>
+    </table>
+    <div class="h2">文件内容建议</div>
+    <table class="tight-table">
+      <thead><tr><th>字段</th><th>含义</th></tr></thead>
+      <tbody>
+        <tr><td><code>freq_hz</code></td><td>频点，单位 Hz。</td></tr>
+        <tr><td><code>value_db</code></td><td>带符号链路损耗/传输值，单位 dB。</td></tr>
+        <tr><td><code>param</code></td><td>参数名，与文件名中的 <code>PARAM</code> 一致。</td></tr>
+        <tr><td><code>band</code></td><td>频段短码。</td></tr>
+        <tr><td><code>feed</code></td><td>馈源短码。</td></tr>
+        <tr><td><code>horn</code></td><td>喇叭短码或 <code>NOHORN</code>。</td></tr>
+        <tr><td><code>source_cal</code></td><td>来源校准项，如 <code>LINK-CAL-002</code>。</td></tr>
+      </tbody>
+    </table>
+    <div class="note"><code>value_db</code> 必须保存经过 <code>LINK-CAL</code> 公式计算后的最终带符号值；若校准链路经过标准增益喇叭，文件值应已经完成 <code>- G_STD_HORN_H/V</code> 去嵌。原始 <code>S21_*</code>、临时 <code>T_*</code>、闭合临时量 <code>L_VNA_H/V</code> 等只进入追溯数据或 metadata，不作为正式路损文件。对跨喇叭频段重叠区域，例如 14.5–15 GHz、21.7–22 GHz，应由测试计划或软件配置指定优先使用哪只标准喇叭，避免同一参数同一频点存在多个默认文件。</div>
+  </div>
+  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">24 / 25</span></span></div>
+</div>
+
+<!-- P25 -->
+<div class="page">
+  <div class="page-header"><span class="brand">落地建议</span><svg class="logo" viewBox="4400 6500 18750 3520" role="img" aria-label="GTS"><use href="#gts-logo"></use></svg></div>
   <div class="main">
     <div class="h1">后续封装建议</div>
     <div class="sub">建议把链路从“原始命令”封装为测试项操作，运行时按参数派生命令。</div>
@@ -806,14 +1122,14 @@
         <tr><td>测试项定义</td><td><code>id/name/template</code></td><td>稳定引用测试项和链路模板。</td></tr>
         <tr><td>链路参数</td><td><code>polarization/use_amp2</code></td><td>TX&amp;RX 和校准链路共用。</td></tr>
         <tr><td>操作步骤</td><td><code>commands[]</code></td><td>按模板生成有序 链路箱指令。</td></tr>
-        <tr><td>禁止项</td><td><code>forbidden_commands[]</code></td><td>避免接 DUT 时误下发 DUT→VNA2、G/T 误用 AMP2。</td></tr>
+        <tr><td>禁止项</td><td><code>forbidden_commands[]</code></td><td>避免 DUT VNA 直通测试误走 AMP1/AMP2、G/T 误用 AMP2。</td></tr>
         <tr><td>人工确认</td><td><code>manual_checks[]</code></td><td>LINK-CAL-002 的 AUX-D 回传段需确认 AUX-D 连接状态。</td></tr>
-        <tr><td>校准参数</td><td><code>cal_params[]</code></td><td>保存 <code>L_*</code> 损耗参数、频点数组和原始 <code>S21_*</code> 数据。</td></tr>
+        <tr><td>校准参数</td><td><code>cal_params[]</code></td><td>区分最终输出参数与追溯参数；正式路损文件只保存最终 <code>L_*</code>，原始 <code>S21_*</code> 和临时 <code>T_*</code> 进入 metadata 或追溯文件。</td></tr>
       </tbody>
     </table>
     <div class="note">建议下一步在代码中建立 LinkTestItem / LinkTemplate 数据模型，让 UI 选择测试项后自动显示可选参数和即将下发的指令。</div>
   </div>
-  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">20 / 20</span></span></div>
+  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">25 / 25</span></span></div>
 </div>
 
 
@@ -831,3 +1147,7 @@
 
 
 </body></html>
+
+
+
+

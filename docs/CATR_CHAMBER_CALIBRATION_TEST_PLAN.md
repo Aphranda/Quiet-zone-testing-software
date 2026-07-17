@@ -48,33 +48,48 @@ Last updated: 2026-07-17
 
 | 符号/字段 | 含义 | 说明 |
 |---|---|---|
-| `L_*` | Loss，校准后损耗量 | 单位 dB，作为正的损耗量参与计算。 |
-| `L_AUX_*` | Auxiliary Loss，辅助链路临时损耗量 | 单位 dB，作为正的损耗量保存；不作为最终测试项路损直接使用，但会参与后续扣除计算。 |
-| `T_*` | Temporary，临时中间损耗量 | 单位 dB，通常表示带辅助链路的闭合环路测量结果；必须保存，用于计算最终 `L_*`。 |
+| `L_*` | Loss，校准后链路损耗/传输损耗 | 单位 dB，按参数定义保存带符号值；不得仅凭 `L` 或“损耗”名称判断正负。 |
+| `L_AUX_*` | Auxiliary Loss，辅助线缆损耗量 | 单位 dB，由辅助线原始实测 `S21_AUX_*` 转换得到：`L_AUX_* = -S21_AUX_*`；通常为正值，不作为最终测试项路损直接使用，但会参与后续去嵌计算。 |
+| `T_*` | Temporary，临时中间损耗量 | 单位 dB，通常表示带辅助链路的闭合环路 S21 测量结果；必须保存，用于计算最终 `L_*`。 |
 | `S21_*` | 网分原始 S21 测量值 | 单位 dB，用于追溯和复算，不直接替代 `L_*`。 |
-| `value_db` | 参与计算的校准后损耗值 | 按频点保存。 |
+| `value_db` | 参与计算的校准后链路损耗值 | 按频点保存，带符号；与网分 S21 方向一致。 |
 | `raw_s21_db` | 原始 S21 记录 | 用于校准结果追溯。 |
 | `freq_hz[]` | 频点数组 | 所有损耗参数应按频点保存。 |
+| `G_STD_HORN_H/V` | 标准增益喇叭增益 | 单位 dBi，按频点保存；由标准喇叭增益文件/证书导入。 |
+
+标准增益喇叭去嵌规则：
+
+- 最终路损文件的数据源来自网分提取的 S21/Trace 曲线；文件中的最终 `value_db` 应保存为经过 `LINK-CAL` 公式换算后的带符号链路损耗 `L_*`。无源链路通常为负值，例如 `-100 dB`。
+- 若链路中包含放大器，`L_*` 可能为正值，表示该链路在当前频点呈现净增益；不得仅凭参数名称判断数值正负。
+- 辅助线原始实测量记为 `S21_AUX_*`，通常为负值；进入校准公式前转换为线缆损耗量 `L_AUX_* = -S21_AUX_*`，通常为正值。
+- 去嵌规则统一为：目标链路 = 原始闭合测量 + 被去嵌线缆损耗 - 被去嵌喇叭增益。因此最终输出公式中对辅助线损耗项使用加号 `+ L_AUX_*`，对标准增益喇叭使用减号 `- G_STD_HORN_H/V`。
+- 凡是以“标准增益喇叭替代 DUT”形成空间闭合环路的 `LINK-CAL` 校准项，必须在生成校准文件时就去掉标准增益喇叭增益。
+- 测试项页面引用的 `L_*` 路损参数均默认已经完成标准喇叭去嵌，测试执行阶段不再二次扣除 `G_STD_HORN_H/V`。
+- 因此，`LINK-CAL-002`、`LINK-CAL-003` 的 VNA1→SA 一致性校验环路、`LINK-CAL-004` 等凡经过标准增益喇叭的闭合测量，都应在校准项内部完成 `G_STD_HORN_H/V` 处理；测试项只读取最终路损文件。
+- 最终 `L_*` 参数按带符号传输损耗保存，因此标准喇叭去嵌公式为：`L_DEEMB = S21_RAW - G_STD_HORN_H/V`。
+- 简单例子：标准喇叭增益为 `+20 dBi`，网分提取 `S21_RAW=-80 dB`，则最终链路损耗为 `-80 - 20 = -100 dB`。
+- AUX 辅助线单独测试、AUX 接转台DUT接口的回传段校准不经过标准增益喇叭，不应用 `G_STD_HORN_H/V`。
 
 核心校准参数简称：
 
 | 参数 | 含义 | 来源 |
 |---|---|---|
 | `L_AUX_A` / `L_AUX_B` / `L_AUX_C` | 三根 3M 辅助线自身损耗，临时变量 | `LINK-CAL-001` 辅助线独立测试 |
-| `L_CH_INT_H` / `L_CH_INT_V` / `L_CH_INT_DUT` | 暗室内部链路损耗：`CP-H/V` 或 `TD` 至 `CP-DUT` | `LINK-CAL-001` 暗室内部链路校准 |
-| `L_CH_INT_FEED_H` / `L_CH_INT_FEED_V` | 馈源发射到转台DUT接口/DUT 端面的派生损耗 | `L_CH_INT_H/V - L_CH_INT_DUT` |
-| `L_VNA_H/V` / `L_VNA_H/V_AMP1` / `L_VNA_H/V_AMP2` | VNA 测试链路等效损耗，分别对应两边直通、AMP1 回传、AMP2 发射侧三种工况 | `LINK-CAL-002` VNA 链路损耗校准 |
+| `L_CH_INT_H` / `L_CH_INT_V` / `L_CH_INT_DUT` | 暗室内部链路损耗：`CP-H/V` 经馈源、反射面、标准增益喇叭至 `CP-DUT`，或 `TD` 至 `CP-DUT` | `LINK-CAL-001` 暗室内部链路校准 |
+| `L_CH_INT_FEED_H` / `L_CH_INT_FEED_V` | 馈源/反射面到转台DUT接口/DUT 端面的派生损耗；已去嵌标准增益喇叭 | `L_CH_INT_H/V - L_CH_INT_DUT` |
+| `L_VNA_H/V` / `L_VNA_H/V_AMP1` / `L_VNA_H/V_AMP2` | VNA 测试链路等效损耗，分别对应两边直通、AMP1 回传、AMP2 发射侧三种工况；需去嵌标准喇叭增益 | `LINK-CAL-002` VNA 链路损耗校准 |
 | `L_AUX_D` | AUX-D 辅助线自身损耗，临时变量 | `LINK-CAL-002` AUX-D 单独测试 |
 | `L_DUT_VNA` / `L_DUT_VNA_AMP1` | `TD` 至 `LB-VNA2` 的直通/AMP1 回传损耗 | `LINK-CAL-002` AUX-D 回传段校准 |
-| `L_VNA_FEED_H` / `L_VNA_FEED_V` / `L_VNA_FEED_H_AMP2` / `L_VNA_FEED_V_AMP2` | `LB-VNA1` 至 `DUT_REF` / `FH/FV` 的派生等效损耗 | `L_VNA_* - L_DUT_VNA` |
+| `L_VNA_FEED_H` / `L_VNA_FEED_V` / `L_VNA_FEED_H_AMP2` / `L_VNA_FEED_V_AMP2` | `LB-VNA1` 至 `DUT_REF` / `FH/FV` 的派生等效损耗；`LINK-CAL` 输出时已去嵌标准喇叭增益 | `L_VNA_* - G_STD_HORN_H/V - L_DUT_VNA` |
 | `L_AUX_E` | AUX-E 辅助线自身损耗，临时变量 | `LINK-CAL-003` AUX-E 单独测试 |
-| `T_VNA1_SA_*` | VNA1 到 SA 的完整闭合环路临时损耗，覆盖两边直通、AMP1、AMP2 三种工况 | `LINK-CAL-003` VNA1 到 SA 校准原始闭合环路 |
+| `T_VNA1_SA_*` | VNA1 到 SA 的完整闭合环路临时损耗，覆盖两边直通、AMP1、AMP2 三种工况；用于一致性校验时需去嵌标准喇叭增益 | `LINK-CAL-003` VNA1 到 SA 校准原始闭合环路 |
 | `T_AUXE_DUT_SA` / `T_AUXE_DUT_SA_AMP1` | AUX-E 接转台DUT接口后的 SA 接收闭合环路临时损耗 | `LINK-CAL-003` AUX-E 接转台DUT接口校准 |
-| `L_DUT_SA` / `L_DUT_SA_AMP1` | `DUT_REF` 至 `LB-SA` 的直通/AMP1 等效接收链路损耗 | `T_AUXE_DUT_SA* - L_AUX_E` |
+| `L_DUT_SA` / `L_DUT_SA_AMP1` | `DUT_REF` 至 `LB-SA` 的直通/AMP1 等效接收链路损耗 | `T_AUXE_DUT_SA* + L_AUX_E` |
+| `L_SYS_TX_SA_H/V` / `L_SYS_TX_SA_H/V_AMP1` | 整机发射时，DUT 空间发射经 H/V 接收链路到 `LB-SA` 的等效接收修正参数 | `T_VNA1_SA_* - G_STD_HORN_H/V` |
 | `L_AUX_F` | AUX-F 辅助线自身损耗，临时变量 | `LINK-CAL-004` AUX-F 单独测试 |
 | `L_DUT_VNA_F` / `L_DUT_VNA_F_AMP1` | `LINK-CAL-004` 中重复测得的直通/AMP1 回传损耗 | `LINK-CAL-004` AUX-F 回传段校准 |
-| `T_SG_*` | SG 到 VNA2 的完整闭合环路临时损耗，覆盖两边直通、AMP1、AMP2 三种工况 | `LINK-CAL-004` SG 校准原始闭合环路 |
-| `L_SG_DUT_*` | `LB-SG` 至 `DUT_REF` 的等效发射链路损耗，覆盖三种工况 | `T_SG_* - L_DUT_VNA_F*` |
+| `T_SG_*` | SG 到 VNA2 的完整闭合环路临时损耗，覆盖两边直通、AMP1、AMP2 三种工况；需去嵌标准喇叭增益 | `LINK-CAL-004` SG 校准原始闭合环路 |
+| `L_SG_DUT_*` | `LB-SG` 至 `DUT_REF` 的等效发射链路损耗，覆盖三种工况 | `T_SG_* - G_STD_HORN_H/V - L_DUT_VNA_F*` |
 
 端口/参考面英文简称：
 
@@ -98,6 +113,8 @@ Last updated: 2026-07-17
 
 链路测试项按“操作定义”组织，后续可直接迁移为测试项配置或用例模型。每个测试项建议保持以下字段：
 
+测试项中列出的“所需路损文件/参数”均为 `LINK-CAL` 输出的最终校准结果；若该校准链路使用标准增益喇叭，标准喇叭增益已经在对应 `LINK-CAL` 内完成去嵌，测试项公式不得再次扣除 `G_STD_HORN_H/V`。
+
 | 字段 | 说明 |
 |---|---|
 | 测试项 ID | 稳定编号，便于代码、UI 和记录文件引用。 |
@@ -112,17 +129,17 @@ Last updated: 2026-07-17
 
 | 测试项 ID | 名称 | 仪表角色 | DUT/校准件状态 | 可选参数 | 链路模板 |
 |---|---|---|---|---|---|
-| `LINK-CAL-001` | 暗室内部链路校准 | VNA S21 闭环 | 三根 3M 辅助线直接接网分和暗室接口板 H/V/DUT | 先测 DUT-H，再测 DUT-V；不经过链路箱 | 暗室内部辅助线链路 |
+| `LINK-CAL-001` | 暗室内部链路校准 | VNA S21 闭环 | 三根 3M 辅助线直接接网分、暗室接口板 H/V/DUT 和转台DUT接口；H/V 闭合测量包含馈源、反射面、标准增益喇叭 | 先测 DUT-H，再测 DUT-V；不经过链路箱 | 暗室内部辅助线链路 |
 | `LINK-CAL-002` | VNA 链路损耗校准 | VNA 发射 + VNA 接收 | 转台DUT接口换标准增益喇叭；另用 AUX-D 校准转台DUT到 VNA2 回传段 | 极化 H/V；三种工况：两边直通、AMP1 开启且馈源侧直通、AMP2 开启且 DUT 侧直通 | 校准 VNA 链路 + AUX-D 回传段 |
 | `LINK-CAL-003` | SA 校准 | VNA S21 闭环 | 网分 PORT1 接链路箱 VNA1，网分 PORT2 接链路箱 SA | 极化 H/V；PORT1 侧经 VNA1->H/V 发射，PORT2 侧经 DUT->SA 接收 | SA 校准链路 |
 | `LINK-CAL-004` | SG 校准 | VNA S21 闭环 | 网分 PORT1 接链路箱 SG，网分 PORT2 接链路箱 VNA2 | 极化 H/V；PORT1 侧经 SG->H/V 发射，PORT2 侧经 DUT->VNA2 接收 | SG 校准链路 |
-| `LINK-TXR-001` | DUT 通道校准 | VNA | 接上 DUT；不使用 `DUT -> VNA2` | 极化 H/V；馈源接收方向是否经过 AMP2 | DUT VNA：通道校准链路 |
-| `LINK-TXR-002` | 方向图测试 | VNA | 接上 DUT；不使用 `DUT -> VNA2` | 极化 H/V；馈源接收方向是否经过 AMP2 | DUT VNA：方向图链路 |
-| `LINK-TXR-003` | 有源增益测试 | VNA | 接上 DUT；不使用 `DUT -> VNA2` | 极化 H/V；馈源接收方向是否经过 AMP2 | DUT VNA：有源增益链路 |
-| `LINK-TXR-004` | 天线板 EIRP 测试 | VNA | 接上 DUT；不使用 `DUT -> VNA2` | 极化 H/V；馈源接收方向是否经过 AMP2 | DUT VNA：天线板 EIRP 链路 |
-| `LINK-GT-001` | G/T 测试 | SG 发射 + SA 接收 | DUT 接收侧切到 SA | 极化 H/V；不允许 AMP2 | SG/SA 链路 |
-| `LINK-SYS-001` | 整机发射测试 | SA 接收；SG 不输出功率 | DUT 发射功率，SA 接收 | 极化 H/V；不允许 AMP2 | SG/SA 链路 |
-| `LINK-SYS-002` | 整机接收测试 | SG 输出测试信号 | DUT 自身接收；SA 不参与 | 极化 H/V；不允许 AMP2 | SG-only 链路 |
+| `LINK-TXR-001` | DUT 通道校准 | VNA S21 闭环 | 接上 DUT；使用 `VNA1 -> DUT -> VNA2` 直通链路 | 极化 H/V；不经过 AMP1/AMP2 | DUT VNA：VNA1 到 VNA2 直通链路 |
+| `LINK-TXR-002` | 方向图测试 | VNA S21 闭环 | 接上 DUT；使用 `VNA1 -> DUT -> VNA2` 直通链路 | 极化 H/V；不经过 AMP1/AMP2 | DUT VNA：VNA1 到 VNA2 直通链路 |
+| `LINK-TXR-003` | 有源增益测试 | VNA S21 闭环 | 接上 DUT；使用 `VNA1 -> DUT -> VNA2` 直通链路 | 极化 H/V；不经过 AMP1/AMP2 | DUT VNA：VNA1 到 VNA2 直通链路 |
+| `LINK-TXR-004` | 天线板 EIRP 测试 | VNA S21 闭环 | 接上 DUT；使用 `VNA1 -> DUT -> VNA2` 直通链路 | 极化 H/V；不经过 AMP1/AMP2 | DUT VNA：VNA1 到 VNA2 直通链路 |
+| `LINK-GT-001` | G/T 测试 | SG 直通发射 + SA 放大接收 | DUT 接收侧经 AMP1 切到 SA | 极化 H/V；SG 发射侧直通，不允许 AMP2 | SG 直通发射 / SA 放大接收链路 |
+| `LINK-SYS-001` | 整机发射测试 | SA 接收；SG 不输出功率 | 终端/DUT 直接发射给到馈源，SA 接收 | 极化 H/V；SA 接收侧默认直通，可选 AMP1；不允许 AMP2 | SA-H/V 接收链路 |
+| `LINK-SYS-002` | 整机接收测试 | SG 直通发射；SA 不开通 | SG 通过馈源直通路径发射，DUT 终端接收 | 极化 H/V；不允许 AMP2；不切 DUT 到 SA | SG-only 直通发射链路 |
 
 ## 校准模板总览
 
@@ -130,24 +147,27 @@ Last updated: 2026-07-17
 
 | 校准项 | 主要测量/临时量 | 最终输出参数 | 核心扣除关系 |
 |---|---|---|---|
-| `LINK-CAL-001` 暗室内部链路 | `S21_CH_INT_*`，`L_AUX_A/B/C` | `L_CH_INT_H/V/DUT`，`L_CH_INT_FEED_H/V` | 先扣除 AUX-A/B/C；再由 `L_CH_INT_H/V - L_CH_INT_DUT` 得到馈源到 DUT 参考面损耗。 |
-| `LINK-CAL-002` VNA 链路损耗 | `L_VNA_*`，`L_AUX_D`，`L_DUT_VNA` / `L_DUT_VNA_AMP1` | `L_VNA_FEED_*` | VNA 主闭合环路扣除对应的 `L_DUT_VNA` / `L_DUT_VNA_AMP1`，得到 VNA 发射侧到 DUT/馈源参考面的等效损耗。 |
-| `LINK-CAL-003` SA 校准 | `L_AUX_E`，`T_AUXE_DUT_SA*`，`T_VNA1_SA_*` | `L_DUT_SA`，`L_DUT_SA_AMP1` | AUX-E 接转台DUT接口直接得到 DUT 到 SA 的关键接收损耗；VNA1 到 SA 三工况仅作为一致性校验。 |
-| `LINK-CAL-004` SG 校准 | `L_AUX_F`，`L_DUT_VNA_F` / `L_DUT_VNA_F_AMP1`，`T_SG_H/V`，`T_SG_H/V_AMP1`，`T_SG_H/V_AMP2` | `L_SG_DUT_H/V`，`L_SG_DUT_H/V_AMP1`，`L_SG_DUT_H/V_AMP2` | SG 校准内先用 AUX-F 重复测回传段，再用 SG 到 VNA2 闭合环路扣除对应回传段，得到三工况等效发射链路损耗。 |
+| `LINK-CAL-001` 暗室内部链路 | `S21_CH_INT_*`，`S21_AUX_A/B/C`，`L_AUX_A/B/C`，`G_STD_HORN_H/V` | `L_CH_INT_H/V/DUT`，`L_CH_INT_FEED_H/V` | H/V 闭合测量先加上线缆损耗量 `L_AUX_A/B/C`，并减去标准增益喇叭；再由 `L_CH_INT_H/V - L_CH_INT_DUT` 得到馈源/反射面到 DUT 参考面损耗。 |
+| `LINK-CAL-002` VNA 链路损耗 | `L_VNA_*`，`L_AUX_D`，`G_STD_HORN_H/V` | `L_DUT_VNA` / `L_DUT_VNA_AMP1`，`L_VNA_FEED_*` | AUX-D 回传段得到 DUT 到 VNA2 的关键回传损耗；VNA 主闭合环路在 LINK-CAL 内先去嵌标准喇叭增益，再扣除对应的 `L_DUT_VNA` / `L_DUT_VNA_AMP1`。 |
+| `LINK-CAL-003` SA 校准 | `L_AUX_E`，`T_AUXE_DUT_SA*`，`T_VNA1_SA_*` | `L_DUT_SA`，`L_DUT_SA_AMP1`，`L_SYS_TX_SA_H/V`，`L_SYS_TX_SA_H/V_AMP1` | AUX-E 接转台DUT接口直接得到 DUT 到 SA 的关键接收损耗；VNA1 到 SA 闭合量用于生成整机发射 SA 接收侧修正参数，并与 VNA 链路参数做一致性核对。 |
+| `LINK-CAL-004` SG 校准 | `L_AUX_F`，`L_DUT_VNA_F` / `L_DUT_VNA_F_AMP1`，`T_SG_H/V`，`T_SG_H/V_AMP1`，`T_SG_H/V_AMP2`，`G_STD_HORN_H/V` | `L_SG_DUT_H/V`，`L_SG_DUT_H/V_AMP1`，`L_SG_DUT_H/V_AMP2` | SG 校准内先用 AUX-F 重复测回传段；SG 到 VNA2 闭合环路在 LINK-CAL 内先去嵌标准喇叭增益，再扣除对应回传段。 |
 
 关键扣除公式：
 
 | 公式 | 说明 |
 |---|---|
-| `L_CH_INT_FEED_H/V = L_CH_INT_H/V - L_CH_INT_DUT` | 由暗室内部 H/V 链路扣除 DUT 内部段，得到馈源到 DUT 参考面的暗室内部损耗。 |
-| `L_VNA_FEED_* = L_VNA_* - L_DUT_VNA` | VNA 主链路闭合损耗扣除对应的 DUT 到 VNA2 回传段（直通或 AMP1）。 |
-| `L_DUT_SA = T_AUXE_DUT_SA - L_AUX_E` | AUX-E 接转台DUT接口，扣除 AUX-E 自身损耗后得到 DUT 参考面至 SA 端口的直通接收链路损耗。 |
-| `L_DUT_SA_AMP1 = T_AUXE_DUT_SA_AMP1 - L_AUX_E` | AUX-E 接转台DUT接口，扣除 AUX-E 自身损耗后得到 DUT 参考面至 SA 端口的 AMP1 接收链路损耗。 |
-| `L_DUT_VNA_F = -S21_DUT_VNA_F_RAW - L_AUX_F` | LINK-CAL-004 内用 AUX-F 重复测得 DUT 到 VNA2 直通回传段。 |
-| `L_DUT_VNA_F_AMP1 = -S21_DUT_VNA_F_AMP1_RAW - L_AUX_F` | LINK-CAL-004 内用 AUX-F 重复测得 DUT 到 VNA2 经 AMP1 回传段。 |
-| `L_SG_DUT_H/V = T_SG_H/V - L_DUT_VNA_F` | SG 两边直通闭合环路扣除 LINK-CAL-004 内重复测得的 DUT 到 VNA2 直通回传段。 |
-| `L_SG_DUT_H/V_AMP1 = T_SG_H/V_AMP1 - L_DUT_VNA_F_AMP1` | SG 发射侧直通、DUT 回传侧经 AMP1 的闭合环路，扣除 LINK-CAL-004 内重复测得的 AMP1 回传段。 |
-| `L_SG_DUT_H/V_AMP2 = T_SG_H/V_AMP2 - L_DUT_VNA_F` | SG 发射侧经 AMP2、DUT 回传侧直通的闭合环路，扣除 LINK-CAL-004 内重复测得的直通回传段。 |
+| `L_CH_INT_FEED_H/V = L_CH_INT_H/V - L_CH_INT_DUT` | 由包含馈源、反射面、标准增益喇叭且已完成喇叭去嵌的 H/V 闭合链路，扣除 DUT 内部段，得到馈源/反射面到 DUT 参考面的暗室内部损耗。 |
+| `L_VNA_*_DEEMB = L_VNA_* - G_STD_HORN_H/V` | LINK-CAL-002 内对使用标准增益喇叭的 VNA 主链路闭合 S21 做去嵌；标准喇叭为正增益，带符号链路损耗中使用减号。 |
+| `L_VNA_FEED_* = L_VNA_*_DEEMB - L_DUT_VNA` | VNA 主链路去嵌后，再扣除对应的 DUT 到 VNA2 回传段（直通或 AMP1）。 |
+| `L_DUT_SA = T_AUXE_DUT_SA + L_AUX_E` | AUX-E 接转台DUT接口，加上由 `S21_AUX_E` 转换得到的线缆损耗量，得到 DUT 参考面至 SA 端口的直通接收链路损耗。 |
+| `L_DUT_SA_AMP1 = T_AUXE_DUT_SA_AMP1 + L_AUX_E` | AUX-E 接转台DUT接口，加上由 `S21_AUX_E` 转换得到的线缆损耗量，得到 DUT 参考面至 SA 端口的 AMP1 接收链路损耗。 |
+| `L_SYS_TX_SA_H/V = T_VNA1_SA_H/V - G_STD_HORN_H/V` | 整机发射时使用的 SA 直通接收侧等效修正参数；从 VNA1 到 SA 闭合测量中去嵌标准喇叭增益后得到。 |
+| `L_SYS_TX_SA_H/V_AMP1 = T_VNA1_SA_H/V_AMP1 - G_STD_HORN_H/V` | 整机发射时使用的 SA 经 AMP1 接收侧等效修正参数；AMP2 工况仅保留为一致性校验。 |
+| `L_DUT_VNA_F = S21_DUT_VNA_F_RAW + L_AUX_F` | LINK-CAL-004 内用 AUX-F 重复测得 DUT 到 VNA2 直通回传段。 |
+| `L_DUT_VNA_F_AMP1 = S21_DUT_VNA_F_AMP1_RAW + L_AUX_F` | LINK-CAL-004 内用 AUX-F 重复测得 DUT 到 VNA2 经 AMP1 回传段。 |
+| `L_SG_DUT_H/V = T_SG_H/V - G_STD_HORN_H/V - L_DUT_VNA_F` | LINK-CAL-004 内 SG 两边直通闭合环路先去嵌标准喇叭增益，再扣除 DUT 到 VNA2 直通回传段。 |
+| `L_SG_DUT_H/V_AMP1 = T_SG_H/V_AMP1 - G_STD_HORN_H/V - L_DUT_VNA_F_AMP1` | LINK-CAL-004 内 SG 发射侧直通、DUT 回传侧经 AMP1 的闭合环路先去嵌标准喇叭增益，再扣除 AMP1 回传段。 |
+| `L_SG_DUT_H/V_AMP2 = T_SG_H/V_AMP2 - G_STD_HORN_H/V - L_DUT_VNA_F` | LINK-CAL-004 内 SG 发射侧经 AMP2、DUT 回传侧直通的闭合环路先去嵌标准喇叭增益，再扣除直通回传段。 |
 
 关键链路箱指令速览：
 
@@ -190,11 +210,11 @@ Last updated: 2026-07-17
 | `L_AUX_A` | AUX-A 3M 辅助线自身损耗 | `S21_AUX_A` | `L_AUX_A = -S21_AUX_A` |
 | `L_AUX_B` | AUX-B 3M 辅助线自身损耗 | `S21_AUX_B` | `L_AUX_B = -S21_AUX_B` |
 | `L_AUX_C` | AUX-C 3M 辅助线自身损耗 | `S21_AUX_C` | `L_AUX_C = -S21_AUX_C` |
-| `L_CH_INT_H` | 暗室接口板 H -> 暗室内部 H 链路 -> 暗室接口板 DUT | `S21_CH_INT_H_RAW` | `L_CH_INT_H = -S21_CH_INT_H_RAW - L_AUX_A - L_AUX_C` |
-| `L_CH_INT_V` | 暗室接口板 V -> 暗室内部 V 链路 -> 暗室接口板 DUT | `S21_CH_INT_V_RAW` | `L_CH_INT_V = -S21_CH_INT_V_RAW - L_AUX_B - L_AUX_C` |
-| `L_CH_INT_DUT` | 转台DUT接口 -> DUT 内部段 -> 暗室接口板 DUT | `S21_CH_INT_DUT_RAW` | `L_CH_INT_DUT = -S21_CH_INT_DUT_RAW - L_AUX_A - L_AUX_C` |
+| `L_CH_INT_H` | 暗室接口板 H -> 馈源 H -> 反射面 -> 标准增益喇叭 -> 暗室接口板 DUT | `S21_CH_INT_H_RAW` | `L_CH_INT_H = S21_CH_INT_H_RAW + L_AUX_A + L_AUX_C - G_STD_HORN_H` |
+| `L_CH_INT_V` | 暗室接口板 V -> 馈源 V -> 反射面 -> 标准增益喇叭 -> 暗室接口板 DUT | `S21_CH_INT_V_RAW` | `L_CH_INT_V = S21_CH_INT_V_RAW + L_AUX_B + L_AUX_C - G_STD_HORN_V` |
+| `L_CH_INT_DUT` | 转台DUT接口 -> DUT 内部段 -> 暗室接口板 DUT | `S21_CH_INT_DUT_RAW` | `L_CH_INT_DUT = S21_CH_INT_DUT_RAW + L_AUX_A + L_AUX_C` |
 
-说明：以上公式按 dB 量逐频点计算；若仪表或数据处理已将原始 S21 转成正损耗，则公式中的 `-S21_*` 应替换为对应的正损耗原始量。
+说明：以上公式按 dB 量逐频点计算；`S21_AUX_*` 是辅助线原始实测 S21，通常为负值；`L_AUX_*` 是由 `S21_AUX_*` 转换得到的线缆损耗量，通常为正值，因此最终输出公式中使用 `+ L_AUX_*`。
 
 禁止/注意：
 
@@ -280,46 +300,31 @@ SG 校准对应关系：
 - 执行 AUX-D 单独测试前，需要确认 AUX-D 已直连 VNA1 和 VNA2。
 - 执行转台DUT到VNA的损耗校准前，需要确认 AUX-D 已从 VNA2 侧改接到转台DUT接口。
 
-### 模板 C：DUT VNA 测试细分链路
+### 模板 C0：DUT VNA1 到 VNA2 直通测试链路
 
-用途：接上 DUT 后执行 VNA 相关 TX&RX 测试。接上 DUT 时，不下发网分 `DUT -> VNA2` 接收链路，只配置 H/V 馈源端口到 VNA1。由于 AMP2 为单向放大器，只有从馈源接收信号的场景才选择是否经过 AMP2；H/V 后续物理路径为链路箱 H/V、暗室接口板 H/V、馈源、反射面到 DUT。该模板按测试项语义细分，命令组合相同，但记录和 UI 展示应保留测试项名称。
-
-适用测试项：
-
-- `LINK-TXR-001` DUT 通道校准
-- `LINK-TXR-002` 方向图测试
-- `LINK-TXR-003` 有源增益测试
-- `LINK-TXR-004` 天线板 EIRP 测试
-
-细分测试项：
-
-| 测试项 ID | 测试项 | 馈源接收直通用途 | 馈源接收经过 AMP2 用途 |
-|---|---|---|---|
-| `LINK-TXR-001` | DUT 通道校准 | DUT 通道校准直通链路 | DUT 通道校准含 TX 放大器链路 |
-| `LINK-TXR-002` | 方向图测试 | 方向图直通链路 | 方向图含 TX 放大器链路 |
-| `LINK-TXR-003` | 有源增益测试 | 有源增益直通链路 | 有源增益含 TX 放大器链路 |
-| `LINK-TXR-004` | 天线板 EIRP 测试 | 天线板 EIRP 直通链路 | 天线板 EIRP 含 TX 放大器链路 |
+用途：`LINK-TXR-001` DUT 通道校准、`LINK-TXR-002` 方向图测试、`LINK-TXR-003` 有源增益测试、`LINK-TXR-004` 天线板 EIRP 测试。接上 DUT 后，由网分 PORT1 经链路箱 VNA1、H/V 馈源、反射面、DUT，再由 DUT 侧直通回链路箱 VNA2 到网分 PORT2，形成 VNA S21 闭合测试链路。该链路为 VNA 直通测试链路，接收侧不经过 AMP1，发射侧不经过 AMP2。
 
 操作步骤：
 
-1. 不切换 `DUT -> VNA2`。
-2. 根据测试极化选择 H 或 V。
-3. 根据测试配置选择 TX 是否经过 AMP2。
+1. 切换 DUT 侧直通到 VNA2。
+2. 根据测试极化选择 H 或 V 到 VNA1。
+3. 网分执行 VNA1 到 VNA2 的 S21 测量。
 
-细分指令组合：
+指令组合：
 
-| 馈源接收路径 | H 极化指令 | V 极化指令 |
-|---|---|---|
-| 直通 | `CONFigure:LINK H, VNA1` | `CONFigure:LINK V, VNA1` |
-| 经过 AMP2 | `CONFigure:LINK H, AMP2, VNA1` | `CONFigure:LINK V, AMP2, VNA1` |
+| 条件 | 链路箱指令 |
+|---|---|
+| H 极化，VNA1 到 VNA2 直通 | `CONFigure:LINK DUT, VNA2` + `CONFigure:LINK H, VNA1` |
+| V 极化，VNA1 到 VNA2 直通 | `CONFigure:LINK DUT, VNA2` + `CONFigure:LINK V, VNA1` |
 
 禁止/注意：
 
-- 接上 DUT 时，DUT TX&RX 通用测试链路不使用 `CONFigure:LINK DUT, VNA2`。
+- VNA 测试项使用 VNA1 到 VNA2 直通链路，不使用 `CONFigure:LINK DUT, AMP1, VNA2`。
+- VNA 测试项不使用 `CONFigure:LINK H/V, AMP2, VNA1`。
 
 ### 模板 D：SG/SA 链路
 
-用途：使用信号源和频谱仪的测试链路。DUT 侧切到 SA，TX 侧按 H/V 极化切到 SG；SG 经链路箱 H/V、暗室接口板 H/V、馈源、反射面到 DUT，DUT 接收侧经暗室接口板 DUT、AMP1 回到 SA。
+用途：使用信号源和频谱仪的测试链路。G/T 使用 SG 直通发射、SA 放大接收；整机发射由终端/DUT 自身发射到馈源侧，链路箱只开通 SA-H/V 接收链路，SA 接收侧可选直通或经过 AMP1，默认直通。
 
 适用测试项：
 
@@ -328,26 +333,31 @@ SG 校准对应关系：
 
 操作步骤：
 
-1. 切换 DUT 侧到 SA。
-2. 根据测试极化切换 H 或 V 到 SG。
-3. 不经过 AMP2。
+1. G/T：切换 DUT 侧经 AMP1 到 SA，并根据测试极化切换 H 或 V 到 SG。
+2. 整机发射：终端/DUT 自身发射给到馈源；根据测试极化开通 SA-H/V 接收链路。
+3. 整机发射的 SA 接收侧默认直通，可选 AMP1；不使用 SG 输出功率。
 
 指令组合：
 
-| 极化 | 链路箱指令 |
-|---|---|
-| H | `CONFigure:LINK DUT, AMP1, SA` + `CONFigure:LINK H, SG` |
-| V | `CONFigure:LINK DUT, AMP1, SA` + `CONFigure:LINK V, SG` |
+| 场景 | 极化 | 链路箱指令 |
+|---|---|---|
+| G/T | H | `CONFigure:LINK DUT, AMP1, SA` + `CONFigure:LINK H, SG` |
+| G/T | V | `CONFigure:LINK DUT, AMP1, SA` + `CONFigure:LINK V, SG` |
+| 整机发射，SA 直通接收 | H | `CONFigure:LINK H, SA` |
+| 整机发射，SA 直通接收 | V | `CONFigure:LINK V, SA` |
+| 整机发射，SA 放大接收 | H | `CONFigure:LINK H, AMP1, SA` |
+| 整机发射，SA 放大接收 | V | `CONFigure:LINK V, AMP1, SA` |
 
 禁止/注意：
 
-- G/T 测试中信号源发射、频谱仪接收。由于放大器为单向器件，G/T 不提供 TX 加放大器选项。
-- 整机发射测试中信号源不输出发射功率，发射功率由 DUT 产生，频谱仪负责接收。
+- G/T 测试中信号源直通发射、频谱仪经 AMP1 放大接收。由于放大器为单向器件，G/T 不提供 SG 发射侧加 AMP2 选项。
+- 整机发射测试中信号源不输出发射功率，发射功率由终端/DUT 产生；链路箱仅开通 SA-H/V 接收链路。
+- 整机发射默认使用 `DUT, SA` 直通接收；只有需要提高接收动态范围时才选择 `DUT, AMP1, SA`。
 - 本模板不使用 `CONFigure:LINK H, AMP2, SG` 或 `CONFigure:LINK V, AMP2, SG`。
 
 ### 模板 E：SG-only 链路
 
-用途：整机接收测试。信号源经链路箱 H/V、暗室接口板 H/V、馈源、反射面发射测试信号，DUT 负责接收，频谱仪不参与。
+用途：整机接收测试。信号源经链路箱 H/V、暗室接口板 H/V、馈源、反射面走直通路径发射测试信号，DUT 终端负责接收，频谱仪/SA 不参与也不开通。
 
 适用测试项：
 
@@ -355,8 +365,8 @@ SG 校准对应关系：
 
 操作步骤：
 
-1. 不切换 DUT 到 SA。
-2. 根据测试极化切换 H 或 V 到 SG。
+1. 不切换 DUT 到 SA，不开通 SA 接收链路。
+2. 根据测试极化切换 H 或 V 到 SG，SG 通过馈源直通路径发射。
 
 指令组合：
 
@@ -367,8 +377,9 @@ SG 校准对应关系：
 
 禁止/注意：
 
-- 整机接收测试不使用 `CONFigure:LINK DUT, AMP1, SA`。
-- 整机接收测试不使用频谱仪。
+- 整机接收测试不使用 `CONFigure:LINK DUT, SA` 或 `CONFigure:LINK DUT, AMP1, SA`。
+- 整机接收测试不使用频谱仪/SA。
+- 整机接收测试不使用 `CONFigure:LINK H/V, AMP2, SG`。
 
 ## 测试项操作定义
 
@@ -392,9 +403,9 @@ SG 校准对应关系：
 
 | 参数 | 输入端口/参考面 | 输出端口/参考面 | 路径 | 计算公式 |
 |---|---|---|---|---|
-| `L_CH_INT_H` | `CP-H` | `CP-DUT` | 暗室内部 H 链路 | `L_CH_INT_H = -S21_CH_INT_H_RAW - L_AUX_A - L_AUX_C` |
-| `L_CH_INT_V` | `CP-V` | `CP-DUT` | 暗室内部 V 链路 | `L_CH_INT_V = -S21_CH_INT_V_RAW - L_AUX_B - L_AUX_C` |
-| `L_CH_INT_DUT` | `TD` | `CP-DUT` | DUT 内部段 | `L_CH_INT_DUT = -S21_CH_INT_DUT_RAW - L_AUX_A - L_AUX_C` |
+| `L_CH_INT_H` | `CP-H` | `CP-DUT` | H 馈源 -> 反射面 -> 标准增益喇叭闭合链路，已去嵌喇叭增益 | `L_CH_INT_H = S21_CH_INT_H_RAW + L_AUX_A + L_AUX_C - G_STD_HORN_H` |
+| `L_CH_INT_V` | `CP-V` | `CP-DUT` | V 馈源 -> 反射面 -> 标准增益喇叭闭合链路，已去嵌喇叭增益 | `L_CH_INT_V = S21_CH_INT_V_RAW + L_AUX_B + L_AUX_C - G_STD_HORN_V` |
+| `L_CH_INT_DUT` | `TD` | `CP-DUT` | DUT 内部段 | `L_CH_INT_DUT = S21_CH_INT_DUT_RAW + L_AUX_A + L_AUX_C` |
 | `L_CH_INT_FEED_H` | `FH` | `TD` / `DUT_REF` | H 馈源到 DUT 参考面 | `L_CH_INT_FEED_H = L_CH_INT_H - L_CH_INT_DUT` |
 | `L_CH_INT_FEED_V` | `FV` | `TD` / `DUT_REF` | V 馈源到 DUT 参考面 | `L_CH_INT_FEED_V = L_CH_INT_V - L_CH_INT_DUT` |
 
@@ -405,11 +416,11 @@ SG 校准对应关系：
 | `L_AUX_A` | `P1` | `P2` | AUX-A 自身损耗，`L_AUX_A = -S21_AUX_A`。 |
 | `L_AUX_B` | `P1` | `P2` | AUX-B 自身损耗，`L_AUX_B = -S21_AUX_B`。 |
 | `L_AUX_C` | `P1` | `P2` | AUX-C 自身损耗，`L_AUX_C = -S21_AUX_C`。 |
-| `S21_CH_INT_H_RAW` | `P1/AUX-A/CP-H` | `CP-DUT/AUX-C/P2` | DUT-H 原始闭合测量。 |
-| `S21_CH_INT_V_RAW` | `P1/AUX-B/CP-V` | `CP-DUT/AUX-C/P2` | DUT-V 原始闭合测量。 |
+| `S21_CH_INT_H_RAW` | `P1/AUX-A/CP-H` | `CP-DUT/AUX-C/P2` | DUT-H 原始闭合测量，物理路径包含馈源 H、反射面、标准增益喇叭。 |
+| `S21_CH_INT_V_RAW` | `P1/AUX-B/CP-V` | `CP-DUT/AUX-C/P2` | DUT-V 原始闭合测量，物理路径包含馈源 V、反射面、标准增益喇叭。 |
 | `S21_CH_INT_DUT_RAW` | `P1/AUX-A/TD` | `CP-DUT/AUX-C/P2` | DUT 内部段原始闭合测量。 |
 
-说明：`L_CH_INT_FEED_H/V` 由 `L_CH_INT_H/V` 扣除 `L_CH_INT_DUT` 得到；三者均已扣除对应 AUX 辅助线损耗。
+说明：`L_CH_INT_H/V` 的原始闭合测量包含馈源、反射面、标准增益喇叭，因此最终输出时需要加上对应 AUX 线缆损耗量，并减去 `G_STD_HORN_H/V`；`L_CH_INT_DUT` 不经过标准喇叭，只加上对应 AUX 线缆损耗量。`L_CH_INT_FEED_H/V` 由 `L_CH_INT_H/V` 扣除 `L_CH_INT_DUT` 得到。
 
 ### LINK-CAL-002：VNA 链路损耗校准
 
@@ -437,22 +448,26 @@ SG 校准对应关系：
 
 | 参数 | 输入端口/参考面 | 输出端口/参考面 | 极化/路径 | 计算公式 |
 |---|---|---|---|---|
-| `L_VNA_FEED_H` / `L_VNA_FEED_V` | `LB-VNA1` | `DUT_REF` / `FH/FV` | `POL-H/V`，两边直通 | `L_VNA_FEED_H/V = L_VNA_H/V - L_DUT_VNA` |
-| `L_VNA_FEED_H_AMP1` / `L_VNA_FEED_V_AMP1` | `LB-VNA1` | `DUT_REF` / `FH/FV` | `POL-H/V`，AMP1 开启，馈源侧直通 | `L_VNA_FEED_H/V_AMP1 = L_VNA_H/V_AMP1 - L_DUT_VNA_AMP1` |
-| `L_VNA_FEED_H_AMP2` / `L_VNA_FEED_V_AMP2` | `LB-VNA1` | `DUT_REF` / `FH/FV` | `POL-H/V`，AMP2 开启，DUT 侧直通 | `L_VNA_FEED_H/V_AMP2 = L_VNA_H/V_AMP2 - L_DUT_VNA` |
-| `L_DUT_VNA` | `TD` | `LB-VNA2` | 回传段，DUT 侧直通 | `L_DUT_VNA = -S21_DUT_VNA_RAW - L_AUX_D` |
-| `L_DUT_VNA_AMP1` | `TD` | `LB-VNA2` | 回传段，经 `AMP1` | `L_DUT_VNA_AMP1 = -S21_DUT_VNA_AMP1_RAW - L_AUX_D` |
+| `L_DUT_VNA` | `TD` | `LB-VNA2` | 回传段，DUT 侧直通 | `L_DUT_VNA = S21_DUT_VNA_RAW + L_AUX_D` |
+| `L_DUT_VNA_AMP1` | `TD` | `LB-VNA2` | 回传段，经 `AMP1` | `L_DUT_VNA_AMP1 = S21_DUT_VNA_AMP1_RAW + L_AUX_D` |
+| `L_VNA_FEED_H` / `L_VNA_FEED_V` | `LB-VNA1` | `DUT_REF` / `FH/FV` | `POL-H/V`，两边直通 | `L_VNA_FEED_H/V = L_VNA_H/V - G_STD_HORN_H/V - L_DUT_VNA` |
+| `L_VNA_FEED_H_AMP1` / `L_VNA_FEED_V_AMP1` | `LB-VNA1` | `DUT_REF` / `FH/FV` | `POL-H/V`，AMP1 开启，馈源侧直通 | `L_VNA_FEED_H/V_AMP1 = L_VNA_H/V_AMP1 - G_STD_HORN_H/V - L_DUT_VNA_AMP1` |
+| `L_VNA_FEED_H_AMP2` / `L_VNA_FEED_V_AMP2` | `LB-VNA1` | `DUT_REF` / `FH/FV` | `POL-H/V`，AMP2 开启，DUT 侧直通 | `L_VNA_FEED_H/V_AMP2 = L_VNA_H/V_AMP2 - G_STD_HORN_H/V - L_DUT_VNA` |
 
 临时/追溯参数：
 
 | 参数 | 输入端口/参考面 | 输出端口/参考面 | 极化/路径 | 含义/公式 |
 |---|---|---|---|---|
 | `L_AUX_D` | `P1` | `P2` | AUX-D | AUX-D 自身损耗，`L_AUX_D = -S21_AUX_D`。 |
+| `S21_DUT_VNA_RAW` | `P1/AUX-D/TD` | `LB-VNA2/P2` | DUT 侧直通 | AUX-D 接转台DUT接口后的 DUT→VNA2 直通回传段原始网分读数。 |
+| `S21_DUT_VNA_AMP1_RAW` | `P1/AUX-D/TD` | `AMP1/LB-VNA2/P2` | DUT 侧经过 `AMP1` | AUX-D 接转台DUT接口后的 DUT→AMP1→VNA2 回传段原始网分读数。 |
 | `L_VNA_H` / `L_VNA_V` | `LB-VNA1` | `LB-VNA2` | `POL-H/V`，两边直通，含回传段 | VNA 主链路闭合损耗。 |
 | `L_VNA_H_AMP1` / `L_VNA_V_AMP1` | `LB-VNA1` | `LB-VNA2` | `POL-H/V`，AMP1 开启，馈源侧直通，含 AMP1 回传段 | VNA 主链路闭合损耗，用于校验/计算 AMP1 回传工况。 |
 | `L_VNA_H_AMP2` / `L_VNA_V_AMP2` | `LB-VNA1` | `LB-VNA2` | `POL-H/V`，AMP2 开启，DUT 侧直通，含直通回传段 | 经过 AMP2 的 VNA 主链路闭合损耗。 |
 
-说明：三种工况分别对应“两边直通”“AMP1 开启、馈源侧直通”“AMP2 开启、DUT 侧直通”。`L_VNA_FEED_*` 必须扣除同一工况下的 DUT 到 VNA2 回传段；不默认组合 AMP1 与 AMP2 同时开启。
+说明：三种工况分别对应“两边直通”“AMP1 开启、馈源侧直通”“AMP2 开启、DUT 侧直通”。`L_VNA_FEED_*` 在 LINK-CAL-002 内必须先去嵌标准喇叭增益，再扣除同一工况下的 DUT 到 VNA2 回传段；不默认组合 AMP1 与 AMP2 同时开启。
+
+`S21_DUT_VNA_RAW` 来源：LINK-CAL-002 的 AUX-D 回传段校准原始网分读数。物理连接为“网分 PORT1 -> AUX-D -> 转台DUT接口（TD） -> 链路箱 DUT -> 链路箱 VNA2 -> 网分 PORT2”，链路箱下发 `CONFigure:LINK DUT, VNA2` 后，由网分采集 S21 得到。`S21_DUT_VNA_AMP1_RAW` 来源相同，但 DUT 回传侧下发 `CONFigure:LINK DUT, AMP1, VNA2`。
 
 ### LINK-CAL-003：SA 校准
 
@@ -476,21 +491,23 @@ SG 校准对应关系：
 
 | 参数 | 输入端口/参考面 | 输出端口 | 极化/路径 | 计算公式 |
 |---|---|---|---|---|
-| `L_DUT_SA` | `DUT_REF` | `LB-SA` | DUT 侧直通 | `L_DUT_SA = T_AUXE_DUT_SA - L_AUX_E` |
-| `L_DUT_SA_AMP1` | `DUT_REF` | `LB-SA` | DUT 侧经过 `AMP1` | `L_DUT_SA_AMP1 = T_AUXE_DUT_SA_AMP1 - L_AUX_E` |
+| `L_DUT_SA` | `DUT_REF` | `LB-SA` | DUT 侧直通 | `L_DUT_SA = T_AUXE_DUT_SA + L_AUX_E` |
+| `L_DUT_SA_AMP1` | `DUT_REF` | `LB-SA` | DUT 侧经过 `AMP1` | `L_DUT_SA_AMP1 = T_AUXE_DUT_SA_AMP1 + L_AUX_E` |
+| `L_SYS_TX_SA_H` / `L_SYS_TX_SA_V` | `DUT_REF` | `LB-SA` | 整机发射 H/V 直通接收至 SA | `L_SYS_TX_SA_H/V = T_VNA1_SA_H/V - G_STD_HORN_H/V` |
+| `L_SYS_TX_SA_H_AMP1` / `L_SYS_TX_SA_V_AMP1` | `DUT_REF` | `LB-SA` | 整机发射 H/V 经 AMP1 接收至 SA | `L_SYS_TX_SA_H/V_AMP1 = T_VNA1_SA_H/V_AMP1 - G_STD_HORN_H/V` |
 
 临时/追溯参数：
 
 | 参数 | 输入端口/参考面 | 输出端口 | 极化/路径 | 含义/公式 |
 |---|---|---|---|---|
 | `L_AUX_E` | `P1` | `CP-DUT` | AUX-E | 辅助线损耗，`L_AUX_E = -S21_AUX_E`。 |
-| `T_AUXE_DUT_SA` | `P1/AUX-E/DUT_REF` | `LB-SA/P2` | DUT 侧直通 | AUX-E 接转台DUT接口的直通接收闭合环路，`T_AUXE_DUT_SA = -S21_AUXE_DUT_SA_RAW`。 |
-| `T_AUXE_DUT_SA_AMP1` | `P1/AUX-E/DUT_REF` | `LB-SA/P2` | DUT 侧经过 `AMP1` | AUX-E 接转台DUT接口的 AMP1 接收闭合环路，`T_AUXE_DUT_SA_AMP1 = -S21_AUXE_DUT_SA_AMP1_RAW`。 |
-| `T_VNA1_SA_H` / `T_VNA1_SA_V` | `LB-VNA1` | `LB-SA` | `POL-H/V`，两边直通 | 一致性校验量，`T_VNA1_SA_H/V ≈ L_VNA_FEED_H/V + L_DUT_SA`。 |
-| `T_VNA1_SA_H_AMP1` / `T_VNA1_SA_V_AMP1` | `LB-VNA1` | `LB-SA` | `POL-H/V`，AMP1 开启且馈源侧直通 | 一致性校验量，`T_VNA1_SA_H/V_AMP1 ≈ L_VNA_FEED_H/V + L_DUT_SA_AMP1`。 |
-| `T_VNA1_SA_H_AMP2` / `T_VNA1_SA_V_AMP2` | `LB-VNA1` | `LB-SA` | `POL-H/V`，AMP2 开启且 DUT 侧直通 | 一致性校验量，`T_VNA1_SA_H/V_AMP2 ≈ L_VNA_FEED_H/V_AMP2 + L_DUT_SA`。 |
+| `T_AUXE_DUT_SA` | `P1/AUX-E/DUT_REF` | `LB-SA/P2` | DUT 侧直通 | AUX-E 接转台DUT接口的直通接收闭合环路，`T_AUXE_DUT_SA = S21_AUXE_DUT_SA_RAW`。 |
+| `T_AUXE_DUT_SA_AMP1` | `P1/AUX-E/DUT_REF` | `LB-SA/P2` | DUT 侧经过 `AMP1` | AUX-E 接转台DUT接口的 AMP1 接收闭合环路，`T_AUXE_DUT_SA_AMP1 = S21_AUXE_DUT_SA_AMP1_RAW`。 |
+| `T_VNA1_SA_H` / `T_VNA1_SA_V` | `LB-VNA1` | `LB-SA` | `POL-H/V`，两边直通 | 生成 `L_SYS_TX_SA_H/V`，并校验：`T_VNA1_SA_H/V - G_STD_HORN_H/V ≈ L_VNA_FEED_H/V + L_DUT_SA`。 |
+| `T_VNA1_SA_H_AMP1` / `T_VNA1_SA_V_AMP1` | `LB-VNA1` | `LB-SA` | `POL-H/V`，AMP1 开启且馈源侧直通 | 生成 `L_SYS_TX_SA_H/V_AMP1`，并校验：`T_VNA1_SA_H/V_AMP1 - G_STD_HORN_H/V ≈ L_VNA_FEED_H/V + L_DUT_SA_AMP1`。 |
+| `T_VNA1_SA_H_AMP2` / `T_VNA1_SA_V_AMP2` | `LB-VNA1` | `LB-SA` | `POL-H/V`，AMP2 开启且 DUT 侧直通 | 一致性校验量，需在 LINK-CAL 内去嵌：`T_VNA1_SA_H/V_AMP2 - G_STD_HORN_H/V ≈ L_VNA_FEED_H/V_AMP2 + L_DUT_SA`。 |
 
-说明：`L_DUT_SA` / `L_DUT_SA_AMP1` 由 AUX-E 接转台DUT接口直接得到，是 LINK-CAL-003 的主输出；VNA1 到 SA 三种工况分别为“两边直通”“AMP1 开启、馈源侧直通”“AMP2 开启、DUT 侧直通”，只作为一致性校验，不再作为主计算来源。
+说明：`L_DUT_SA` / `L_DUT_SA_AMP1` 由 AUX-E 接转台DUT接口直接得到，供 DUT 到 SA 类测试使用；`L_SYS_TX_SA_H/V` / `L_SYS_TX_SA_H/V_AMP1` 由 VNA1 到 SA 闭合量去嵌标准喇叭增益得到，供整机发射测试使用。AMP2 工况只作为一致性校验，不作为整机发射默认修正参数。
 
 ### LINK-CAL-004：SG 校准
 
@@ -514,90 +531,132 @@ SG 校准对应关系：
 
 | 参数 | 输入端口/参考面 | 输出端口/参考面 | 极化/路径 | 计算公式 |
 |---|---|---|---|---|
-| `L_DUT_VNA_F` | `TD` | `LB-VNA2` | LINK-CAL-004 回传段，DUT 侧直通 | `L_DUT_VNA_F = -S21_DUT_VNA_F_RAW - L_AUX_F` |
-| `L_DUT_VNA_F_AMP1` | `TD` | `LB-VNA2` | LINK-CAL-004 回传段，经 `AMP1` | `L_DUT_VNA_F_AMP1 = -S21_DUT_VNA_F_AMP1_RAW - L_AUX_F` |
-| `L_SG_DUT_H` / `L_SG_DUT_V` | `LB-SG` | `DUT_REF` | `POL-H/V`，两边直通 | `L_SG_DUT_H/V = T_SG_H/V - L_DUT_VNA_F` |
-| `L_SG_DUT_H_AMP1` / `L_SG_DUT_V_AMP1` | `LB-SG` | `DUT_REF` | `POL-H/V`，AMP1 开启，发射侧直通 | `L_SG_DUT_H/V_AMP1 = T_SG_H/V_AMP1 - L_DUT_VNA_F_AMP1` |
-| `L_SG_DUT_H_AMP2` / `L_SG_DUT_V_AMP2` | `LB-SG` | `DUT_REF` | `POL-H/V`，AMP2 开启，DUT 侧直通 | `L_SG_DUT_H/V_AMP2 = T_SG_H/V_AMP2 - L_DUT_VNA_F` |
+| `L_DUT_VNA_F` | `TD` | `LB-VNA2` | LINK-CAL-004 回传段，DUT 侧直通 | `L_DUT_VNA_F = S21_DUT_VNA_F_RAW + L_AUX_F` |
+| `L_DUT_VNA_F_AMP1` | `TD` | `LB-VNA2` | LINK-CAL-004 回传段，经 `AMP1` | `L_DUT_VNA_F_AMP1 = S21_DUT_VNA_F_AMP1_RAW + L_AUX_F` |
+| `L_SG_DUT_H` / `L_SG_DUT_V` | `LB-SG` | `DUT_REF` | `POL-H/V`，两边直通 | `L_SG_DUT_H/V = T_SG_H/V - G_STD_HORN_H/V - L_DUT_VNA_F` |
+| `L_SG_DUT_H_AMP1` / `L_SG_DUT_V_AMP1` | `LB-SG` | `DUT_REF` | `POL-H/V`，AMP1 开启，发射侧直通 | `L_SG_DUT_H/V_AMP1 = T_SG_H/V_AMP1 - G_STD_HORN_H/V - L_DUT_VNA_F_AMP1` |
+| `L_SG_DUT_H_AMP2` / `L_SG_DUT_V_AMP2` | `LB-SG` | `DUT_REF` | `POL-H/V`，AMP2 开启，DUT 侧直通 | `L_SG_DUT_H/V_AMP2 = T_SG_H/V_AMP2 - G_STD_HORN_H/V - L_DUT_VNA_F` |
 
 临时/追溯参数：
 
 | 参数 | 输入端口/参考面 | 输出端口/参考面 | 极化/路径 | 含义/公式 |
 |---|---|---|---|---|
 | `L_AUX_F` | `P1` | `P2` | AUX-F | AUX-F 自身损耗，`L_AUX_F = -S21_AUX_F`。 |
-| `T_SG_H` / `T_SG_V` | `LB-SG` | `LB-VNA2` | `POL-H/V`，两边直通，含直通回传段 | SG 校准完整闭合环路临时损耗，`T_SG_H/V = -S21_SG_H/V_RAW`。 |
-| `T_SG_H_AMP1` / `T_SG_V_AMP1` | `LB-SG` | `LB-VNA2` | `POL-H/V`，AMP1 开启，含 AMP1 回传段 | SG 校准 AMP1 闭合环路临时损耗，`T_SG_H/V_AMP1 = -S21_SG_H/V_AMP1_RAW`。 |
-| `T_SG_H_AMP2` / `T_SG_V_AMP2` | `LB-SG` | `LB-VNA2` | `POL-H/V`，AMP2 开启，含直通回传段 | SG 校准 AMP2 闭合环路临时损耗，`T_SG_H/V_AMP2 = -S21_SG_H/V_AMP2_RAW`。 |
+| `S21_DUT_VNA_F_RAW` | `P1/AUX-F/TD` | `LB-VNA2/P2` | LINK-CAL-004 回传段，DUT 侧直通 | AUX-F 接转台DUT接口后的 DUT→VNA2 直通回传段原始网分读数。 |
+| `S21_DUT_VNA_F_AMP1_RAW` | `P1/AUX-F/TD` | `AMP1/LB-VNA2/P2` | LINK-CAL-004 回传段，经 `AMP1` | AUX-F 接转台DUT接口后的 DUT→AMP1→VNA2 回传段原始网分读数。 |
+| `S21_SG_H/V_RAW` | `LB-SG` | `LB-VNA2` | `POL-H/V`，两边直通，含直通回传段 | SG 校准完整闭合环路原始网分读数，保存为 `T_SG_H/V`。 |
+| `S21_SG_H/V_AMP1_RAW` | `LB-SG` | `LB-VNA2` | `POL-H/V`，AMP1 开启，含 AMP1 回传段 | SG 校准 AMP1 闭合环路原始网分读数，保存为 `T_SG_H/V_AMP1`。 |
+| `S21_SG_H/V_AMP2_RAW` | `LB-SG` | `LB-VNA2` | `POL-H/V`，AMP2 开启，含直通回传段 | SG 校准 AMP2 闭合环路原始网分读数，保存为 `T_SG_H/V_AMP2`。 |
+| `T_SG_H` / `T_SG_V` | `LB-SG` | `LB-VNA2` | `POL-H/V`，两边直通，含直通回传段 | SG 校准完整闭合环路临时损耗，`T_SG_H/V = S21_SG_H/V_RAW`；生成最终 `L_SG_DUT_*` 时必须减 `G_STD_HORN_H/V` 去嵌。 |
+| `T_SG_H_AMP1` / `T_SG_V_AMP1` | `LB-SG` | `LB-VNA2` | `POL-H/V`，AMP1 开启，含 AMP1 回传段 | SG 校准 AMP1 闭合环路临时损耗，`T_SG_H/V_AMP1 = S21_SG_H/V_AMP1_RAW`；生成最终 `L_SG_DUT_*` 时必须减 `G_STD_HORN_H/V` 去嵌。 |
+| `T_SG_H_AMP2` / `T_SG_V_AMP2` | `LB-SG` | `LB-VNA2` | `POL-H/V`，AMP2 开启，含直通回传段 | SG 校准 AMP2 闭合环路临时损耗，`T_SG_H/V_AMP2 = S21_SG_H/V_AMP2_RAW`；生成最终 `L_SG_DUT_*` 时必须减 `G_STD_HORN_H/V` 去嵌。 |
 
 说明：`T_SG_*` 不能直接作为 SG 发射链路最终路损；它包含 LINK-CAL-004 内通过 AUX-F 重复测得的 DUT 到 VNA2 回传段。两边直通和 AMP2 工况扣除 `L_DUT_VNA_F`，AMP1 工况扣除 `L_DUT_VNA_F_AMP1`。
 
 ### LINK-TXR-001：DUT 通道校准
 
-- 仪表角色：VNA。
+- 仪表角色：VNA S21 闭环。
 - DUT 状态：接上 DUT。
-- 可选参数：极化 H/V；TX 是否经过 AMP2。
-- 链路模板：模板 C。
+- 可选参数：极化 H/V。
+- 链路模板：模板 C0。
+- 所需路损文件/参数：
+
+| 校准文件 | 参数 | 用途 |
+|---|---|---|
+| `LINK-CAL-002` VNA 链路损耗校准 | `L_VNA_FEED_H/V` + `L_DUT_VNA` | 按极化使用馈源侧等效损耗与 DUT 回传段组合，修正 VNA1 到 VNA2 直通测试链路；不直接使用闭合临时量 `L_VNA_H/V`。 |
+
 - 具体指令：
 
 | 条件 | 链路箱指令 |
 |---|---|
-| H，不经过 AMP2 | `CONFigure:LINK H, VNA1` |
-| V，不经过 AMP2 | `CONFigure:LINK V, VNA1` |
-| H，经过 AMP2 | `CONFigure:LINK H, AMP2, VNA1` |
-| V，经过 AMP2 | `CONFigure:LINK V, AMP2, VNA1` |
+| H 极化，VNA1 到 VNA2 直通 | `CONFigure:LINK DUT, VNA2` + `CONFigure:LINK H, VNA1` |
+| V 极化，VNA1 到 VNA2 直通 | `CONFigure:LINK DUT, VNA2` + `CONFigure:LINK V, VNA1` |
 
 ### LINK-TXR-002：方向图测试
 
-- 仪表角色：VNA。
+- 仪表角色：VNA S21 闭环。
 - DUT 状态：接上 DUT。
-- 可选参数：极化 H/V；TX 是否经过 AMP2。
-- 链路模板：模板 C。
+- 可选参数：极化 H/V。
+- 链路模板：模板 C0。
+- 所需路损文件/参数：
+
+| 校准文件 | 参数 | 用途 |
+|---|---|---|
+| `LINK-CAL-002` VNA 链路损耗校准 | `L_VNA_FEED_H/V` + `L_DUT_VNA` | 按极化使用馈源侧等效损耗与 DUT 回传段组合，修正方向图 VNA 直通测试链路；不直接使用闭合临时量 `L_VNA_H/V`。 |
+
 - 具体指令：
 
 | 条件 | 链路箱指令 |
 |---|---|
-| H，不经过 AMP2 | `CONFigure:LINK H, VNA1` |
-| V，不经过 AMP2 | `CONFigure:LINK V, VNA1` |
-| H，经过 AMP2 | `CONFigure:LINK H, AMP2, VNA1` |
-| V，经过 AMP2 | `CONFigure:LINK V, AMP2, VNA1` |
+| H 极化，VNA1 到 VNA2 直通 | `CONFigure:LINK DUT, VNA2` + `CONFigure:LINK H, VNA1` |
+| V 极化，VNA1 到 VNA2 直通 | `CONFigure:LINK DUT, VNA2` + `CONFigure:LINK V, VNA1` |
 
 ### LINK-TXR-003：有源增益测试
 
-- 仪表角色：VNA。
+- 仪表角色：VNA S21 闭环。
 - DUT 状态：接上 DUT。
-- 可选参数：极化 H/V；TX 是否经过 AMP2。
-- 链路模板：模板 C。
+- 可选参数：极化 H/V。
+- 链路模板：模板 C0。
+- 所需路损文件/参数：
+
+| 校准文件 | 参数 | 用途 |
+|---|---|---|
+| `LINK-CAL-002` VNA 链路损耗校准 | `L_VNA_FEED_H/V` + `L_DUT_VNA` | 按极化使用馈源侧等效损耗与 DUT 回传段组合，修正有源增益 VNA 直通测试链路；不直接使用闭合临时量 `L_VNA_H/V`。 |
+
 - 具体指令：
 
 | 条件 | 链路箱指令 |
 |---|---|
-| H，不经过 AMP2 | `CONFigure:LINK H, VNA1` |
-| V，不经过 AMP2 | `CONFigure:LINK V, VNA1` |
-| H，经过 AMP2 | `CONFigure:LINK H, AMP2, VNA1` |
-| V，经过 AMP2 | `CONFigure:LINK V, AMP2, VNA1` |
+| H 极化，VNA1 到 VNA2 直通 | `CONFigure:LINK DUT, VNA2` + `CONFigure:LINK H, VNA1` |
+| V 极化，VNA1 到 VNA2 直通 | `CONFigure:LINK DUT, VNA2` + `CONFigure:LINK V, VNA1` |
 
 ### LINK-TXR-004：天线板 EIRP 测试
 
-- 仪表角色：VNA。
+- 仪表角色：VNA S21 闭环。
 - DUT 状态：接上 DUT。
-- 可选参数：极化 H/V；TX 是否经过 AMP2。
-- 链路模板：模板 C。
+- 可选参数：极化 H/V。
+- 链路模板：模板 C0。
+- 所需路损文件/参数：
+
+| 校准文件 | 参数 | 用途 |
+|---|---|---|
+| `LINK-CAL-002` VNA 链路损耗校准 | `L_VNA_FEED_H/V` + `L_DUT_VNA` | 按极化使用馈源侧等效损耗与 DUT 回传段组合，修正天线板 EIRP 当前 VNA 直通测试链路；不直接使用闭合临时量 `L_VNA_H/V`。 |
+
 - 具体指令：
 
 | 条件 | 链路箱指令 |
 |---|---|
-| H，不经过 AMP2 | `CONFigure:LINK H, VNA1` |
-| V，不经过 AMP2 | `CONFigure:LINK V, VNA1` |
-| H，经过 AMP2 | `CONFigure:LINK H, AMP2, VNA1` |
-| V，经过 AMP2 | `CONFigure:LINK V, AMP2, VNA1` |
+| H 极化，VNA1 到 VNA2 直通 | `CONFigure:LINK DUT, VNA2` + `CONFigure:LINK H, VNA1` |
+| V 极化，VNA1 到 VNA2 直通 | `CONFigure:LINK DUT, VNA2` + `CONFigure:LINK V, VNA1` |
 
 ### LINK-GT-001：G/T 测试
 
 - 仪表角色：SG 发射 + SA 接收。
-- DUT 状态：DUT 接收侧切到 SA。
+- DUT 状态：DUT 接收侧经 AMP1 切到 SA。
 - 可选参数：极化 H/V。
 - 链路模板：模板 D。
-- 注意：不允许 TX 经过 AMP2。
+- 注意：SG 直通发射，SA 放大接收；不允许 SG 发射侧经过 AMP2。
+
+端口连接：
+
+`SG -> 链路箱 H/V -> 暗室接口板 H/V -> 馈源 -> 反射面 -> DUT -> 暗室接口板 DUT -> AMP1 -> SA`
+
+操作定义：
+
+| 字段 | 定义 |
+|---|---|
+| 仪表角色 | SG 直通发射 + SA 放大接收 |
+| DUT 状态 | DUT 接收侧经 AMP1 切到 SA |
+| 可选参数 | 极化 H/V |
+| 禁止项 | SG 发射侧不使用 `H/V, AMP2, SG`；SA 接收侧固定使用 `DUT, AMP1, SA` |
+
+- 所需路损文件/参数：
+
+| 校准文件 | 参数 | 用途 |
+|---|---|---|
+| `LINK-CAL-004` SG 校准 | `L_SG_DUT_H` / `L_SG_DUT_V` | 按极化扣除 SG 直通发射至 DUT 参考面的等效发射链路损耗。 |
+| `LINK-CAL-003` SA 校准 | `L_DUT_SA_AMP1` | 扣除 DUT 参考面至 SA 的 AMP1 放大接收链路损耗。 |
+
 - 具体指令：
 
 | 极化 | 链路箱指令 |
@@ -607,31 +666,144 @@ SG 校准对应关系：
 
 ### LINK-SYS-001：整机发射测试
 
-- 仪表角色：SA 接收；SG 接入但不输出发射功率。
-- DUT 状态：DUT 自身产生发射功率。
-- 可选参数：极化 H/V。
+- 仪表角色：SA 接收；SG 不输出发射功率。
+- DUT 状态：终端/DUT 直接发射给到馈源。
+- 可选参数：极化 H/V；SA 接收侧是否经过 AMP1，默认直通。
 - 链路模板：模板 D。
-- 注意：不允许 TX 经过 AMP2。
+- 注意：整机发射只开通 SA-H/V 链路；不使用 SG 发射功率，不使用 AMP2。
+
+端口连接：
+
+`终端/DUT -> 反射面/馈源 -> 暗室接口板 H/V -> 链路箱 H/V -> SA`
+
+操作定义：
+
+| 字段 | 定义 |
+|---|---|
+| 仪表角色 | SA 接收；SG 不输出功率 |
+| DUT 状态 | 终端/DUT 自身发射，信号到达馈源后进入 H/V 接收链路 |
+| 可选参数 | 极化 H/V；SA 接收侧直通或 AMP1，默认直通 |
+| 禁止项 | 不使用 `H/V, SG` 作为发射源；不使用 `H/V, AMP2, SG` |
+
+- 所需路损文件/参数：
+
+| 校准文件 | 参数 | 用途 |
+|---|---|---|
+| `LINK-CAL-003` SA 校准 | `L_SYS_TX_SA_H` / `L_SYS_TX_SA_V` | 默认直通接收时，按极化扣除整机发射到 SA 的接收侧等效链路损耗。 |
+| `LINK-CAL-003` SA 校准 | `L_SYS_TX_SA_H_AMP1` / `L_SYS_TX_SA_V_AMP1` | 选择 AMP1 接收时，按极化扣除整机发射到 SA 的 AMP1 接收侧等效链路损耗。 |
+
 - 具体指令：
 
-| 极化 | 链路箱指令 |
+| 条件 | 链路箱指令 |
 |---|---|
-| H | `CONFigure:LINK DUT, AMP1, SA` + `CONFigure:LINK H, SG` |
-| V | `CONFigure:LINK DUT, AMP1, SA` + `CONFigure:LINK V, SG` |
+| H 极化，SA 直通接收（默认） | `CONFigure:LINK H, SA` |
+| V 极化，SA 直通接收（默认） | `CONFigure:LINK V, SA` |
+| H 极化，SA 经 AMP1 接收 | `CONFigure:LINK H, AMP1, SA` |
+| V 极化，SA 经 AMP1 接收 | `CONFigure:LINK V, AMP1, SA` |
 
 ### LINK-SYS-002：整机接收测试
 
-- 仪表角色：SG 输出测试信号。
-- DUT 状态：DUT 自身接收。
+- 仪表角色：SG 直通发射；SA 不开通。
+- DUT 状态：SG 通过馈源直通路径发射，DUT 终端自身接收。
 - 可选参数：极化 H/V。
 - 链路模板：模板 E。
-- 注意：SA 不参与，不切换 DUT 到 SA。
+- 注意：SA 不参与，不切换 DUT 到 SA，不使用 AMP2。
+
+端口连接：
+
+`SG -> 链路箱 H/V -> 暗室接口板 H/V -> 馈源 -> 反射面 -> DUT 终端`
+
+操作定义：
+
+| 字段 | 定义 |
+|---|---|
+| 仪表角色 | SG 直通发射；SA 不开通 |
+| DUT 状态 | DUT 终端通过空间链路接收 SG 测试信号 |
+| 可选参数 | 极化 H/V |
+| 禁止项 | 不使用 `DUT, SA` / `DUT, AMP1, SA`；不使用 `H/V, AMP2, SG` |
+
+- 所需路损文件/参数：
+
+| 校准文件 | 参数 | 用途 |
+|---|---|---|
+| `LINK-CAL-004` SG 校准 | `L_SG_DUT_H` / `L_SG_DUT_V` | 按极化扣除 SG 直通发射至 DUT 参考面的等效发射链路损耗。 |
+
 - 具体指令：
 
 | 极化 | 链路箱指令 |
 |---|---|
 | H | `CONFigure:LINK H, SG` |
 | V | `CONFigure:LINK V, SG` |
+
+## 实际路损文件命名规则
+
+实际落地保存的路损文件应能唯一标识“参数、频段、馈源型号、标准喇叭型号”。建议文件名使用稳定英文短码，不使用中文、空格或特殊符号，便于程序检索、批量加载和归档。
+
+命名格式：
+
+`{PARAM}_{BAND}_{FEED}_{HORN}.csv`
+
+字段定义：
+
+| 字段 | 含义 | 示例 |
+|---|---|---|
+| `PARAM` | 路损参数名，只使用报告中定义的最终输出参数；原始 `S21_*`、临时 `T_*` 和闭合临时量不进入正式路损文件命名 | `L_VNA_FEED_H`、`L_SYS_TX_SA_H_AMP1`、`L_SG_DUT_V` |
+| `BAND` | 当前路损文件实际适用频段；必须落在馈源频段与喇叭频段的交集内 | `10_15G`、`14P5_17G`、`17_22G`、`21P7_31G` |
+| `FEED` | 馈源型号/频段短码 | `F10_17G`、`F17_31G` |
+| `HORN` | 标准增益喇叭型号/频段短码；若该参数不涉及标准喇叭，可填 `NOHORN` | `H10_15G`、`H14P5_22G`、`H21P7_33G`、`NOHORN` |
+
+当前馈源短码：
+
+| 馈源短码 | 频段 | 说明 |
+|---|---|---|
+| `F10_17G` | 10–17 GHz | 低频段馈源 |
+| `F17_31G` | 17–31 GHz | 高频段馈源 |
+
+当前标准喇叭短码：
+
+| 喇叭短码 | 频段 | 说明 |
+|---|---|---|
+| `H10_15G` | 10–15 GHz | 标准增益喇叭 |
+| `H14P5_22G` | 14.5–22 GHz | 标准增益喇叭；小数点用 `P` 表示 |
+| `H21P7_33G` | 21.7–33 GHz | 标准增益喇叭；小数点用 `P` 表示 |
+
+馈源与标准喇叭的有效频段交集：
+
+| 馈源 | 标准喇叭 | 可生成的 `BAND` | 实际频段 |
+|---|---|---|---|
+| `F10_17G` | `H10_15G` | `10_15G` | 10–15 GHz |
+| `F10_17G` | `H14P5_22G` | `14P5_17G` | 14.5–17 GHz |
+| `F17_31G` | `H14P5_22G` | `17_22G` | 17–22 GHz |
+| `F17_31G` | `H21P7_33G` | `21P7_31G` | 21.7–31 GHz |
+
+示例文件名：
+
+| 文件名 | 含义 |
+|---|---|
+| `L_VNA_FEED_H_10_15G_F10_17G_H10_15G.csv` | H 极化 VNA 馈源侧等效损耗，10–15 GHz，10–17G 馈源，10–15G 标准喇叭 |
+| `L_VNA_FEED_V_21P7_31G_F17_31G_H21P7_33G.csv` | V 极化 VNA 馈源侧等效损耗，21.7–31 GHz，17–31G 馈源，21.7–33G 标准喇叭 |
+| `L_SYS_TX_SA_H_AMP1_10_17G_F10_17G_H10_15G.csv` | 整机发射 H 极化经 AMP1 接收至 SA 的等效修正参数，10–15 GHz，10–17G 馈源，10–15G 标准喇叭 |
+| `L_SG_DUT_H_17_22G_F17_31G_H14P5_22G.csv` | SG 到 DUT H 极化等效发射链路损耗，17–22 GHz，使用 14.5–22G 标准喇叭校准段 |
+
+文件内容建议至少包含：
+
+| 字段 | 含义 |
+|---|---|
+| `freq_hz` | 频点，单位 Hz |
+| `value_db` | 带符号链路损耗/传输值，单位 dB |
+| `param` | 参数名，与文件名中的 `PARAM` 一致 |
+| `band` | 频段短码 |
+| `feed` | 馈源短码 |
+| `horn` | 喇叭短码或 `NOHORN` |
+| `source_cal` | 来源校准项，如 `LINK-CAL-002` |
+
+注意：
+
+- `value_db` 必须保存经过 `LINK-CAL` 公式计算后的最终带符号值；不要把正值损耗绝对值化。
+- 若校准链路经过标准增益喇叭，`value_db` 应已经完成 `- G_STD_HORN_H/V` 去嵌。
+- 文件名中的 `HORN` 表示该路损文件生成时使用的标准喇叭文件/型号；测试项读取时不再二次扣除喇叭增益。
+- 当 `HORN` 不是 `NOHORN` 时，文件名中的 `BAND` 必须取 `FEED` 与 `HORN` 的有效频段交集，不能超过任一器件的频段范围。
+- 对跨喇叭频段重叠区域，例如 14.5–15 GHz、21.7–22 GHz，应由测试计划或软件配置指定优先使用哪只标准喇叭，避免同一参数同一频点存在多个默认文件。
 
 ## 后续迁移
 

@@ -1,0 +1,278 @@
+﻿<!DOCTYPE html>
+<!-- saved from url=(0083)file:///E:/OneDrive/4.Code/SWTEST/TEST/docs/CATR_CHAMBER_CALIBRATION_TEST_PLAN.html -->
+<html lang="zh-CN"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CATR暗室校准测试方案</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  body {
+    font-family:"等线","Microsoft YaHei","SimSun",sans-serif;
+    background:#d0d0d0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:20px;
+    gap:24px;
+  }
+  @media print {
+    body { background:#fff; padding:0; gap:0; }
+    .page { box-shadow:none; margin:0; break-after:page; page-break-after:always; }
+  }
+  .page {
+    background:#fff;
+    width:1120px;
+    min-height:630px;
+    box-shadow:0 2px 8px rgba(0,0,0,.15);
+    display:flex;
+    flex-direction:column;
+  }
+  .page-header {
+    padding:16px 44px 12px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    border-bottom:8px solid #d0d6e4;
+  }
+  .brand { font-size:14px; color:#1F3864; font-weight:700; }
+  .logo-text { color:#D60037; font-size:26px; font-weight:900; letter-spacing:1px; }
+  .main {
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    padding:16px 44px;
+  }
+  .page-footer {
+    padding:10px 44px 14px;
+    border-top:8px solid #d0d6e4;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    font-size:9px;
+    color:#aaa;
+  }
+  .page-num { font-size:10px; color:#999; }
+  .cover-page { justify-content:center; align-items:center; text-align:center; }
+  .cover-page .page-header { justify-content:flex-end; padding-top:48px; }
+  .cover-title { font-size:34px; font-weight:800; color:#1a1a1a; margin-bottom:12px; line-height:1.25; }
+  .cover-divider { width:80px; height:4px; background:#1F3864; margin:30px auto; }
+  .cover-subtitle { font-size:17px; color:#555; margin-bottom:16px; }
+  .cover-info { font-size:13px; color:#777; line-height:1.8; }
+  .h1 { font-size:24px; font-weight:700; color:#1a1a1a; margin-bottom:4px; }
+  .sub { font-size:13px; color:#666; margin-bottom:18px; }
+  .h2 { font-size:16px; font-weight:700; color:#1F3864; margin:14px 0 8px; padding-bottom:6px; border-bottom:2px solid #1F3864; }
+  table { width:100%; border-collapse:collapse; font-size:12px; border:1.5px solid #333; margin-bottom:12px; }
+  thead th { background:#1F3864; color:#fff; font-size:12px; font-weight:600; padding:8px 10px; text-align:left; border:1px solid #1a2e52; }
+  tbody td { padding:7px 10px; border:1px solid #bbb; color:#1a1a1a; vertical-align:top; line-height:1.45; }
+  tbody tr:nth-child(even) td { background:#f2f6fc; }
+  td.b { font-weight:700; }
+  .tight-table { font-size:11px; }
+  .tight-table tbody td { padding:6px 8px; line-height:1.35; }
+  .row2 { display:flex; gap:18px; }
+  .row3 { display:flex; gap:14px; }
+  .card { border:1px solid #ddd; border-radius:6px; overflow:hidden; flex:1; }
+  .card-h { padding:9px 12px; font-size:13px; font-weight:700; color:#fff; }
+  .card-b { padding:12px; background:#fafafa; font-size:12px; line-height:1.6; }
+  .card-b ul { list-style:none; }
+  .card-b li { padding:3px 0 3px 14px; position:relative; }
+  .card-b li::before { content:"▸"; position:absolute; left:0; color:#1F3864; }
+  .cb .card-h { background:#1565c0; }
+  .cg .card-h { background:#2e7d32; }
+  .co .card-h { background:#e65100; }
+  .cr .card-h { background:#d32f2f; }
+  .tag-b { display:inline-block; background:#1565c0; color:#fff; padding:2px 8px; border-radius:3px; font-size:10px; font-weight:700; }
+  .tag-g { display:inline-block; background:#388e3c; color:#fff; padding:2px 8px; border-radius:3px; font-size:10px; font-weight:700; }
+  .tag-y { display:inline-block; background:#f57c00; color:#fff; padding:2px 8px; border-radius:3px; font-size:10px; font-weight:700; }
+  code { font-family:Consolas,"Courier New",monospace; font-size:11px; color:#1a1a1a; }
+  .note { background:#eef4ff; border-left:4px solid #1F3864; padding:10px 12px; font-size:12px; line-height:1.6; color:#333; }
+  .final-output-box { background:#fff7ed; border:2px solid #e65100; border-radius:8px; padding:10px 12px; margin:8px 0 12px; }
+  .final-output-box .h2 { color:#e65100; border-bottom-color:#e65100; margin-top:0; }
+  .final-output-table thead th { background:#e65100; border-color:#b84200; }
+  .final-output-table tbody td:first-child { font-weight:700; }
+  .final-output-table code { color:#b84200; font-weight:700; }
+  .final-badge { display:inline-block; background:#e65100; color:#fff; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:700; margin-left:8px; vertical-align:middle; }
+  .diagram-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .diagram {
+    border:1px solid #cfd7e6;
+    border-radius:6px;
+    background:#fbfcff;
+    padding:10px 12px;
+    min-height:132px;
+  }
+  .diagram-title { font-size:12px; font-weight:700; color:#1F3864; margin-bottom:8px; }
+  .flow { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:11px; line-height:1.35; }
+  .node {
+    border:1px solid #1F3864;
+    background:#fff;
+    border-radius:4px;
+    padding:5px 8px;
+    min-width:58px;
+    text-align:center;
+    font-weight:700;
+    color:#1a1a1a;
+  }
+  .node.alt { border-color:#2e7d32; color:#2e7d32; }
+  .node.warn { border-color:#e65100; color:#e65100; }
+  .arrow { color:#1F3864; font-weight:800; }
+  .caption { margin-top:8px; color:#555; font-size:10px; line-height:1.45; }
+  .link-image-wrap {
+    border:1px solid #cfd7e6;
+    background:#fff;
+    border-radius:6px;
+    padding:10px;
+    text-align:center;
+  }
+  .link-image {
+    max-width:100%;
+    max-height:360px;
+    object-fit:contain;
+  }
+  .legend {
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:8px;
+    margin-top:10px;
+    font-size:11px;
+  }
+  .legend div {
+    background:#f2f6fc;
+    border:1px solid #d8e0ef;
+    border-radius:4px;
+    padding:6px 8px;
+    line-height:1.35;
+  }
+</style>
+</head>
+<body>
+<!-- P23 -->
+<div class="page">
+  <div class="page-header"><span class="brand">实际路损文件命名规则</span><div class="logo-text">GTS</div></div>
+  <div class="main">
+    <div class="h1">实际路损文件命名规则</div>
+    <div class="sub">实际落地保存的路损文件应能唯一标识“参数、频段、馈源型号、标准喇叭型号”。建议文件名使用稳定英文短码，不使用中文、空格或特殊符号，便于程序检索、批量加载和归档。</div>
+    <div class="final-output-box">
+      <div class="h2">推荐格式<span class="final-badge">重点</span></div>
+      <div class="note"><code>{PARAM}_{BAND}_{FEED}_{HORN}.csv</code></div>
+      <table class="tight-table">
+        <thead><tr><th>字段</th><th>含义</th><th>示例</th></tr></thead>
+        <tbody>
+          <tr><td><code>PARAM</code></td><td>路损参数名，直接使用报告中定义的最终参数或临时参数名</td><td><code>L_VNA_FEED_H</code>、<code>L_DUT_SA_AMP1</code>、<code>L_SG_DUT_V</code></td></tr>
+          <tr><td><code>BAND</code></td><td>当前路损文件实际适用频段；必须落在馈源频段与喇叭频段的交集内</td><td><code>10_15G</code>、<code>14P5_17G</code>、<code>17_22G</code>、<code>21P7_31G</code></td></tr>
+          <tr><td><code>FEED</code></td><td>馈源型号/频段短码</td><td><code>F10_17G</code>、<code>F17_31G</code></td></tr>
+          <tr><td><code>HORN</code></td><td>标准增益喇叭型号/频段短码；若该参数不涉及标准喇叭，可填 <code>NOHORN</code></td><td><code>H10_15G</code>、<code>H14P5_22G</code>、<code>H21P7_33G</code>、<code>NOHORN</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="row2">
+      <div>
+        <div class="h2">当前馈源短码</div>
+        <table class="tight-table">
+          <thead><tr><th>馈源短码</th><th>频段</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td><code>F10_17G</code></td><td>10–17 GHz</td><td>低频段馈源</td></tr>
+            <tr><td><code>F17_31G</code></td><td>17–31 GHz</td><td>高频段馈源</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <div class="h2">当前标准喇叭短码</div>
+        <table class="tight-table">
+          <thead><tr><th>喇叭短码</th><th>频段</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td><code>H10_15G</code></td><td>10–15 GHz</td><td>标准增益喇叭</td></tr>
+            <tr><td><code>H14P5_22G</code></td><td>14.5–22 GHz</td><td>标准增益喇叭；小数点用 <code>P</code> 表示</td></tr>
+            <tr><td><code>H21P7_33G</code></td><td>21.7–33 GHz</td><td>标准增益喇叭；小数点用 <code>P</code> 表示</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="h2">馈源与标准喇叭的有效频段交集</div>
+    <table class="tight-table">
+      <thead><tr><th>馈源</th><th>标准喇叭</th><th>可生成的 <code>BAND</code></th><th>实际频段</th></tr></thead>
+      <tbody>
+        <tr><td><code>F10_17G</code></td><td><code>H10_15G</code></td><td><code>10_15G</code></td><td>10–15 GHz</td></tr>
+        <tr><td><code>F10_17G</code></td><td><code>H14P5_22G</code></td><td><code>14P5_17G</code></td><td>14.5–17 GHz</td></tr>
+        <tr><td><code>F17_31G</code></td><td><code>H14P5_22G</code></td><td><code>17_22G</code></td><td>17–22 GHz</td></tr>
+        <tr><td><code>F17_31G</code></td><td><code>H21P7_33G</code></td><td><code>21P7_31G</code></td><td>21.7–31 GHz</td></tr>
+      </tbody>
+    </table>
+    <div class="note">当 <code>HORN</code> 不是 <code>NOHORN</code> 时，文件名中的 <code>BAND</code> 必须取 <code>FEED</code> 与 <code>HORN</code> 的有效频段交集，不能超过任一器件的频段范围。</div>
+  </div>
+  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">23 / 25</span></span></div>
+</div>
+
+
+<!-- P24 -->
+<div class="page">
+  <div class="page-header"><span class="brand">路损文件示例与字段</span><div class="logo-text">GTS</div></div>
+  <div class="main">
+    <div class="h1">路损文件示例与字段定义</div>
+    <div class="sub">本页列举实际文件名示例，并定义 CSV 内部建议字段。文件值必须保存经过 LINK-CAL 公式计算后的最终带符号链路损耗。</div>
+    <div class="h2">示例文件名</div>
+    <table class="tight-table">
+      <thead><tr><th>文件名</th><th>含义</th></tr></thead>
+      <tbody>
+        <tr><td><code>L_VNA_FEED_H_10_15G_F10_17G_H10_15G.csv</code></td><td>H 极化 VNA 馈源侧等效损耗，10–15 GHz，10–17G 馈源，10–15G 标准喇叭。</td></tr>
+        <tr><td><code>L_VNA_FEED_V_21P7_31G_F17_31G_H21P7_33G.csv</code></td><td>V 极化 VNA 馈源侧等效损耗，21.7–31 GHz，17–31G 馈源，21.7–33G 标准喇叭。</td></tr>
+        <tr><td><code>L_DUT_SA_AMP1_10_17G_F10_17G_NOHORN.csv</code></td><td>DUT 到 SA 经 AMP1 接收链路损耗，不直接依赖标准喇叭文件。</td></tr>
+        <tr><td><code>L_SG_DUT_H_17_22G_F17_31G_H14P5_22G.csv</code></td><td>SG 到 DUT H 极化等效发射链路损耗，17–22 GHz，使用 14.5–22G 标准喇叭校准段。</td></tr>
+      </tbody>
+    </table>
+    <div class="h2">文件内容建议</div>
+    <table class="tight-table">
+      <thead><tr><th>字段</th><th>含义</th></tr></thead>
+      <tbody>
+        <tr><td><code>freq_hz</code></td><td>频点，单位 Hz。</td></tr>
+        <tr><td><code>value_db</code></td><td>带符号链路损耗/传输值，单位 dB。</td></tr>
+        <tr><td><code>param</code></td><td>参数名，与文件名中的 <code>PARAM</code> 一致。</td></tr>
+        <tr><td><code>band</code></td><td>频段短码。</td></tr>
+        <tr><td><code>feed</code></td><td>馈源短码。</td></tr>
+        <tr><td><code>horn</code></td><td>喇叭短码或 <code>NOHORN</code>。</td></tr>
+        <tr><td><code>source_cal</code></td><td>来源校准项，如 <code>LINK-CAL-002</code>。</td></tr>
+      </tbody>
+    </table>
+    <div class="note"><code>value_db</code> 必须保存经过 <code>LINK-CAL</code> 公式计算后的最终带符号值；若校准链路经过标准增益喇叭，文件值应已经完成 <code>- G_STD_HORN_H/V</code> 去嵌。对跨喇叭频段重叠区域，例如 14.5–15 GHz、21.7–22 GHz，应由测试计划或软件配置指定优先使用哪只标准喇叭，避免同一参数同一频点存在多个默认文件。</div>
+  </div>
+  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">24 / 25</span></span></div>
+</div>
+
+
+<!-- P25 -->
+<div class="page">
+  <div class="page-header"><span class="brand">落地建议</span><div class="logo-text">GTS</div></div>
+  <div class="main">
+    <div class="h1">后续封装建议</div>
+    <div class="sub">建议把链路从“原始命令”封装为测试项操作，运行时按参数派生命令。</div>
+    <table>
+      <thead><tr><th>对象</th><th>建议字段</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>测试项定义</td><td><code>id/name/template</code></td><td>稳定引用测试项和链路模板。</td></tr>
+        <tr><td>链路参数</td><td><code>polarization/use_amp2</code></td><td>TX&amp;RX 和校准链路共用。</td></tr>
+        <tr><td>操作步骤</td><td><code>commands[]</code></td><td>按模板生成有序 链路箱指令。</td></tr>
+        <tr><td>禁止项</td><td><code>forbidden_commands[]</code></td><td>避免 DUT VNA 直通测试误走 AMP1/AMP2、G/T 误用 AMP2。</td></tr>
+        <tr><td>人工确认</td><td><code>manual_checks[]</code></td><td>LINK-CAL-002 的 AUX-D 回传段需确认 AUX-D 连接状态。</td></tr>
+        <tr><td>校准参数</td><td><code>cal_params[]</code></td><td>保存 <code>L_*</code> 损耗参数、频点数组和原始 <code>S21_*</code> 数据。</td></tr>
+      </tbody>
+    </table>
+    <div class="note">建议下一步在代码中建立 LinkTestItem / LinkTemplate 数据模型，让 UI 选择测试项后自动显示可选参数和即将下发的指令。</div>
+  </div>
+  <div class="page-footer"><span>内部资料</span><span>CATR暗室校准测试方案 | <span class="page-num">25 / 25</span></span></div>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</body></html>
