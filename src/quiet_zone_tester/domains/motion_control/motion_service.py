@@ -253,6 +253,7 @@ class MotionService:
                 x_pulses_per_mm=x_pulses_per_mm,
                 y_pulses_per_mm=y_pulses_per_mm,
                 default_speed=float(config.get("default_speed", DEFAULT_POSITIONER_SPEED_MM_S)),
+                motion_timeout_margin_s=float(config.get("motion_timeout_margin_s", 20.0)),
             )
         except InstrumentControllerFactoryError as exc:
             raise MotionServiceError(str(exc)) from exc

@@ -45,6 +45,7 @@ class _Motion:
     def __init__(self) -> None:
         self.calls: list[tuple] = []
         self.position = Position(10.0, 20.0)
+        self.tolerance_mm = 0.05
 
     def query_position(self) -> Position:
         self.calls.append(("query_position",))
@@ -77,7 +78,7 @@ class _Motion:
         self.calls.append(("stop_axis_by_name_quietly", axis_name))
 
     def position_tolerance_for_axis_name(self, axis_name: str) -> float:
-        return 0.05
+        return self.tolerance_mm
 
 
 class ScanRuntimeServiceTest(unittest.TestCase):
@@ -173,6 +174,37 @@ class ScanRuntimeServiceTest(unittest.TestCase):
             def query_position(self) -> Position:
                 self.calls.append(("query_position",))
                 return Position(self.position.x_mm + 1.0, self.position.y_mm)
+
+        service = self._service(DriftingMotion())
+
+        with self.assertRaises(ScanRuntimeServiceError):
+            service.run_step_scan(_settings())
+
+    def test_step_scan_allows_position_error_under_one_tenth_mm(self) -> None:
+        class SlightlyDriftingMotion(_Motion):
+            def __init__(self) -> None:
+                super().__init__()
+                self.tolerance_mm = 0.003
+
+            def query_position(self) -> Position:
+                self.calls.append(("query_position",))
+                return Position(self.position.x_mm - 0.012, self.position.y_mm)
+
+        service = self._service(SlightlyDriftingMotion())
+
+        traces = service.run_step_scan(_settings())
+
+        self.assertEqual(len(traces), 2)
+
+    def test_step_scan_rejects_position_error_over_one_tenth_mm(self) -> None:
+        class DriftingMotion(_Motion):
+            def __init__(self) -> None:
+                super().__init__()
+                self.tolerance_mm = 0.003
+
+            def query_position(self) -> Position:
+                self.calls.append(("query_position",))
+                return Position(self.position.x_mm + 0.2, self.position.y_mm)
 
         service = self._service(DriftingMotion())
 

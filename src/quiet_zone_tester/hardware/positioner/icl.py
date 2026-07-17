@@ -65,6 +65,8 @@ class IclPositionerConfig:
     default_speed: float = DEFAULT_POSITIONER_SPEED_MM_S
     default_acc: int = 100
     default_dec: int = 100
+    motion_timeout_margin_s: float = 20.0
+    motion_timeout_enabled: bool = False
 
     def __post_init__(self) -> None:
         if not 0.0 < self.default_speed <= MAX_POSITIONER_SPEED_MM_S:
@@ -161,8 +163,12 @@ class IclPositionerController:
         x_pulses_per_mm: float | None = None,
         y_pulses_per_mm: float | None = None,
         default_speed: float | None = None,
+        motion_timeout_margin_s: float | None = None,
+        motion_timeout_enabled: bool | None = None,
     ) -> None:
         updates: dict[str, float | int | None] = {}
+        if motion_timeout_enabled is not None:
+            updates["motion_timeout_enabled"] = bool(motion_timeout_enabled)
         if x_axis is not None:
             self._validate_axis(x_axis)
             updates["x_axis"] = int(x_axis)
@@ -174,10 +180,16 @@ class IclPositionerController:
             ("x_pulses_per_mm", x_pulses_per_mm),
             ("y_pulses_per_mm", y_pulses_per_mm),
             ("default_speed", default_speed),
+            ("motion_timeout_margin_s", motion_timeout_margin_s),
         ):
             if value is None:
                 continue
             numeric_value = float(value)
+            if key == "motion_timeout_margin_s":
+                if numeric_value < 0.0:
+                    raise IclPositionerError("motion_timeout_margin_s cannot be negative.")
+                updates[key] = numeric_value
+                continue
             if numeric_value <= 0.0:
                 raise IclPositionerError(f"{key} must be greater than zero.")
             if key == "default_speed" and numeric_value > MAX_POSITIONER_SPEED_MM_S:
@@ -249,7 +261,7 @@ class IclPositionerController:
         axes_to_confirm = list(dict.fromkeys((self._config.x_axis, self._config.y_axis)))
         self.wait_axes(axes_to_confirm, timeout_ms, axis_targets)
         self._stop_axes_after_absolute_move(axes_to_confirm)
-        self.wait_axes(axes_to_confirm, max(self._config.timeout_ms, 1000), axis_targets)
+        self.wait_axes(axes_to_confirm, self._stop_confirmation_timeout_ms(), axis_targets)
         return self._actual_position()
 
     def self_test(self, distance_mm: float = 5.0) -> Position:
@@ -309,11 +321,12 @@ class IclPositionerController:
             distance_mm,
             speed,
             minimum_timeout_ms=self._config.timeout_ms,
-        )
+            timeout_margin_s=self._config.motion_timeout_margin_s,
+        ) if self._config.motion_timeout_enabled else None
         axis_targets = {axis: position_mm}
         self.wait_axes([axis], timeout_ms, axis_targets)
         self._stop_axes_after_absolute_move([axis])
-        self.wait_axes([axis], max(self._config.timeout_ms, 1000), axis_targets)
+        self.wait_axes([axis], self._stop_confirmation_timeout_ms(), axis_targets)
         return self._actual_position()
 
     def prepare_axis_absolute(self, axis: int, position_mm: float, speed: float) -> None:
@@ -379,12 +392,11 @@ class IclPositionerController:
     def wait_axes(
         self,
         axes: list[int],
-        timeout_ms: int,
+        timeout_ms: int | None,
         target_positions_mm: dict[int, float] | None = None,
     ) -> None:
-        timeout_ms = max(int(timeout_ms), 1)
         started_at = time.monotonic()
-        deadline = started_at + timeout_ms / 1000.0
+        deadline = None if timeout_ms is None else started_at + max(int(timeout_ms), 1) / 1000.0
         last_positions: dict[int, float] = {}
         previous_positions: dict[int, float] = {}
         stable_counts: dict[int, int] = {axis: 0 for axis in axes}
@@ -411,7 +423,7 @@ class IclPositionerController:
             if all(stable_counts.get(axis, 0) >= self.STOP_CONFIRMATION_SAMPLES for axis in axes):
                 self._log_target_offsets(last_positions, target_positions_mm)
                 return
-            if time.monotonic() >= deadline:
+            if deadline is not None and time.monotonic() >= deadline:
                 stop_errors: list[str] = []
                 for axis in axes:
                     try:
@@ -433,7 +445,7 @@ class IclPositionerController:
                         f"{self._axis_label(axis)} target={target_text}, actual={actual_text}, error={error_text}"
                     )
                 message = (
-                    f"扫描架运动超时：等待 {elapsed_s:.3f} s（上限 {timeout_ms / 1000.0:.3f} s）；"
+                    f"扫描架运动超时：等待 {elapsed_s:.3f} s（上限 {max(int(timeout_ms), 1) / 1000.0:.3f} s）；"
                     + "；".join(details)
                 )
                 if stop_errors:
@@ -448,13 +460,15 @@ class IclPositionerController:
         speed_mm_s: float,
         *,
         minimum_timeout_ms: int,
+        timeout_margin_s: float | None = None,
     ) -> int:
         distance_mm = abs(float(distance_mm))
         speed_mm_s = abs(float(speed_mm_s))
         if speed_mm_s <= 1e-9:
             raise IclPositionerError("扫描架运动超时无法计算：速度必须大于 0。")
         theoretical_s = distance_mm / speed_mm_s
-        timeout_s = theoretical_s * cls.MOTION_TIMEOUT_SAFETY_FACTOR + cls.MOTION_TIMEOUT_OVERHEAD_S
+        overhead_s = cls.MOTION_TIMEOUT_OVERHEAD_S if timeout_margin_s is None else max(float(timeout_margin_s), 0.0)
+        timeout_s = theoretical_s * cls.MOTION_TIMEOUT_SAFETY_FACTOR + overhead_s
         return max(int(minimum_timeout_ms), int(timeout_s * 1000.0))
 
     @staticmethod
@@ -554,10 +568,22 @@ class IclPositionerController:
             return position.y_mm
         return self._read_actual_position_mm(axis)
 
-    def _movement_timeout_ms(self, current: Position, target: Position, speed_mm_s: float) -> int:
+    def _movement_timeout_ms(self, current: Position, target: Position, speed_mm_s: float) -> int | None:
+        if not self._config.motion_timeout_enabled:
+            return None
         distance_mm = max(abs(target.x_mm - current.x_mm), abs(target.y_mm - current.y_mm))
-        estimated_ms = int((distance_mm / max(abs(speed_mm_s), 0.001) + 10.0) * 1000.0)
+        estimated_ms = self.calculate_motion_timeout_ms(
+            distance_mm,
+            speed_mm_s,
+            minimum_timeout_ms=self._config.timeout_ms,
+            timeout_margin_s=self._config.motion_timeout_margin_s,
+        )
         return max(self._config.timeout_ms, estimated_ms)
+
+    def _stop_confirmation_timeout_ms(self) -> int | None:
+        if not self._config.motion_timeout_enabled:
+            return None
+        return max(self._config.timeout_ms, 1000)
 
     def _position_matches(self, axis: int, actual_mm: float, target_mm: float) -> bool:
         return abs(actual_mm - target_mm) <= self._position_tolerance_mm(axis)

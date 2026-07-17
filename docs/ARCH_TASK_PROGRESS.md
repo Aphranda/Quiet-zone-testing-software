@@ -1,4 +1,4 @@
-# 架构迁移进度记录
+﻿# 架构迁移进度记录
 
 Status: Active
 Domain: ARCH
@@ -191,11 +191,11 @@ Last updated: 2026-07-10
 ### ARCH-TASK-20260710-021 - P2 文档体系拆分
 
 - 目标：完成 P2-07，从主迁移方案拆出 APP、仪表、链路、运动、扫描、数据管理设计文档，并让主迁移方案回到架构入口职责。
-- 完成：新增 `APP_DESIGN.md`、`INSTRUMENT_MANAGEMENT_DESIGN.md`、`LINK_MANAGEMENT_DESIGN.md`、`MOTION_CONTROL_DESIGN.md`、`SCAN_MANAGEMENT_DESIGN.md`、`DATA_MANAGEMENT_DESIGN.md` 和 `HARDWARE_ADAPTER_DESIGN.md`；每个设计文档记录职责、当前实现、边界、关键规则和后续迁移；`architecture_migration_plan.md` 增加文档入口索引，并将“文档治理建议”更新为当前文档治理规则；`ARCH_MIGRATION_TODO.md` 勾选 P2-07。
+- 完成：新增 `APP_DESIGN.md`、`INSTRUMENT_MANAGEMENT_DESIGN.md`、`CATR_CHAMBER_CALIBRATION_TEST_PLAN.md`、`MOTION_CONTROL_DESIGN.md`、`SCAN_MANAGEMENT_DESIGN.md`、`DATA_MANAGEMENT_DESIGN.md` 和 `HARDWARE_ADAPTER_DESIGN.md`；每个设计文档记录职责、当前实现、边界、关键规则和后续迁移；`architecture_migration_plan.md` 增加文档入口索引，并将“文档治理建议”更新为当前文档治理规则；`ARCH_MIGRATION_TODO.md` 勾选 P2-07。
 - 验证：本阶段仅修改文档；使用 uv 环境运行 `python -m uv run python -m unittest discover -s tests`，通过 91 个 `unittest`。
 - 风险：设计文档仍是当前架构快照，后续继续迁移 `application/`、Qt Model/View 或硬件集成测试时需要同步更新对应 `*_DESIGN.md`。
 - 后续：P2 当前任务已全部完成；下一阶段可基于业务域文档继续拆 `MainWindow` 顶层路由、应用上下文和剩余兼容壳。
-- 涉及文件：`docs/architecture_migration_plan.md`、`docs/APP_DESIGN.md`、`docs/INSTRUMENT_MANAGEMENT_DESIGN.md`、`docs/LINK_MANAGEMENT_DESIGN.md`、`docs/MOTION_CONTROL_DESIGN.md`、`docs/SCAN_MANAGEMENT_DESIGN.md`、`docs/DATA_MANAGEMENT_DESIGN.md`、`docs/HARDWARE_ADAPTER_DESIGN.md`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
+- 涉及文件：`docs/architecture_migration_plan.md`、`docs/APP_DESIGN.md`、`docs/INSTRUMENT_MANAGEMENT_DESIGN.md`、`docs/CATR_CHAMBER_CALIBRATION_TEST_PLAN.md`、`docs/MOTION_CONTROL_DESIGN.md`、`docs/SCAN_MANAGEMENT_DESIGN.md`、`docs/DATA_MANAGEMENT_DESIGN.md`、`docs/HARDWARE_ADAPTER_DESIGN.md`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
 
 ### ARCH-TASK-20260710-022 - P3 TODO 扩展与 APP 装配迁移
 
@@ -231,7 +231,7 @@ Last updated: 2026-07-10
 - 验证：使用 uv 环境运行 `python -m uv run python -m unittest tests.test_link_control_view_model`，通过 6 个 `unittest`；运行全量 `python -m uv run python -m unittest discover -s tests`，通过 101 个 `unittest`；主窗口 offscreen 初始化输出 `ok`。
 - 风险：当前链路状态事实仍主要由控件当前值和执行结果标签保存；后续可继续建立完整 `LinkState`，供日志、扫描记录和 UI 复用。
 - 后续：继续 P3-02 抽扫描工作流，或补 P3-06 扫描点/结果 Qt model。
-- 涉及文件：`src/quiet_zone_tester/presentation/modules/link_control/link_control_view_model.py`、`src/quiet_zone_tester/presentation/modules/link_control/__init__.py`、`src/quiet_zone_tester/ui/widgets/switch_box_control_panel.py`、`tests/test_link_control_view_model.py`、`docs/LINK_MANAGEMENT_DESIGN.md`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
+- 涉及文件：`src/quiet_zone_tester/presentation/modules/link_control/link_control_view_model.py`、`src/quiet_zone_tester/presentation/modules/link_control/__init__.py`、`src/quiet_zone_tester/ui/widgets/switch_box_control_panel.py`、`tests/test_link_control_view_model.py`、`docs/CATR_CHAMBER_CALIBRATION_TEST_PLAN.md`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
 
 ### ARCH-TASK-20260710-026 - P3 日志展示收口到 LogRecordModel
 
@@ -348,7 +348,7 @@ Last updated: 2026-07-10
 - 验证：运行 `$env:PYTHONPATH='src'; $env:QT_QPA_PLATFORM='offscreen'; .\.venv\Scripts\python.exe -m unittest tests.test_link_service tests.test_instrument_service_link_routing`，通过 8 个 `unittest`；运行全量 `unittest discover -s tests`，通过 132 个 `unittest`，其中硬件集成入口默认跳过 1 个；主窗口 offscreen 初始化输出 `ok`。
 - 风险：硬件 controller 仍保留 `select_s_parameter()` 以兼容旧脚本和旧测试；后续确认外部调用迁移后可进一步删除协议和 profile 中的历史 S 参数映射。
 - 后续：继续 P5-05，抽出实时曲线标签识别模型，并修正非 0 起点扫描区间判断。
-- 涉及文件：`src/quiet_zone_tester/domains/link_management/link_service.py`、`src/quiet_zone_tester/services/instrument_service.py`、`src/quiet_zone_tester/ui/main_window.py`、`tests/test_link_service.py`、`tests/test_instrument_service_link_routing.py`、`README.md`、`docs/LINK_MANAGEMENT_DESIGN.md`、`docs/architecture_migration_plan.md`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
+- 涉及文件：`src/quiet_zone_tester/domains/link_management/link_service.py`、`src/quiet_zone_tester/services/instrument_service.py`、`src/quiet_zone_tester/ui/main_window.py`、`tests/test_link_service.py`、`tests/test_instrument_service_link_routing.py`、`README.md`、`docs/CATR_CHAMBER_CALIBRATION_TEST_PLAN.md`、`docs/architecture_migration_plan.md`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
 
 ### ARCH-TASK-20260710-039 - P5 实时曲线标签模型抽取
 
@@ -376,6 +376,7 @@ Last updated: 2026-07-10
 - 风险：offscreen 初始化只能验证样式可加载和窗口可创建，真实桌面视觉仍建议人工查看 ComboBox 箭头、DUT 按钮选中态和测试参数密度。
 - 后续：P5 当前任务全部完成；后续可进入真实硬件联调、外部旧接口删除计划或进一步 UI 细节打磨。
 - 涉及文件：`resource/style/style.css`、`docs/ARCH_MIGRATION_TODO.md`、`docs/ARCH_TASK_PROGRESS.md`。
+
 ### HARDWARE-RELIABILITY-20260713-001 - 修复扫描架绝对运动超时
 
 - 目标：让绝对运动等待使用按距离和速度计算的有限超时，避免位置反馈异常时无限阻塞。
@@ -393,3 +394,4 @@ Last updated: 2026-07-10
 - 风险：P2 真实硬件闭环验证未执行，不能据此认定 E5080B/N5245B、扫描架和开关箱在实机上全部验收；P1 暂停安全点、开关箱重试语义、扫描资源仲裁及 P3 恢复续扫/长期稳定性仍需后续实现或硬件证据。
 - 后续：继续处理 HR-P1-02/05/06/07 和 P3 可观测性、质量标记、断点续扫；按 `HARDWARE_VALIDATION_CHECKLIST.md` 执行 P2 实机验证。
 - 涉及文件：`src/quiet_zone_tester/application/scan_workflow_state.py`、`src/quiet_zone_tester/domains/motion_control/motion_service.py`、`src/quiet_zone_tester/domains/scan_management/scan_runtime_service.py`、`src/quiet_zone_tester/domains/data_management/trace_storage.py`、`src/quiet_zone_tester/hardware/transport/modbus_rtu.py`、`src/quiet_zone_tester/shared/instrument_defaults.py`、`tests/`、`docs/HARDWARE_SCAN_RELIABILITY_TODO.md`。
+

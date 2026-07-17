@@ -108,6 +108,7 @@ class ScanSettings:
     step_speed_mm_s: float = 20.0
     continuous_speed_mm_s: float = 20.0
     settle_delay_s: float = 0.1
+    motion_timeout_margin_s: float = 20.0
     probe_offset: ProbeOffset = field(default_factory=ProbeOffset)
     file_flag: str = ""
     connection_config: Any = None
@@ -137,6 +138,7 @@ class ScanSettings:
         "step_speed_mm_s",
         "continuous_speed_mm_s",
         "settle_delay_s",
+        "motion_timeout_margin_s",
         "probe_offset_preset",
         "probe_x_offset_mm",
         "probe_y_offset_mm",
@@ -159,6 +161,8 @@ class ScanSettings:
             raise ValueError(f"Continuous scan speed cannot exceed {MAX_POSITIONER_SPEED_MM_S:g} mm/s.")
         if self.settle_delay_s < 0.0:
             raise ValueError("Settle delay cannot be negative.")
+        if self.motion_timeout_margin_s < 0.0:
+            raise ValueError("Motion timeout margin cannot be negative.")
         object.__setattr__(self, "scan_mode", scan_mode)
 
     @classmethod
@@ -187,6 +191,7 @@ class ScanSettings:
             step_speed_mm_s=step_speed,
             continuous_speed_mm_s=float(settings.get("continuous_speed_mm_s", settings.get("step_speed_mm_s", 20.0))),
             settle_delay_s=float(settings.get("settle_delay_s", 0.1)),
+            motion_timeout_margin_s=float(settings.get("motion_timeout_margin_s", 20.0)),
             probe_offset=ProbeOffset.from_mapping(settings),
             file_flag=str(settings.get("file_flag", "")),
             connection_config=settings.get("connection_config"),
@@ -214,6 +219,7 @@ class ScanSettings:
                 "step_speed_mm_s": self.step_speed_mm_s,
                 "continuous_speed_mm_s": self.continuous_speed_mm_s,
                 "settle_delay_s": self.settle_delay_s,
+                "motion_timeout_margin_s": self.motion_timeout_margin_s,
                 "file_flag": self.file_flag,
             }
         )

@@ -18,6 +18,7 @@ from quiet_zone_tester.presentation.modules.scan_setup import (
     DEFAULT_DISTANCE_PER_TURN_MM,
     DEFAULT_FREQUENCY_STEP_MHZ,
     DEFAULT_IF_BANDWIDTH_HZ,
+    DEFAULT_MOTION_TIMEOUT_MARGIN_S,
     DEFAULT_PROBE_OFFSET_MM,
     DEFAULT_SETTLE_DELAY_S,
     DEFAULT_START_GHZ,
@@ -83,6 +84,7 @@ class TestSetupPanel(QGroupBox):
         self._y_mm_per_turn = self._distance_per_turn_spinbox(DEFAULT_DISTANCE_PER_TURN_MM)
         self._step_speed_mm_s = self._speed_spinbox(DEFAULT_STEP_SPEED_MM_S)
         self._settle_delay_s = self._seconds_spinbox(DEFAULT_SETTLE_DELAY_S, 0.0, 120.0)
+        self._motion_timeout_margin_s = self._seconds_spinbox(DEFAULT_MOTION_TIMEOUT_MARGIN_S, 0.0, 600.0)
         self._probe_offset_preset = NoWheelComboBox()
         self._populate_probe_offset_presets()
         self._probe_x_offset_mm = self._offset_spinbox(DEFAULT_PROBE_OFFSET_MM)
@@ -408,6 +410,7 @@ class TestSetupPanel(QGroupBox):
             y_mm_per_turn=self._y_mm_per_turn.value(),
             step_speed_mm_s=self._step_speed_mm_s.value(),
             settle_delay_s=self._settle_delay_s.value(),
+            motion_timeout_margin_s=DEFAULT_MOTION_TIMEOUT_MARGIN_S,
             probe_offset_preset=self._probe_offset_preset.currentText(),
             probe_x_offset_mm=self._probe_x_offset_mm.value(),
             probe_y_offset_mm=self._probe_y_offset_mm.value(),

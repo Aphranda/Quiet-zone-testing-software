@@ -480,6 +480,8 @@ class InstrumentService:
             connection_config = settings.get("connection_config")
             if connection_config is not None:
                 self.update_positioner_runtime_config(connection_config)
+            if self.is_positioner_connected and self._positioner is not None:
+                self.update_positioner_runtime_config(settings)
             self.verify_ready_for_test()
             mode = str(settings.get("scan_mode", "step")).strip().lower()
             settings = dict(settings)

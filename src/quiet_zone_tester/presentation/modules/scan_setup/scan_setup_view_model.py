@@ -14,6 +14,7 @@ DEFAULT_STEP_MM = 2.5
 DEFAULT_DISTANCE_PER_TURN_MM = 24.0
 DEFAULT_STEP_SPEED_MM_S = 20.0
 DEFAULT_SETTLE_DELAY_S = 0.1
+DEFAULT_MOTION_TIMEOUT_MARGIN_S = 20.0
 DEFAULT_PROBE_OFFSET_MM = 0.0
 DEFAULT_PROBE_POINT_SPACING_MM = 123.0
 DEFAULT_PROBE_POINT_HALF_SPACING_MM = DEFAULT_PROBE_POINT_SPACING_MM / 2.0
@@ -46,6 +47,7 @@ class ScanSetupFormState:
     y_mm_per_turn: float
     step_speed_mm_s: float
     settle_delay_s: float
+    motion_timeout_margin_s: float
     probe_offset_preset: str
     probe_x_offset_mm: float
     probe_y_offset_mm: float
@@ -80,6 +82,7 @@ class ScanSetupViewModel:
                 "y_mm_per_turn": state.y_mm_per_turn,
                 "step_speed_mm_s": state.step_speed_mm_s,
                 "settle_delay_s": state.settle_delay_s,
+                "motion_timeout_margin_s": state.motion_timeout_margin_s,
                 "probe_offset_preset": state.probe_offset_preset,
                 "probe_x_offset_mm": state.probe_x_offset_mm,
                 "probe_y_offset_mm": state.probe_y_offset_mm,

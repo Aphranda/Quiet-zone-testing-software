@@ -27,6 +27,16 @@ class PositionerTimeoutTest(unittest.TestCase):
 
         self.assertEqual(timeout_ms, 8000)
 
+    def test_timeout_uses_configurable_margin(self) -> None:
+        timeout_ms = IclPositionerController.calculate_motion_timeout_ms(
+            200.0,
+            20.0,
+            minimum_timeout_ms=1000,
+            timeout_margin_s=20.0,
+        )
+
+        self.assertEqual(timeout_ms, 35000)
+
     def test_timeout_rejects_zero_speed(self) -> None:
         with self.assertRaises(IclPositionerError):
             IclPositionerController.calculate_motion_timeout_ms(

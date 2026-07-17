@@ -123,8 +123,17 @@ class MotionServiceTest(unittest.TestCase):
                 "x_pulses_per_mm": 1000.0,
                 "y_pulses_per_mm": 120.0,
                 "default_speed": 25.0,
+                "motion_timeout_margin_s": 20.0,
             },
         )
+
+    def test_update_runtime_config_passes_motion_timeout_margin(self) -> None:
+        positioner = _Positioner()
+
+        MotionService(positioner).update_runtime_config({"motion_timeout_margin_s": 30.0})
+
+        self.assertEqual(positioner.calls[0][0], "update_runtime_config")
+        self.assertEqual(positioner.calls[0][1]["motion_timeout_margin_s"], 30.0)
 
     def test_update_runtime_config_rejects_invalid_scale(self) -> None:
         positioner = _Positioner()

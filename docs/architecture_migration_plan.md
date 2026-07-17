@@ -1,4 +1,4 @@
-# 架构迁移方案：业务域 + MVVM + Qt Model/View + 状态机
+﻿# 架构迁移方案：业务域 + MVVM + Qt Model/View + 状态机
 
 Status: Active
 Domain: ARCH
@@ -23,7 +23,7 @@ Last updated: 2026-07-10
 |---|---|
 | [APP_DESIGN.md](APP_DESIGN.md) | 应用入口、QApplication 生命周期、主窗口装配和全局任务边界。 |
 | [INSTRUMENT_MANAGEMENT_DESIGN.md](INSTRUMENT_MANAGEMENT_DESIGN.md) | VNA、扫描架、开关箱的连接生命周期、controller 创建和连接配置边界。 |
-| [LINK_MANAGEMENT_DESIGN.md](LINK_MANAGEMENT_DESIGN.md) | 开关箱链路操作、历史 S 参数兼容路由、profile 和链路控制边界。 |
+| [CATR_CHAMBER_CALIBRATION_TEST_PLAN.md](CATR_CHAMBER_CALIBRATION_TEST_PLAN.md) | 开关箱链路操作、历史 S 参数兼容路由、profile 和链路控制边界。 |
 | [MOTION_CONTROL_DESIGN.md](MOTION_CONTROL_DESIGN.md) | 扫描架手动运动、轴级运动、运行时配置和位置显示边界。 |
 | [SCAN_MANAGEMENT_DESIGN.md](SCAN_MANAGEMENT_DESIGN.md) | 扫描配置、路径规划、状态机和扫描运行边界。 |
 | [DATA_MANAGEMENT_DESIGN.md](DATA_MANAGEMENT_DESIGN.md) | 扫描事实、trace 文件、metadata、trace index 和文件命名边界。 |
@@ -805,7 +805,7 @@ tests/
 docs/architecture_migration_plan.md
 docs/APP_DESIGN.md
 docs/INSTRUMENT_MANAGEMENT_DESIGN.md
-docs/LINK_MANAGEMENT_DESIGN.md
+docs/CATR_CHAMBER_CALIBRATION_TEST_PLAN.md
 docs/MOTION_CONTROL_DESIGN.md
 docs/SCAN_MANAGEMENT_DESIGN.md
 docs/DATA_MANAGEMENT_DESIGN.md
@@ -836,3 +836,4 @@ docs/ARCH_TASK_PROGRESS.md
 6. 跑 `py_compile` 和主窗口 offscreen 初始化检查。
 
 完成后，新代码有稳定落点，数据事实和流程状态也有清晰边界，后续迁移可以按业务域逐步推进。
+

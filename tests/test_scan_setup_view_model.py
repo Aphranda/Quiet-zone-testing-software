@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QApplication
 from quiet_zone_tester.presentation.modules.scan_setup import (
     DEFAULT_DISTANCE_PER_TURN_MM,
     DEFAULT_FREQUENCY_STEP_MHZ,
+    DEFAULT_MOTION_TIMEOUT_MARGIN_S,
     DEFAULT_SETTLE_DELAY_S,
     DEFAULT_STEP_MM,
     ProbeOffsetPreset,
@@ -45,6 +46,7 @@ def _state(scan_mode: str = "step") -> ScanSetupFormState:
         y_mm_per_turn=30.0,
         step_speed_mm_s=20.0,
         settle_delay_s=DEFAULT_SETTLE_DELAY_S,
+        motion_timeout_margin_s=DEFAULT_MOTION_TIMEOUT_MARGIN_S,
         probe_offset_preset="右上",
         probe_x_offset_mm=-61.5,
         probe_y_offset_mm=-61.5,
@@ -98,6 +100,7 @@ class ScanSetupViewModelTest(unittest.TestCase):
         self.assertEqual(settings["step_x_mm"], DEFAULT_STEP_MM)
         self.assertEqual(settings["step_y_mm"], DEFAULT_STEP_MM)
         self.assertEqual(settings["settle_delay_s"], DEFAULT_SETTLE_DELAY_S)
+        self.assertEqual(settings["motion_timeout_margin_s"], DEFAULT_MOTION_TIMEOUT_MARGIN_S)
         self.assertEqual(settings["probe_offset_preset"], "右上")
         self.assertEqual(settings["probe_x_offset_mm"], -61.5)
         self.assertEqual(settings["probe_y_offset_mm"], -61.5)

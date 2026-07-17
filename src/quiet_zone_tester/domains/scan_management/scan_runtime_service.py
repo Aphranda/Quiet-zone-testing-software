@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_STEP_SPEED_MM_S = 20.0
 DEFAULT_SETTLE_DELAY_S = 0.1
+DEFAULT_POSITION_ERROR_TOLERANCE_MM = 0.1
 
 
 class ScanRuntimeMotion(Protocol):
@@ -182,8 +183,14 @@ class ScanRuntimeService:
                 actual_position = self.motion.query_position()
                 error_x_mm = actual_position.x_mm - physical_target.x_mm
                 error_y_mm = actual_position.y_mm - physical_target.y_mm
-                tolerance_x_mm = self.motion.position_tolerance_for_axis_name("X")
-                tolerance_y_mm = self.motion.position_tolerance_for_axis_name("Y")
+                tolerance_x_mm = max(
+                    self.motion.position_tolerance_for_axis_name("X"),
+                    DEFAULT_POSITION_ERROR_TOLERANCE_MM,
+                )
+                tolerance_y_mm = max(
+                    self.motion.position_tolerance_for_axis_name("Y"),
+                    DEFAULT_POSITION_ERROR_TOLERANCE_MM,
+                )
                 if abs(error_x_mm) > tolerance_x_mm or abs(error_y_mm) > tolerance_y_mm:
                     raise ScanRuntimeServiceError(
                         (

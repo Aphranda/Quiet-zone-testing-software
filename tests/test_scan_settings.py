@@ -31,6 +31,7 @@ def _settings_dict() -> dict:
         "step_speed_mm_s": 20.0,
         "continuous_speed_mm_s": 20.0,
         "settle_delay_s": 0.3,
+        "motion_timeout_margin_s": 20.0,
         "probe_offset_preset": "右上",
         "probe_x_offset_mm": -61.5,
         "probe_y_offset_mm": 61.5,
