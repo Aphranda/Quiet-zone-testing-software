@@ -116,6 +116,16 @@ class InstrumentServiceLinkRoutingTest(unittest.TestCase):
         self.assertEqual(switch_box.sent_commands, ["CONFigure:LINK DUT, AMP1, SA"])
         self.assertEqual(switch_box.selected_parameters, [])
 
+    def test_dut_path_to_vna2_amp1_routes_amplified_vna_path(self) -> None:
+        switch_box = _SwitchBox()
+        service = InstrumentService(vna=_Vna(), positioner=_Positioner(), switch_box=switch_box)
+
+        response = service.select_switch_box_dut_path("vna2_amp1")
+
+        self.assertEqual(response, "CONFigure:LINK DUT, AMP1, VNA2")
+        self.assertEqual(switch_box.sent_commands, ["CONFigure:LINK DUT, AMP1, VNA2"])
+        self.assertEqual(switch_box.selected_parameters, [])
+
 
 if __name__ == "__main__":
     unittest.main()

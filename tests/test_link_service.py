@@ -57,6 +57,24 @@ class LinkServiceTest(unittest.TestCase):
         self.assertEqual(switch_box.sent_commands, ["CONFigure:LINK DUT, AMP1, SA"])
         self.assertEqual(switch_box.selected_parameters, [])
 
+    def test_select_dut_path_to_vna2_uses_direct_link(self) -> None:
+        switch_box = _SwitchBox()
+
+        response = LinkService(switch_box).select_dut_path("vna2")
+
+        self.assertEqual(response, "OK CONFigure:LINK DUT, VNA2")
+        self.assertEqual(switch_box.sent_commands, ["CONFigure:LINK DUT, VNA2"])
+        self.assertEqual(switch_box.selected_parameters, [])
+
+    def test_select_dut_path_to_vna2_amp1_uses_amplified_link(self) -> None:
+        switch_box = _SwitchBox()
+
+        response = LinkService(switch_box).select_dut_path("vna2_amp1")
+
+        self.assertEqual(response, "OK CONFigure:LINK DUT, AMP1, VNA2")
+        self.assertEqual(switch_box.sent_commands, ["CONFigure:LINK DUT, AMP1, VNA2"])
+        self.assertEqual(switch_box.selected_parameters, [])
+
     def test_rejects_unconnected_controller(self) -> None:
         service = LinkService(_SwitchBox(connected=False))
 

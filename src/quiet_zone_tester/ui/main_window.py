@@ -494,7 +494,7 @@ class MainWindow(QMainWindow):
 
     def _route_switch_box_dut_path(self, target: str) -> None:
         target = str(target).strip().upper()
-        labels = {"VNA2": "网分", "SA": "信号源+频谱"}
+        labels = {"VNA2": "网分直通", "VNA2_AMP1": "网分经AMP1", "SA": "信号源+频谱"}
         if target not in labels:
             return
 

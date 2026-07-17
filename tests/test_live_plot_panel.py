@@ -26,10 +26,11 @@ class LivePlotPanelTest(unittest.TestCase):
 
         panel._polarization.setCurrentText("V")
         panel._dut_sa_button.click()
+        panel._dut_vna_amp1_button.click()
         panel._dut_vna_button.click()
 
         self.assertEqual(polarizations, ["V"])
-        self.assertEqual(dut_targets, ["SA", "VNA2"])
+        self.assertEqual(dut_targets, ["SA", "VNA2_AMP1", "VNA2"])
         self.assertEqual(panel.polarization(), "V")
 
     def test_file_flag_uses_current_polarization_line_and_position(self) -> None:

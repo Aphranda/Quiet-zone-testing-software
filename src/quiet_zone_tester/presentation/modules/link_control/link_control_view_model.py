@@ -7,6 +7,7 @@ from quiet_zone_tester.domains.link_management import normalize_s_parameter
 
 DEFAULT_LINK_COMMANDS = (
     "CONFigure:LINK DUT, AMP1, SA",
+    "CONFigure:LINK DUT, VNA2",
     "CONFigure:LINK DUT, AMP1, VNA2",
     "CONFigure:LINK H, SG",
     "CONFigure:LINK H, VNA1",

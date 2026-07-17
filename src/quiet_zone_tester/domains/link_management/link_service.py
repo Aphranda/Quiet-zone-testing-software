@@ -51,9 +51,13 @@ class LinkService:
 
     def select_dut_path(self, target: str) -> str:
         target = str(target).strip().upper()
-        if target not in {"VNA2", "SA"}:
-            raise LinkServiceError("DUT target must be VNA2 or SA.")
-        return self.send_command(f"CONFigure:LINK DUT, AMP1, {target}")
+        if target not in {"VNA2", "VNA2_AMP1", "SA"}:
+            raise LinkServiceError("DUT target must be VNA2, VNA2_AMP1, or SA.")
+        if target == "VNA2":
+            return self.send_command("CONFigure:LINK DUT, VNA2")
+        if target == "VNA2_AMP1":
+            return self.send_command("CONFigure:LINK DUT, AMP1, VNA2")
+        return self.send_command("CONFigure:LINK DUT, AMP1, SA")
 
     def send_command(self, command: str) -> str:
         self._ensure_connected()
