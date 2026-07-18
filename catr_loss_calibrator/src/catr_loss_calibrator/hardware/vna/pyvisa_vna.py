@@ -75,6 +75,12 @@ class PyVisaVna(Vna):
         phase = np.zeros(self._points)
         return SParameterTrace(frequency, value_db, phase, parameter)
 
+    def send_command(self, command: str) -> str:
+        if command.strip().endswith("?"):
+            return self._query(command)
+        self._write(command)
+        return "OK"
+
     def _write(self, command: str) -> None:
         if self._resource is None:
             raise RuntimeError("VNA is not connected.")

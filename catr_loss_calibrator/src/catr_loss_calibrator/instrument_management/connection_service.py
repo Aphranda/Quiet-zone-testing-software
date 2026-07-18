@@ -66,14 +66,14 @@ class InstrumentConnectionService:
         vna_state = InstrumentState(
             name="VNA",
             is_connected=self.vna.is_connected,
-            resource=getattr(self.vna, "resource", ""),
-            model=getattr(self.vna, "model", ""),
+            resource=getattr(self.vna, "resource", "") if self.vna.is_connected else "",
+            model=getattr(self.vna, "model", "") if self.vna.is_connected else "",
         )
         link_box_state = InstrumentState(
             name="LinkBox",
             is_connected=self.link_box.is_connected,
-            resource=getattr(self.link_box, "resource", ""),
-            model=getattr(self.link_box, "model", ""),
+            resource=getattr(self.link_box, "resource", "") if self.link_box.is_connected else "",
+            model=getattr(self.link_box, "model", "") if self.link_box.is_connected else "",
         )
         return vna_state, link_box_state
 

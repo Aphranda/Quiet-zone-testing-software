@@ -80,6 +80,7 @@ def run_gui() -> int:
     from PySide6.QtSvg import QSvgRenderer
     from PySide6.QtWidgets import (
         QApplication,
+        QCheckBox,
         QComboBox,
         QFrame,
         QGridLayout,
@@ -95,6 +96,7 @@ def run_gui() -> int:
         QPushButton,
         QProgressBar,
         QSplitter,
+        QSpinBox,
         QTabWidget,
         QTextEdit,
         QToolBar,
@@ -228,6 +230,20 @@ def run_gui() -> int:
             self.presets = presets
 
             layout = QVBoxLayout(self)
+            self.use_mock_check = QCheckBox("Mock")
+            self.use_mock_check.setChecked(True)
+            self.resource_input = QLineEdit()
+            self.resource_input.setPlaceholderText("VISA / TCPIP / MOCK 资源地址")
+            self.model_input = QLineEdit()
+            self.model_input.setPlaceholderText("型号")
+            self.timeout_input = QSpinBox()
+            self.timeout_input.setRange(1, 120_000)
+            self.timeout_input.setValue(10_000)
+            self.timeout_input.setSuffix(" ms")
+            self.btn_connect = QPushButton("连接")
+            self.btn_disconnect = QPushButton("断开")
+            self.connection_state = QLabel("未连接")
+
             self.preset_combo = QComboBox()
             self.preset_combo.addItems(list(presets.keys()))
             self.command_input = QLineEdit()
@@ -242,6 +258,20 @@ def run_gui() -> int:
             buttons = QHBoxLayout()
             buttons.addWidget(self.btn_preset)
             buttons.addWidget(self.btn_send)
+
+            connection_buttons = QHBoxLayout()
+            connection_buttons.addWidget(self.btn_connect)
+            connection_buttons.addWidget(self.btn_disconnect)
+
+            layout.addWidget(self.use_mock_check)
+            layout.addWidget(QLabel("资源地址"))
+            layout.addWidget(self.resource_input)
+            layout.addWidget(QLabel("型号"))
+            layout.addWidget(self.model_input)
+            layout.addWidget(QLabel("超时"))
+            layout.addWidget(self.timeout_input)
+            layout.addLayout(connection_buttons)
+            layout.addWidget(self.connection_state)
 
             layout.addWidget(QLabel("预设"))
             layout.addWidget(self.preset_combo)
@@ -259,6 +289,27 @@ def run_gui() -> int:
 
         def set_response(self, response: str) -> None:
             self.response_view.setPlainText(response)
+
+        def set_connection_state(self, state: Any) -> None:
+            self.resource_input.setText(state.resource)
+            self.model_input.setText(state.model)
+            self.use_mock_check.setChecked(state.use_mock)
+            self.timeout_input.setValue(state.timeout_ms)
+            self.connection_state.setText("已连接" if state.is_connected else "未连接")
+            self.resource_input.setEnabled(not state.is_connected)
+            self.model_input.setEnabled(not state.is_connected)
+            self.use_mock_check.setEnabled(not state.is_connected)
+            self.timeout_input.setEnabled(not state.is_connected)
+            self.btn_connect.setEnabled(not state.is_connected)
+            self.btn_disconnect.setEnabled(state.is_connected)
+
+        def connection_config(self) -> dict[str, Any]:
+            return {
+                "resource": self.resource_input.text(),
+                "model": self.model_input.text(),
+                "use_mock": self.use_mock_check.isChecked(),
+                "timeout_ms": self.timeout_input.value(),
+            }
 
     class MainWindow(QMainWindow):
         def __init__(self) -> None:
@@ -337,12 +388,14 @@ def run_gui() -> int:
                 DeviceCommandPanel("link_box", "链路箱", command_presets["link_box"]),
                 DeviceCommandPanel("spectrum_analyzer", "频谱仪", command_presets["spectrum_analyzer"]),
             ]
+            for panel in self.command_panels:
+                panel.set_connection_state(vm.device_connection_state(panel.device_key))
 
             self.status_label = QLabel("Ready")
             self.connection_label = QLabel("VNA: disconnected | SG: disconnected | LinkBox: disconnected | SA: disconnected")
 
-            self.btn_connect = QPushButton("连接 Mock 设备")
-            self.btn_disconnect = QPushButton("断开 Mock 设备")
+            self.btn_connect = QPushButton("连接全部设备")
+            self.btn_disconnect = QPushButton("断开全部设备")
             self.btn_start = QPushButton("开始校准")
             self.btn_continue = QPushButton("下一步")
             self.btn_skip = QPushButton("跳过")
@@ -507,6 +560,8 @@ def run_gui() -> int:
             for panel in self.command_panels:
                 panel.btn_preset.clicked.connect(lambda _checked=False, command_panel=panel: self._fill_preset(command_panel))
                 panel.btn_send.clicked.connect(lambda _checked=False, command_panel=panel: self._send_command(command_panel))
+                panel.btn_connect.clicked.connect(lambda _checked=False, command_panel=panel: self._connect_command_device(command_panel))
+                panel.btn_disconnect.clicked.connect(lambda _checked=False, command_panel=panel: self._disconnect_command_device(command_panel))
                 panel.command_input.returnPressed.connect(lambda command_panel=panel: self._send_command(command_panel))
             for panel in self.log_panels:
                 panel.level_combo.currentTextChanged.connect(self._sync_logs)
@@ -631,9 +686,34 @@ def run_gui() -> int:
 
         def _connect_devices(self) -> None:
             vm.connect_mock_devices()
+            self._sync_device_connection_panels()
 
         def _disconnect_devices(self) -> None:
             vm.disconnect_mock_devices()
+            self._sync_device_connection_panels()
+
+        def _connect_command_device(self, panel: DeviceCommandPanel) -> None:
+            try:
+                vm.update_device_config(panel.device_key, **panel.connection_config())
+                state = vm.connect_device(panel.device_key)
+            except Exception as exc:
+                QMessageBox.warning(self, "设备连接失败", str(exc))
+                return
+            panel.set_connection_state(state)
+            self._sync_overview()
+
+        def _disconnect_command_device(self, panel: DeviceCommandPanel) -> None:
+            try:
+                state = vm.disconnect_device(panel.device_key)
+            except Exception as exc:
+                QMessageBox.warning(self, "设备断开失败", str(exc))
+                return
+            panel.set_connection_state(state)
+            self._sync_overview()
+
+        def _sync_device_connection_panels(self) -> None:
+            for panel in self.command_panels:
+                panel.set_connection_state(vm.device_connection_state(panel.device_key))
 
         def _format_log_entry(self, record: LogEntry, show_timestamp: bool = True) -> str:
             prefix = f"{record.timestamp} " if show_timestamp else ""

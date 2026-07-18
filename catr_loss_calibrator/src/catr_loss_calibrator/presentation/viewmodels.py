@@ -11,6 +11,10 @@ from PySide6.QtCore import QObject, QThread, Signal
 from catr_loss_calibrator.calibration.definitions import default_calibration_catalog
 from catr_loss_calibrator.calibration.mock_runner import MockCalibrationRunner
 from catr_loss_calibrator.hardware.mock import MockLinkBox, MockScpiInstrument, MockVna
+from catr_loss_calibrator.hardware.link_box.lcd74000f import Lcd74000fLinkBox
+from catr_loss_calibrator.hardware.scpi import PyVisaScpiInstrument
+from catr_loss_calibrator.hardware.vna.pyvisa_vna import PyVisaVna
+from catr_loss_calibrator.instrument_management.models import InstrumentConnectionConfig
 from catr_loss_calibrator.link_management.link_templates import link_command
 
 
@@ -41,6 +45,17 @@ class LogEntry:
     source: str
     name: str
     message: str
+
+
+@dataclass(frozen=True)
+class DeviceConnectionViewData:
+    key: str
+    display_name: str
+    resource: str
+    model: str
+    use_mock: bool
+    timeout_ms: int
+    is_connected: bool
 
 
 class CalibrationRunWorker(QThread):
@@ -128,10 +143,16 @@ class CalibrationViewModel(QObject):
         self._status_text = "Ready"
         self._command_response = ""
         self._worker: CalibrationRunWorker | None = None
-        self._mock_link_box = MockLinkBox()
-        self._mock_vna = MockVna()
-        self._mock_signal_generator = MockScpiInstrument("SG", "MOCK-SG")
-        self._mock_spectrum_analyzer = MockScpiInstrument("SA", "MOCK-SA")
+        self._device_configs = {
+            "vna": InstrumentConnectionConfig(resource="MOCK::VNA", model="MOCK-VNA", use_mock=True),
+            "signal_generator": InstrumentConnectionConfig(resource="MOCK::SG", model="MOCK-SG", use_mock=True),
+            "link_box": InstrumentConnectionConfig(resource="MOCK::LINKBOX", model="LCD74000F-MOCK", use_mock=True),
+            "spectrum_analyzer": InstrumentConnectionConfig(resource="MOCK::SA", model="MOCK-SA", use_mock=True),
+        }
+        self._mock_vna = self._create_device("vna")
+        self._mock_signal_generator = self._create_device("signal_generator")
+        self._mock_link_box = self._create_device("link_box")
+        self._mock_spectrum_analyzer = self._create_device("spectrum_analyzer")
         self._command_history: list[str] = []
 
     @property
@@ -190,24 +211,74 @@ class CalibrationViewModel(QObject):
             self.step_view_changed.emit(self._step_view_data(steps[index], index + 1, len(steps)))
 
     def connect_mock_devices(self) -> None:
-        self._mock_link_box.connect()
-        self._mock_vna.connect()
-        self._mock_signal_generator.connect()
-        self._mock_spectrum_analyzer.connect()
-        self._status_text = "Mock devices connected"
+        for device in ("vna", "signal_generator", "link_box", "spectrum_analyzer"):
+            self.connect_device(device)
+        self._status_text = "Devices connected"
         self.status_changed.emit(self._status_text)
-        self._append_log("INFO", "device", "mock", "Mock 设备已连接")
+        self._append_log("INFO", "device", "all", "全部设备已连接")
         self.refresh_overview()
 
     def disconnect_mock_devices(self) -> None:
-        self._mock_link_box.disconnect()
-        self._mock_vna.disconnect()
-        self._mock_signal_generator.disconnect()
-        self._mock_spectrum_analyzer.disconnect()
-        self._status_text = "Mock devices disconnected"
+        for device in ("vna", "signal_generator", "link_box", "spectrum_analyzer"):
+            self.disconnect_device(device)
+        self._status_text = "Devices disconnected"
         self.status_changed.emit(self._status_text)
-        self._append_log("INFO", "device", "mock", "Mock 设备已断开")
+        self._append_log("INFO", "device", "all", "全部设备已断开")
         self.refresh_overview()
+
+    def update_device_config(
+        self,
+        device: str,
+        *,
+        resource: str,
+        model: str,
+        use_mock: bool,
+        timeout_ms: int,
+    ) -> DeviceConnectionViewData:
+        current = self._device_configs[device]
+        config = InstrumentConnectionConfig(
+            resource=resource.strip() or current.resource,
+            model=model.strip() or current.model,
+            use_mock=use_mock,
+            timeout_ms=max(1, int(timeout_ms)),
+        )
+        instrument, _ = self._command_device(device)
+        if instrument.is_connected:
+            raise RuntimeError("请先断开设备，再修改连接配置。")
+        self._device_configs[device] = config
+        self._set_device(device, self._create_device(device))
+        self._append_log("INFO", "device", self._device_display_name(device), f"更新连接配置: {config.resource}")
+        self.refresh_overview()
+        return self.device_connection_state(device)
+
+    def connect_device(self, device: str) -> DeviceConnectionViewData:
+        instrument, display_name = self._command_device(device)
+        if not instrument.is_connected:
+            info = instrument.connect()
+            self._append_log("INFO", "device", display_name, f"已连接 {info.resource} ({info.model})")
+        self.refresh_overview()
+        return self.device_connection_state(device)
+
+    def disconnect_device(self, device: str) -> DeviceConnectionViewData:
+        instrument, display_name = self._command_device(device)
+        if instrument.is_connected:
+            instrument.disconnect()
+            self._append_log("INFO", "device", display_name, "已断开")
+        self.refresh_overview()
+        return self.device_connection_state(device)
+
+    def device_connection_state(self, device: str) -> DeviceConnectionViewData:
+        config = self._device_configs[device]
+        instrument, display_name = self._command_device(device)
+        return DeviceConnectionViewData(
+            key=device,
+            display_name=display_name,
+            resource=config.resource,
+            model=config.model,
+            use_mock=config.use_mock,
+            timeout_ms=config.timeout_ms,
+            is_connected=instrument.is_connected,
+        )
 
     def start_selected(self) -> None:
         if self._worker and self._worker.isRunning():
@@ -324,6 +395,49 @@ class CalibrationViewModel(QObject):
             return devices[device]
         except KeyError as exc:
             raise ValueError(f"Unknown command device: {device}") from exc
+
+    def _device_display_name(self, device: str) -> str:
+        return self._command_device(device)[1]
+
+    def _set_device(self, device: str, instrument: Any) -> None:
+        if device == "vna":
+            self._mock_vna = instrument
+        elif device == "signal_generator":
+            self._mock_signal_generator = instrument
+        elif device == "link_box":
+            self._mock_link_box = instrument
+        elif device == "spectrum_analyzer":
+            self._mock_spectrum_analyzer = instrument
+        else:
+            raise ValueError(f"Unknown command device: {device}")
+
+    def _create_device(self, device: str) -> Any:
+        config = self._device_configs[device]
+        if device == "vna":
+            return (
+                MockVna(resource=config.resource, model=config.model)
+                if config.use_mock
+                else PyVisaVna(resource=config.resource, model=config.model, timeout_ms=config.timeout_ms)
+            )
+        if device == "link_box":
+            return (
+                MockLinkBox(resource=config.resource, model=config.model)
+                if config.use_mock
+                else Lcd74000fLinkBox(resource=config.resource, model=config.model, timeout_ms=config.timeout_ms)
+            )
+        if device == "signal_generator":
+            return (
+                MockScpiInstrument("SG", config.model, resource=config.resource)
+                if config.use_mock
+                else PyVisaScpiInstrument(resource=config.resource, model=config.model, timeout_ms=config.timeout_ms)
+            )
+        if device == "spectrum_analyzer":
+            return (
+                MockScpiInstrument("SA", config.model, resource=config.resource)
+                if config.use_mock
+                else PyVisaScpiInstrument(resource=config.resource, model=config.model, timeout_ms=config.timeout_ms)
+            )
+        raise ValueError(f"Unknown command device: {device}")
 
     def _on_prompt_ready(self, prompt: StepViewData) -> None:
         self._selected_step_index = max(prompt.step_index - 1, 0)
