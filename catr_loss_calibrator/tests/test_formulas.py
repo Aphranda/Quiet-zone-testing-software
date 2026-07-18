@@ -70,7 +70,8 @@ def test_link_cal_005_dut_vna_f_and_sg() -> None:
 
 
 def test_formula_module_does_not_define_aux_corr_or_positive_aux_conversion() -> None:
-    source = Path("src/catr_loss_calibrator/calibration/formulas.py").read_text(encoding="utf-8")
+    source = Path(__file__).resolve().parents[1] / "src" / "catr_loss_calibrator" / "calibration" / "formulas.py"
+    source = source.read_text(encoding="utf-8")
     assert "AUX_CORR" not in source
     assert "aux_corr" not in source
     assert "abs(" not in source

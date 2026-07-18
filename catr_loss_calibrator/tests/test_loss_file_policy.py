@@ -15,3 +15,18 @@ def test_loss_filename() -> None:
         policy.filename(param="L_VNA_FEED_H", band="10_15G", feed="F10_17G", horn="H10_15G")
         == "L_VNA_FEED_H_10_15G_F10_17G_H10_15G.csv"
     )
+
+
+def test_loss_filename_for_uses_intersection_band() -> None:
+    policy = LossFilePolicy()
+    assert policy.filename_for(param="L_VNA_FEED_H", feed="F10_17G", horn="H10_15G") == "L_VNA_FEED_H_10_15G_F10_17G_H10_15G.csv"
+
+
+def test_validate_feed_horn_rejects_invalid_pair() -> None:
+    policy = LossFilePolicy()
+    try:
+        policy.validate_feed_horn("F10_17G", "H21P7_33G")
+    except ValueError as exc:
+        assert "No valid band intersection" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError")

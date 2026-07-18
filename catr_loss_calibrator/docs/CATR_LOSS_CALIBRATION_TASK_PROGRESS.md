@@ -49,6 +49,167 @@ Last updated: 2026-07-18
 
 ## 任务记录
 
+### CATR-CAL-TASK-20260718-011 - P4 硬件适配与连接管理骨架
+
+- 状态：进行中
+- 日期：2026-07-18
+- 任务目标：
+  - 建立真实 VNA VISA adapter 和真实 LCD74000F 链路箱 adapter。
+  - 建立仪表连接管理、状态快照、资源互锁和失败回滚。
+  - 准备真实硬件验证清单。
+- 完成内容：
+  - 新增 `PyVisaVna`，支持真实 VNA 连接、扫频配置、触发和读取接口骨架。
+  - 新增 `Lcd74000fLinkBox`，支持真实链路箱连接与命令下发骨架。
+  - 重构 `InstrumentConnectionService`，支持 mock / real-capable 配置、连接快照和异常回滚。
+  - 新增 `InstrumentManagementService`，提供资源独占、连接管理与统一快照。
+  - 新增 `HARDWARE_VALIDATION_CHECKLIST.md`。
+- 验证结果：
+  - 使用 `d:\Microsoft\Python\quiet-zone-tester-venv\Scripts\python.exe` 手动调用当前测试函数通过。
+  - 未接入真实 VNA/LCD74000F，未做真实硬件验证。
+- 还需完成：
+  - P4-01 / P4-02：真实设备上机验证与命令兼容性确认。
+  - P4-05：超时、失败恢复和人工取消的完整策略。
+  - P4-06：真实硬件验证记录落地。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/hardware/vna/pyvisa_vna.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/hardware/link_box/lcd74000f.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/instrument_management/connection_service.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/instrument_management/instrument_management_service.py`
+  - `catr_loss_calibrator/docs/HARDWARE_VALIDATION_CHECKLIST.md`
+- 下一步：
+  - 推进真实硬件接入验证，优先补 P4-01 / P4-02 的实机联调。
+
+### CATR-CAL-TASK-20260718-010 - P3 状态展示与非法操作防护
+
+- 状态：完成
+- 日期：2026-07-18
+- 任务目标：
+  - 让 UI/CLI 显示当前校准项、步骤、接线说明、链路命令和运行状态。
+  - 对未连接仪表、重复启动等非法操作进行阻止。
+- 完成内容：
+  - 为 `MockCalibrationRunner` 增加 `overview()` 和 `format_step_status()`。
+  - 在 runner 中加入运行前连接检查，并禁止 busy 状态重复启动。
+  - `presentation.main` 在 demo 和交互模式下输出状态概览。
+  - 新增测试覆盖状态概览和未连接仪表异常。
+- 验证结果：
+  - 使用 `d:\Microsoft\Python\quiet-zone-tester-venv\Scripts\python.exe` 手动调用当前测试函数通过。
+  - CLI demo 输出状态概览正常。
+  - 未执行真实硬件验证。
+- 还需完成：
+  - 进入 P4，开始真实硬件适配与可靠性。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/mock_runner.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`
+  - `catr_loss_calibrator/tests/test_mock_runner.py`
+- 下一步：
+  - 推进 P4-01 / P4-02，接真实 VNA 和 LCD74000F adapter。
+
+### CATR-CAL-TASK-20260718-009 - P3 人工确认与交互入口
+
+- 状态：完成
+- 日期：2026-07-18
+- 任务目标：
+  - 建立人工接线确认步骤，支持暂停、跳过、重试和取消。
+  - 建立一期 UI/CLI 操作入口，面向操作人员逐步执行。
+- 完成内容：
+  - 扩展 `MockCalibrationRunner`，支持 `confirm_step` 回调与 `continue/skip/retry/cancel` 行为。
+  - `presentation.main` 增加 `--interactive` 模式，可按步骤输出接线说明、链路命令并接收操作员选择。
+  - 新增/扩展 `tests/test_mock_runner.py`，覆盖 skip/cancel 流程。
+- 验证结果：
+  - 使用 `d:\Microsoft\Python\quiet-zone-tester-venv\Scripts\python.exe` 手动调用当前测试函数通过。
+  - CLI demo 和交互入口均可运行。
+  - 未执行真实硬件验证。
+- 还需完成：
+  - P3-05 / P3-06：UI 状态展示与非法操作阻止。
+  - 后续可把交互入口从 CLI 扩展为正式图形界面。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/mock_runner.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`
+  - `catr_loss_calibrator/tests/test_mock_runner.py`
+- 下一步：
+  - 推进 P3-05 / P3-06，把 UI 状态展示和非法操作防护补上。
+
+### CATR-CAL-TASK-20260718-008 - P3 Mock 流程与状态机
+
+- 状态：完成
+- 日期：2026-07-18
+- 任务目标：
+  - 建立 Mock VNA 与 Mock 链路箱的完整校准流程模拟。
+  - 建立校准执行状态机。
+  - 提供一个最简 UI/CLI 入口展示校准项与执行状态。
+- 完成内容：
+  - 新增 `CalibrationStateMachine`，支持 `IDLE -> WAIT_MANUAL_CONFIRM -> CONFIGURE_LINK -> CONFIGURE_VNA -> TRIGGER_SWEEP -> READ_TRACE -> SAVE_RAW -> COMPUTE_OUTPUT -> SAVE_OUTPUT -> DONE` 的受控迁移。
+  - 新增 `MockCalibrationRunner`，可按步骤执行 Mock 校准、保存 raw trace 和 metadata。
+  - `presentation.main.run()` 现在会展示校准项，并跑一遍 demo Mock 流程。
+  - 新增 `tests/test_mock_runner.py` 覆盖状态机、Mock runner 和 CLI 入口。
+- 验证结果：
+  - 使用 `d:\Microsoft\Python\quiet-zone-tester-venv\Scripts\python.exe` 手动调用当前测试函数通过。
+  - CLI demo 可运行并输出校准项与 Mock runner 状态。
+  - 未执行真实硬件验证。
+- 还需完成：
+  - P3-03：人工接线确认步骤的暂停、跳过、重试和取消。
+  - P3-04：正式 UI 主窗口或 CLI/TUI 操作入口。
+  - P3-05 / P3-06：UI 状态展示与非法操作阻止。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/state_machine.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/mock_runner.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`
+  - `catr_loss_calibrator/tests/test_mock_runner.py`
+- 下一步：
+  - 推进 P3-03 / P3-04，把人工确认和 UI 入口做成真正可操作的流程。
+
+### CATR-CAL-TASK-20260718-007 - P2 文件命名与频段交集闭环
+
+- 状态：完成
+- 日期：2026-07-18
+- 任务目标：
+  - 将最终路损文件命名规则串到保存流程。
+  - 建立馈源/喇叭有效频段交集校验。
+- 完成内容：
+  - 在 `LossFilePolicy` 中新增 `validate_feed_horn()`、`filename_for()`、`path_for()`。
+  - 在 `save_loss_record_with_policy()` 中自动推导 band 并写回最终记录。
+  - 扩展 `tests/test_loss_file_policy.py` 和 `tests/test_storage_models.py`。
+- 验证结果：
+  - 使用 `d:\Microsoft\Python\quiet-zone-tester-venv\Scripts\python.exe` 手动调用当前测试函数通过。
+  - 未执行真实硬件验证。
+- 还需完成：
+  - 进入 P3：Mock 流程与操作员 UI。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/storage/loss_file_policy.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/storage/loss_file_storage.py`
+  - `catr_loss_calibrator/tests/test_loss_file_policy.py`
+  - `catr_loss_calibrator/tests/test_storage_models.py`
+- 下一步：
+  - 推进 P3-01 / P3-02，开始 Mock 校准流程与状态机。
+
+### CATR-CAL-TASK-20260718-006 - P2 公式与 metadata 闭环
+
+- 状态：完成
+- 日期：2026-07-18
+- 任务目标：
+  - 将 5 个校准项的最终输出公式落到代码。
+  - 建立 metadata 保存策略，记录项目、仪表、链路命令和文件追溯信息。
+  - 为每个最终输出参数建立带符号 dB 的单元测试。
+- 完成内容：
+  - 在 `calibration/formulas.py` 中补齐 `LINK-CAL-001` 至 `LINK-CAL-005` 的核心最终输出公式。
+  - 新增 `aux_loss()`、`link_cal_002_*()`、`link_cal_003_*()`、`link_cal_004_*()`、`link_cal_005_*()` 等公式入口。
+  - 新增 `storage.models.MetadataRecord`，并让 `write_metadata()` 支持直接写出 dataclass。
+  - 扩展 `tests/test_formulas.py` 与 `tests/test_storage_models.py`，覆盖带符号 dB 计算和 metadata 落盘。
+- 验证结果：
+  - 使用 `d:\Microsoft\Python\quiet-zone-tester-venv\Scripts\python.exe` 手动加载并调用当前测试函数通过。
+  - 未执行真实硬件验证。
+- 还需完成：
+  - P2-06：进一步打通最终路损文件命名规则与保存流程。
+  - P2-07：补齐馈源/喇叭频段交集校验。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/formulas.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/storage/models.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/storage/metadata_writer.py`
+  - `catr_loss_calibrator/tests/test_formulas.py`
+  - `catr_loss_calibrator/tests/test_storage_models.py`
+- 下一步：
+  - 继续推进 P2-06 / P2-07，并开始把 metadata 串到 session 级保存流程。
+
 ### CATR-CAL-TASK-20260718-001 - 项目骨架与开发 TODO 建立
 
 - 状态：进行中

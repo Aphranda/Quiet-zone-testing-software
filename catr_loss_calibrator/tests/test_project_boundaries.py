@@ -2,7 +2,8 @@ from pathlib import Path
 
 
 def test_catr_loss_calibrator_has_no_legacy_runtime_imports() -> None:
-    roots = [Path("src/catr_loss_calibrator"), Path("tests")]
+    base = Path(__file__).resolve().parents[1]
+    roots = [base / "src" / "catr_loss_calibrator", base / "tests"]
     forbidden = "quiet" + "_zone" + "_tester"
     offenders: list[str] = []
     for root in roots:

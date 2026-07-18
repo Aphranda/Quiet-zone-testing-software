@@ -76,11 +76,11 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_SOFTWARE_DESIGN.md`, `
 
 - [x] P2-01 建立统一 trace 数据模型，保存频率、幅度、相位、参数名、来源步骤。
 - [x] P2-02 建立原始 S21 保存策略，区分 raw trace 与最终路损文件。
-- [ ] P2-03 建立 metadata 保存策略，记录项目配置、仪表信息、链路命令、人工确认、输入文件 hash、输出文件 hash。
-- [ ] P2-04 将 5 个校准项的最终输出公式逐项落到 `calibration/formulas.py`。
-- [ ] P2-05 为每个最终输出参数建立单元测试，验证带符号 dB 计算。
-- [ ] P2-06 落实文件命名规则：`{PARAM}_{BAND}_{FEED}_{HORN}.csv`。
-- [ ] P2-07 建立馈源/喇叭有效频段交集校验。
+- [x] P2-03 建立 metadata 保存策略，记录项目配置、仪表信息、链路命令、人工确认、输入文件 hash、输出文件 hash。
+- [x] P2-04 将 5 个校准项的最终输出公式逐项落到 `calibration/formulas.py`。
+- [x] P2-05 为每个最终输出参数建立单元测试，验证带符号 dB 计算。
+- [x] P2-06 落实文件命名规则：`{PARAM}_{BAND}_{FEED}_{HORN}.csv`。
+- [x] P2-07 建立馈源/喇叭有效频段交集校验。
 
 ### P2 验收
 
@@ -90,12 +90,12 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_SOFTWARE_DESIGN.md`, `
 
 ## P3 - Mock 流程与操作员 UI
 
-- [ ] P3-01 建立 Mock VNA 与 Mock 链路箱的完整校准流程模拟。
-- [ ] P3-02 建立校准执行状态机：`IDLE → WAIT_MANUAL_CONFIRM → CONFIGURE_LINK → CONFIGURE_VNA → TRIGGER_SWEEP → READ_TRACE → SAVE_RAW → COMPUTE_OUTPUT → SAVE_OUTPUT → DONE`。
-- [ ] P3-03 建立人工接线确认步骤，支持暂停、跳过、重试和取消。
-- [ ] P3-04 建立一期 UI 主窗口或 CLI/TUI 操作入口，优先满足操作人员按步骤执行。
-- [ ] P3-05 UI 显示当前校准项、当前步骤、接线说明、链路箱命令、输出文件。
-- [ ] P3-06 UI 禁止非法操作：采样中修改配置、未连接硬件执行链路切换、校准中重复启动。
+- [x] P3-01 建立 Mock VNA 与 Mock 链路箱的完整校准流程模拟。
+- [x] P3-02 建立校准执行状态机：`IDLE → WAIT_MANUAL_CONFIRM → CONFIGURE_LINK → CONFIGURE_VNA → TRIGGER_SWEEP → READ_TRACE → SAVE_RAW → COMPUTE_OUTPUT → SAVE_OUTPUT → DONE`。
+- [x] P3-03 建立人工接线确认步骤，支持暂停、跳过、重试和取消。
+- [x] P3-04 建立一期 UI 主窗口或 CLI/TUI 操作入口，优先满足操作人员按步骤执行。
+- [x] P3-05 UI 显示当前校准项、当前步骤、接线说明、链路箱命令、输出文件。
+- [x] P3-06 UI 禁止非法操作：采样中修改配置、未连接硬件执行链路切换、校准中重复启动。
 
 ### P3 验收
 
@@ -107,8 +107,8 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_SOFTWARE_DESIGN.md`, `
 
 - [ ] P4-01 实现真实 VNA VISA adapter，支持连接、配置 sweep、单次触发、读取 S21。
 - [ ] P4-02 实现真实 LCD74000F 链路箱 adapter，支持命令下发、响应检查、错误提示。
-- [ ] P4-03 建立仪表连接管理：VNA、链路箱、SG、SA 的连接配置、状态快照和失败清理。
-- [ ] P4-04 建立资源互锁：校准中独占 VNA 和链路箱，禁止与静区测试软件同时操作。
+- [x] P4-03 建立仪表连接管理：VNA、链路箱、SG、SA 的连接配置、状态快照和失败清理。
+- [x] P4-04 建立资源互锁：校准中独占 VNA 和链路箱，禁止与静区测试软件同时操作。
 - [ ] P4-05 建立超时和失败恢复策略：VNA 采样超时、链路箱无响应、保存失败、人工取消。
 - [ ] P4-06 建立真实硬件验证 checklist，覆盖连接、链路切换、采样、保存、错误恢复。
 
