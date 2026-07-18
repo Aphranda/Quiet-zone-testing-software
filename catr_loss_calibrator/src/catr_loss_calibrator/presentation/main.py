@@ -80,8 +80,11 @@ def run_gui() -> int:
     from PySide6.QtSvg import QSvgRenderer
     from PySide6.QtWidgets import (
         QApplication,
+        QButtonGroup,
         QCheckBox,
         QComboBox,
+        QDoubleSpinBox,
+        QFormLayout,
         QFrame,
         QGridLayout,
         QGroupBox,
@@ -224,28 +227,48 @@ def run_gui() -> int:
             self.text_edit.setLineWrapMode(mode)
 
     class DeviceCommandPanel(QGroupBox):
-        def __init__(self, device_key: str, title: str, presets: dict[str, str], parent: QWidget | None = None) -> None:
+        def __init__(
+            self,
+            device_key: str,
+            title: str,
+            presets: dict[str, str],
+            resource_options: tuple[str, ...],
+            model_options: tuple[str, ...],
+            parent: QWidget | None = None,
+        ) -> None:
             super().__init__(title, parent)
             self.device_key = device_key
             self.presets = presets
 
             layout = QVBoxLayout(self)
-            self.use_mock_check = QCheckBox("Mock")
-            self.use_mock_check.setChecked(True)
-            self.resource_input = QLineEdit()
-            self.resource_input.setPlaceholderText("VISA / TCPIP / MOCK 资源地址")
-            self.model_input = QLineEdit()
-            self.model_input.setPlaceholderText("型号")
+            self.mock_check = QCheckBox("Mock")
+            self.real_check = QCheckBox("Real")
+            self.mock_check.setChecked(True)
+            self.mode_group = QButtonGroup(self)
+            self.mode_group.setExclusive(True)
+            self.mode_group.addButton(self.mock_check)
+            self.mode_group.addButton(self.real_check)
+            self.resource_input = QComboBox()
+            self.resource_input.setEditable(True)
+            self.resource_input.addItems(list(resource_options))
+            self.model_input = QComboBox()
+            self.model_input.setEditable(True)
+            self.model_input.addItems(list(model_options))
             self.timeout_input = QSpinBox()
             self.timeout_input.setRange(1, 120_000)
             self.timeout_input.setValue(10_000)
             self.timeout_input.setSuffix(" ms")
+            self.btn_search_visa = QPushButton("搜索 VISA")
             self.btn_connect = QPushButton("连接")
             self.btn_disconnect = QPushButton("断开")
             self.connection_state = QLabel("未连接")
 
             self.preset_combo = QComboBox()
+            self.preset_combo.setEditable(device_key == "link_box")
             self.preset_combo.addItems(list(presets.keys()))
+            self.current_command_label = QLabel()
+            self.current_command_label.setWordWrap(True)
+            self.preset_combo.currentTextChanged.connect(self._sync_current_command_label)
             self.command_input = QLineEdit()
             self.command_input.setPlaceholderText("输入 SCPI / 控制命令")
             self.response_view = QPlainTextEdit()
@@ -254,35 +277,53 @@ def run_gui() -> int:
             self.response_view.setPlaceholderText("响应")
             self.btn_preset = QPushButton("填充预设")
             self.btn_send = QPushButton("发送命令")
+            self.vna_settings_group: QGroupBox | None = None
+            self.btn_vna_configure: QPushButton | None = None
+            self.btn_vna_trigger: QPushButton | None = None
+            self.btn_vna_sample: QPushButton | None = None
 
             buttons = QHBoxLayout()
             buttons.addWidget(self.btn_preset)
             buttons.addWidget(self.btn_send)
 
-            connection_buttons = QHBoxLayout()
-            connection_buttons.addWidget(self.btn_connect)
-            connection_buttons.addWidget(self.btn_disconnect)
+            resource_row = QHBoxLayout()
+            resource_row.addWidget(self.resource_input, 1)
+            resource_row.addWidget(self.btn_search_visa)
 
-            layout.addWidget(self.use_mock_check)
+            mode_row = QHBoxLayout()
+            mode_row.addWidget(self.mock_check)
+            mode_row.addWidget(self.real_check)
+            mode_row.addStretch(1)
+            layout.addWidget(QLabel("连接模式"))
+            layout.addLayout(mode_row)
             layout.addWidget(QLabel("资源地址"))
-            layout.addWidget(self.resource_input)
+            layout.addLayout(resource_row)
             layout.addWidget(QLabel("型号"))
             layout.addWidget(self.model_input)
             layout.addWidget(QLabel("超时"))
             layout.addWidget(self.timeout_input)
-            layout.addLayout(connection_buttons)
+            button_row = QHBoxLayout()
+            button_row.addWidget(self.btn_connect)
+            button_row.addWidget(self.btn_disconnect)
+            layout.addLayout(button_row)
             layout.addWidget(self.connection_state)
+            if device_key == "vna":
+                layout.addWidget(self._build_vna_settings_group())
 
             layout.addWidget(QLabel("预设"))
             layout.addWidget(self.preset_combo)
+            if device_key == "link_box":
+                layout.addWidget(self.current_command_label)
             layout.addWidget(QLabel("命令"))
             layout.addWidget(self.command_input)
             layout.addLayout(buttons)
             layout.addWidget(QLabel("当前响应"))
             layout.addWidget(self.response_view)
+            self._sync_current_command_label(self.preset_combo.currentText())
 
         def selected_command(self) -> str:
-            return self.presets[self.preset_combo.currentText()]
+            text = self.preset_combo.currentText().strip()
+            return self.presets.get(text, text)
 
         def command_text(self) -> str:
             return self.command_input.text()
@@ -290,26 +331,153 @@ def run_gui() -> int:
         def set_response(self, response: str) -> None:
             self.response_view.setPlainText(response)
 
+        def set_resource_options(self, options: tuple[str, ...], selected: str | None = None) -> None:
+            self._set_combo_options(self.resource_input, options, selected or self.resource_input.currentText())
+
+        def set_model_options(self, options: tuple[str, ...], selected: str | None = None) -> None:
+            self._set_combo_options(self.model_input, options, selected or self.model_input.currentText())
+
+        def _sync_current_command_label(self, command: str) -> None:
+            selected = self.presets.get(command.strip(), command.strip())
+            if self.device_key != "link_box":
+                return
+            tokens = [
+                token
+                for token in ("DUT", "H", "V", "VNA1", "VNA2", "SG", "SA", "AMP1", "AMP2")
+                if token in selected.upper()
+            ]
+            suffix = f" | 节点: {', '.join(tokens)}" if tokens else ""
+            self.current_command_label.setText(f"当前命令: {selected}{suffix}")
+
         def set_connection_state(self, state: Any) -> None:
-            self.resource_input.setText(state.resource)
-            self.model_input.setText(state.model)
-            self.use_mock_check.setChecked(state.use_mock)
+            self.set_resource_options((state.resource,), state.resource)
+            self.set_model_options((state.model,), state.model)
+            self.mock_check.setChecked(state.use_mock)
+            self.real_check.setChecked(not state.use_mock)
             self.timeout_input.setValue(state.timeout_ms)
             self.connection_state.setText("已连接" if state.is_connected else "未连接")
             self.resource_input.setEnabled(not state.is_connected)
             self.model_input.setEnabled(not state.is_connected)
-            self.use_mock_check.setEnabled(not state.is_connected)
+            self.mock_check.setEnabled(not state.is_connected)
+            self.real_check.setEnabled(not state.is_connected)
             self.timeout_input.setEnabled(not state.is_connected)
+            self.btn_search_visa.setEnabled(not state.is_connected and not state.use_mock)
             self.btn_connect.setEnabled(not state.is_connected)
             self.btn_disconnect.setEnabled(state.is_connected)
+            self.preset_combo.setEnabled(state.is_connected)
+            self.command_input.setEnabled(state.is_connected)
+            self.btn_preset.setEnabled(state.is_connected)
+            self.btn_send.setEnabled(state.is_connected)
+            if self.vna_settings_group is not None:
+                self.vna_settings_group.setEnabled(state.is_connected)
 
         def connection_config(self) -> dict[str, Any]:
             return {
-                "resource": self.resource_input.text(),
-                "model": self.model_input.text(),
-                "use_mock": self.use_mock_check.isChecked(),
+                "resource": self.resource_input.currentText(),
+                "model": self.model_input.currentText(),
+                "use_mock": self.mock_check.isChecked(),
                 "timeout_ms": self.timeout_input.value(),
             }
+
+        @staticmethod
+        def _set_combo_options(combo: QComboBox, options: tuple[str, ...], selected: str) -> None:
+            current = str(selected).strip()
+            values = []
+            seen: set[str] = set()
+            for value in (current, *options):
+                text = str(value).strip()
+                key = text.upper()
+                if text and key not in seen:
+                    seen.add(key)
+                    values.append(text)
+            combo.blockSignals(True)
+            combo.clear()
+            combo.addItems(values)
+            if current:
+                combo.setCurrentText(current)
+            combo.blockSignals(False)
+
+        def vna_settings(self) -> dict[str, Any]:
+            return {
+                "start_ghz": self.vna_start_ghz.value(),
+                "stop_ghz": self.vna_stop_ghz.value(),
+                "frequency_step_mhz": self.vna_step_mhz.value(),
+                "points": self._vna_sweep_points(),
+                "vna_power_dbm": self.vna_power_dbm.value(),
+                "if_bandwidth_hz": self.vna_ifbw_hz.value(),
+                "sweep_mode": self.vna_sweep_mode.currentData(),
+                "continuous_sweep": self.vna_sweep_mode.currentData() == "continuous",
+                "parameter": self.vna_parameter.currentText(),
+            }
+
+        def _build_vna_settings_group(self) -> QGroupBox:
+            self.vna_start_ghz = self._double_spin(10.0, 0.001, 110.0, 0.1, 3, " GHz")
+            self.vna_stop_ghz = self._double_spin(17.0, 0.001, 110.0, 0.1, 3, " GHz")
+            self.vna_step_mhz = self._double_spin(100.0, 0.001, 1_000_000.0, 1.0, 3, " MHz")
+            self.vna_points_label = QLabel()
+            self.vna_power_dbm = self._double_spin(-10.0, -90.0, 30.0, 1.0, 1, " dBm")
+            self.vna_ifbw_hz = self._double_spin(1000.0, 1.0, 10_000_000.0, 100.0, 0, " Hz")
+            self.vna_sweep_mode = QComboBox()
+            self.vna_sweep_mode.addItem("Hold", "hold")
+            self.vna_sweep_mode.addItem("Single", "single")
+            self.vna_sweep_mode.addItem("Continuous", "continuous")
+            self.vna_parameter = QComboBox()
+            self.vna_parameter.addItems(["S21", "S11", "S12", "S22"])
+            self.btn_vna_configure = QPushButton("配置")
+            self.btn_vna_trigger = QPushButton("触发")
+            self.btn_vna_sample = QPushButton("采样")
+
+            for spinbox in (self.vna_start_ghz, self.vna_stop_ghz, self.vna_step_mhz):
+                spinbox.valueChanged.connect(lambda _value: self._refresh_vna_points_label())
+
+            range_field = QWidget()
+            range_layout = QHBoxLayout(range_field)
+            range_layout.setContentsMargins(0, 0, 0, 0)
+            range_layout.addWidget(self.vna_start_ghz)
+            range_layout.addWidget(QLabel("到"))
+            range_layout.addWidget(self.vna_stop_ghz)
+
+            step_field = QWidget()
+            step_layout = QHBoxLayout(step_field)
+            step_layout.setContentsMargins(0, 0, 0, 0)
+            step_layout.addWidget(self.vna_step_mhz)
+            step_layout.addWidget(self.vna_points_label)
+
+            button_row = QHBoxLayout()
+            button_row.addWidget(self.btn_vna_configure)
+            button_row.addWidget(self.btn_vna_trigger)
+            button_row.addWidget(self.btn_vna_sample)
+
+            group = QGroupBox("网分扫频配置")
+            form = QFormLayout(group)
+            form.addRow("起止频率", range_field)
+            form.addRow("步进/点数", step_field)
+            form.addRow("输出功率", self.vna_power_dbm)
+            form.addRow("中频带宽", self.vna_ifbw_hz)
+            form.addRow("Sweep 模式", self.vna_sweep_mode)
+            form.addRow("S 参数", self.vna_parameter)
+            form.addRow(button_row)
+            self.vna_settings_group = group
+            self._refresh_vna_points_label()
+            return group
+
+        def _refresh_vna_points_label(self) -> None:
+            self.vna_points_label.setText(f"{self._vna_sweep_points()} 点")
+
+        def _vna_sweep_points(self) -> int:
+            span_mhz = abs(self.vna_stop_ghz.value() - self.vna_start_ghz.value()) * 1000.0
+            step_mhz = max(self.vna_step_mhz.value(), 1e-9)
+            return max(2, int(span_mhz // step_mhz) + 1)
+
+        @staticmethod
+        def _double_spin(value: float, minimum: float, maximum: float, step: float, decimals: int, suffix: str) -> QDoubleSpinBox:
+            spinbox = QDoubleSpinBox()
+            spinbox.setRange(minimum, maximum)
+            spinbox.setSingleStep(step)
+            spinbox.setDecimals(decimals)
+            spinbox.setValue(value)
+            spinbox.setSuffix(suffix)
+            return spinbox
 
     class MainWindow(QMainWindow):
         def __init__(self) -> None:
@@ -360,9 +528,8 @@ def run_gui() -> int:
             self.detail_view.setReadOnly(True)
             self.detail_view.setMaximumBlockCount(200)
 
-            self.calibration_log_panel = LogPanel()
-            self.full_log_panel = LogPanel()
-            self.log_panels = [self.calibration_log_panel, self.full_log_panel]
+            self.global_log_panel = LogPanel()
+            self.log_panels = [self.global_log_panel]
 
             self.result_view = QPlainTextEdit()
             self.result_view.setReadOnly(True)
@@ -383,13 +550,40 @@ def run_gui() -> int:
 
             command_presets = vm.device_command_presets()
             self.command_panels = [
-                DeviceCommandPanel("vna", "网分", command_presets["vna"]),
-                DeviceCommandPanel("signal_generator", "信号源", command_presets["signal_generator"]),
-                DeviceCommandPanel("link_box", "链路箱", command_presets["link_box"]),
-                DeviceCommandPanel("spectrum_analyzer", "频谱仪", command_presets["spectrum_analyzer"]),
+                DeviceCommandPanel(
+                    "vna",
+                    "网分",
+                    command_presets["vna"],
+                    vm.device_mock_resource_options("vna"),
+                    vm.device_model_options("vna"),
+                ),
+                DeviceCommandPanel(
+                    "signal_generator",
+                    "信号源",
+                    command_presets["signal_generator"],
+                    vm.device_mock_resource_options("signal_generator"),
+                    vm.device_model_options("signal_generator"),
+                ),
+                DeviceCommandPanel(
+                    "link_box",
+                    "链路箱",
+                    command_presets["link_box"],
+                    vm.device_mock_resource_options("link_box"),
+                    vm.device_model_options("link_box"),
+                ),
+                DeviceCommandPanel(
+                    "spectrum_analyzer",
+                    "频谱仪",
+                    command_presets["spectrum_analyzer"],
+                    vm.device_mock_resource_options("spectrum_analyzer"),
+                    vm.device_model_options("spectrum_analyzer"),
+                ),
             ]
             for panel in self.command_panels:
-                panel.set_connection_state(vm.device_connection_state(panel.device_key))
+                state = vm.device_connection_state(panel.device_key)
+                panel.set_connection_state(state)
+                panel.set_model_options(vm.device_model_options(panel.device_key), state.model)
+                panel.set_resource_options(vm.device_mock_resource_options(panel.device_key), state.resource)
 
             self.status_label = QLabel("Ready")
             self.connection_label = QLabel("VNA: disconnected | SG: disconnected | LinkBox: disconnected | SA: disconnected")
@@ -407,25 +601,30 @@ def run_gui() -> int:
             self.tabs = QTabWidget()
             self.calibration_page = self._build_calibration_page()
             self.command_page = self._build_command_page()
-            self.log_page = self._build_log_page()
             self.result_page = self._build_result_page()
+            self.tabs.addTab(self.command_page, "仪表配置")
             self.tabs.addTab(self.calibration_page, "校准执行")
-            self.tabs.addTab(self.command_page, "指令测试")
-            self.tabs.addTab(self.log_page, "日志")
             self.tabs.addTab(self.result_page, "结果")
 
             root = QWidget()
             self.setCentralWidget(root)
             root_layout = QVBoxLayout(root)
             root_layout.addWidget(self._build_header())
-            root_layout.addWidget(self.tabs)
+            main_splitter = QSplitter(Qt.Horizontal)
+            main_splitter.addWidget(self.tabs)
+            main_splitter.addWidget(self._build_global_log())
+            main_splitter.setStretchFactor(0, 4)
+            main_splitter.setStretchFactor(1, 1)
+            main_splitter.setCollapsible(0, False)
+            main_splitter.setCollapsible(1, False)
+            root_layout.addWidget(main_splitter, 1)
 
             self.statusBar().addWidget(self.status_label, 1)
             self.statusBar().addPermanentWidget(self.connection_label)
 
             self._bind_events()
             self._refresh_item_list()
-            vm.connect_mock_devices()
+            self._sync_device_connection_panels()
             self.item_list.setCurrentRow(0)
             vm.refresh_overview()
             self._sync_overview()
@@ -489,29 +688,11 @@ def run_gui() -> int:
             button_row.addWidget(self.btn_cancel)
             center_layout.addLayout(button_row)
 
-            right_tabs = QTabWidget()
-            right_log = QWidget()
-            right_log_layout = QVBoxLayout(right_log)
-            right_log_layout.addWidget(self.calibration_log_panel)
-            right_tabs.addTab(right_log, "日志")
-
-            right_result = QWidget()
-            right_result_layout = QVBoxLayout(right_result)
-            right_result_layout.addWidget(QLabel("运行摘要"))
-            right_result_layout.addWidget(self.result_summary)
-            right_result_layout.addWidget(QLabel("文件与状态"))
-            right_result_layout.addWidget(self.result_view)
-            right_result_layout.addWidget(QLabel("会话记录"))
-            right_result_layout.addWidget(self.result_session)
-            right_tabs.addTab(right_result, "结果")
-
             splitter = QSplitter(Qt.Horizontal)
             splitter.addWidget(left)
             splitter.addWidget(center)
-            splitter.addWidget(right_tabs)
             splitter.setStretchFactor(0, 1)
             splitter.setStretchFactor(1, 3)
-            splitter.setStretchFactor(2, 2)
             layout.addWidget(splitter)
             return page
 
@@ -529,11 +710,13 @@ def run_gui() -> int:
             layout.addWidget(self.btn_refresh)
             return page
 
-        def _build_log_page(self) -> QWidget:
-            page = QWidget()
-            layout = QVBoxLayout(page)
-            layout.addWidget(self.full_log_panel)
-            return page
+        def _build_global_log(self) -> QWidget:
+            box = QGroupBox("LOG")
+            box.setMinimumWidth(320)
+            box.setMaximumWidth(460)
+            layout = QVBoxLayout(box)
+            layout.addWidget(self.global_log_panel)
+            return box
 
         def _build_result_page(self) -> QWidget:
             page = QWidget()
@@ -562,7 +745,16 @@ def run_gui() -> int:
                 panel.btn_send.clicked.connect(lambda _checked=False, command_panel=panel: self._send_command(command_panel))
                 panel.btn_connect.clicked.connect(lambda _checked=False, command_panel=panel: self._connect_command_device(command_panel))
                 panel.btn_disconnect.clicked.connect(lambda _checked=False, command_panel=panel: self._disconnect_command_device(command_panel))
+                panel.btn_search_visa.clicked.connect(lambda _checked=False, command_panel=panel: self._search_visa_resources(command_panel))
+                panel.use_mock_check.toggled.connect(lambda _checked=False, command_panel=panel: self._on_mock_mode_changed(command_panel))
                 panel.command_input.returnPressed.connect(lambda command_panel=panel: self._send_command(command_panel))
+                if panel.device_key == "vna":
+                    assert panel.btn_vna_configure is not None
+                    assert panel.btn_vna_trigger is not None
+                    assert panel.btn_vna_sample is not None
+                    panel.btn_vna_configure.clicked.connect(lambda _checked=False, command_panel=panel: self._configure_vna(command_panel))
+                    panel.btn_vna_trigger.clicked.connect(lambda _checked=False, command_panel=panel: self._trigger_vna(command_panel))
+                    panel.btn_vna_sample.clicked.connect(lambda _checked=False, command_panel=panel: self._sample_vna(command_panel))
             for panel in self.log_panels:
                 panel.level_combo.currentTextChanged.connect(self._sync_logs)
                 panel.search_edit.textChanged.connect(self._sync_logs)
@@ -684,6 +876,30 @@ def run_gui() -> int:
             panel.set_response(response)
             self.history_view.setPlainText("\n\n".join(vm.command_history))
 
+        def _configure_vna(self, panel: DeviceCommandPanel) -> None:
+            try:
+                response = vm.configure_vna(panel.vna_settings())
+            except Exception as exc:
+                QMessageBox.warning(self, "网分配置失败", str(exc))
+                return
+            panel.set_response(response)
+
+        def _trigger_vna(self, panel: DeviceCommandPanel) -> None:
+            try:
+                response = vm.trigger_vna(panel.vna_settings())
+            except Exception as exc:
+                QMessageBox.warning(self, "网分触发失败", str(exc))
+                return
+            panel.set_response(response)
+
+        def _sample_vna(self, panel: DeviceCommandPanel) -> None:
+            try:
+                response = vm.sample_vna(panel.vna_settings())
+            except Exception as exc:
+                QMessageBox.warning(self, "网分采样失败", str(exc))
+                return
+            panel.set_response(response)
+
         def _connect_devices(self) -> None:
             vm.connect_mock_devices()
             self._sync_device_connection_panels()
@@ -711,9 +927,40 @@ def run_gui() -> int:
             panel.set_connection_state(state)
             self._sync_overview()
 
+        def _search_visa_resources(self, panel: DeviceCommandPanel) -> None:
+            if panel.use_mock_check.isChecked():
+                panel.set_resource_options(vm.device_mock_resource_options(panel.device_key))
+                return
+            try:
+                resources = vm.list_visa_resources()
+            except Exception as exc:
+                QMessageBox.warning(self, "VISA 资源搜索失败", str(exc))
+                return
+            if not resources:
+                QMessageBox.information(self, "VISA 资源搜索", "未发现 VISA 资源。")
+                return
+            panel.set_resource_options(resources, resources[0])
+
+        def _on_mock_mode_changed(self, panel: DeviceCommandPanel) -> None:
+            if panel.use_mock_check.isChecked():
+                resources = vm.device_mock_resource_options(panel.device_key)
+                panel.set_resource_options(resources, resources[0] if resources else "")
+            else:
+                panel.btn_search_visa.setEnabled(True)
+                try:
+                    resources = vm.list_visa_resources()
+                except Exception:
+                    return
+                if resources:
+                    panel.set_resource_options(resources, resources[0])
+
         def _sync_device_connection_panels(self) -> None:
             for panel in self.command_panels:
-                panel.set_connection_state(vm.device_connection_state(panel.device_key))
+                state = vm.device_connection_state(panel.device_key)
+                panel.set_connection_state(state)
+                panel.set_model_options(vm.device_model_options(panel.device_key), state.model)
+                resources = vm.device_mock_resource_options(panel.device_key) if state.use_mock else (state.resource,)
+                panel.set_resource_options(resources, state.resource)
 
         def _format_log_entry(self, record: LogEntry, show_timestamp: bool = True) -> str:
             prefix = f"{record.timestamp} " if show_timestamp else ""

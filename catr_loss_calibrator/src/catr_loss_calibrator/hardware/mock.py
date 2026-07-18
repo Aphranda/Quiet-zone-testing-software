@@ -11,8 +11,12 @@ class MockVna:
         self.model = model
         self._connected = False
         self._start_hz = 10e9
-        self._stop_hz = 15e9
-        self._points = 51
+        self._stop_hz = 17e9
+        self._points = 71
+        self._power_dbm = -10.0
+        self._if_bandwidth_hz = 1000.0
+        self._parameter = "S21"
+        self._continuous_sweep = False
         self.commands: list[str] = []
 
     @property
@@ -32,19 +36,32 @@ class MockVna:
         self._points = points
 
     def configure_power(self, power_dbm: float) -> None:
-        _ = power_dbm
+        self._power_dbm = power_dbm
 
     def configure_if_bandwidth(self, bandwidth_hz: float) -> None:
-        _ = bandwidth_hz
+        self._if_bandwidth_hz = bandwidth_hz
+
+    def configure_measurement_parameter(self, parameter: str) -> None:
+        self._parameter = parameter.upper()
+
+    def configure_continuous_sweep(self, enabled: bool) -> None:
+        self._continuous_sweep = enabled
+
+    def query_sweep_time_s(self) -> float:
+        return max(self._points, 1) / max(self._if_bandwidth_hz, 1.0)
+
+    def measure_s_parameter(self, parameter: str = "S21") -> SParameterTrace:
+        self.trigger_sweep(parameter)
+        return self.read_s_parameter(parameter)
 
     def trigger_sweep(self, parameter: str = "S21") -> None:
-        _ = parameter
+        self._parameter = parameter.upper()
 
     def read_s_parameter(self, parameter: str = "S21") -> SParameterTrace:
         frequency = np.linspace(self._start_hz, self._stop_hz, self._points)
         value_db = np.linspace(-1.0, -2.0, self._points)
         phase = np.zeros(self._points)
-        return SParameterTrace(frequency, value_db, phase, parameter)
+        return SParameterTrace(frequency, value_db, phase, parameter.upper())
 
     def send_command(self, command: str) -> str:
         if not self._connected:
@@ -111,4 +128,13 @@ class MockLinkBox:
         if not self._connected:
             raise RuntimeError("Mock link box is not connected.")
         self.commands.append(command)
+        upper = command.strip().upper()
+        if upper == "*IDN?":
+            return f"MOCK,{self.model},0001,1.0"
+        if upper == "*OPC?":
+            return "1"
+        if upper == "SYSTEM:ERROR:COUNT?":
+            return "0"
+        if upper == "SYSTEM:ERROR:NEXT?":
+            return "0,No error"
         return "OK"

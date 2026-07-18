@@ -144,7 +144,7 @@ class CalibrationViewModel(QObject):
         self._command_response = ""
         self._worker: CalibrationRunWorker | None = None
         self._device_configs = {
-            "vna": InstrumentConnectionConfig(resource="MOCK::VNA", model="MOCK-VNA", use_mock=True),
+            "vna": InstrumentConnectionConfig(resource="MOCK::VNA::001", model="E5080B", use_mock=True, timeout_ms=5000),
             "signal_generator": InstrumentConnectionConfig(resource="MOCK::SG", model="MOCK-SG", use_mock=True),
             "link_box": InstrumentConnectionConfig(resource="MOCK::LINKBOX", model="LCD74000F-MOCK", use_mock=True),
             "spectrum_analyzer": InstrumentConnectionConfig(resource="MOCK::SA", model="MOCK-SA", use_mock=True),
@@ -242,6 +242,8 @@ class CalibrationViewModel(QObject):
             use_mock=use_mock,
             timeout_ms=max(1, int(timeout_ms)),
         )
+        if not config.use_mock and config.resource.upper().startswith("MOCK"):
+            raise RuntimeError("真实连接模式下不能使用 MOCK 资源，请先搜索并选择 VISA 资源。")
         instrument, _ = self._command_device(device)
         if instrument.is_connected:
             raise RuntimeError("请先断开设备，再修改连接配置。")
@@ -279,6 +281,37 @@ class CalibrationViewModel(QObject):
             timeout_ms=config.timeout_ms,
             is_connected=instrument.is_connected,
         )
+
+    def device_model_options(self, device: str) -> tuple[str, ...]:
+        options = {
+            "vna": ("E5080B", "N5245B", "MOCK-VNA"),
+            "signal_generator": ("N5183B", "E8257D", "SMB100A", "MOCK-SG"),
+            "link_box": ("LCD74000F", "LCD74000F-MOCK"),
+            "spectrum_analyzer": ("N9020B", "FSW", "MOCK-SA"),
+        }
+        config = self._device_configs[device]
+        values = options[device]
+        return self._unique_texts((config.model, *values))
+
+    def device_mock_resource_options(self, device: str) -> tuple[str, ...]:
+        options = {
+            "vna": ("MOCK::VNA::001", "MOCK::VNA"),
+            "signal_generator": ("MOCK::SG", "MOCK::SIGNAL_GENERATOR"),
+            "link_box": ("MOCK::LINKBOX",),
+            "spectrum_analyzer": ("MOCK::SA", "MOCK::SPECTRUM_ANALYZER"),
+        }
+        config = self._device_configs[device]
+        return self._unique_texts((config.resource, *options[device]))
+
+    def list_visa_resources(self) -> tuple[str, ...]:
+        try:
+            import pyvisa
+        except ImportError as exc:
+            raise RuntimeError("未安装 pyvisa，无法搜索 VISA 资源。") from exc
+        try:
+            return tuple(str(resource) for resource in pyvisa.ResourceManager().list_resources())
+        except Exception as exc:
+            raise RuntimeError(f"搜索 VISA 资源失败: {exc}") from exc
 
     def start_selected(self) -> None:
         if self._worker and self._worker.isRunning():
@@ -329,6 +362,57 @@ class CalibrationViewModel(QObject):
         self._append_log("INFO", "command", display_name, f"返回响应: {response}")
         return response
 
+    def configure_vna(self, settings: dict[str, Any]) -> str:
+        vna, display_name = self._command_device("vna")
+        start_hz = float(settings["start_ghz"]) * 1e9
+        stop_hz = float(settings["stop_ghz"]) * 1e9
+        points = int(settings["points"])
+        power_dbm = float(settings["vna_power_dbm"])
+        if_bandwidth_hz = float(settings["if_bandwidth_hz"])
+        parameter = str(settings["parameter"]).strip().upper()
+        continuous = bool(settings.get("continuous_sweep", False))
+        vna.configure_power(power_dbm)
+        vna.configure_if_bandwidth(if_bandwidth_hz)
+        vna.configure_sweep(start_hz, stop_hz, points)
+        configure_parameter = getattr(vna, "configure_measurement_parameter", None)
+        if callable(configure_parameter):
+            configure_parameter(parameter)
+        configure_continuous = getattr(vna, "configure_continuous_sweep", None)
+        if callable(configure_continuous):
+            configure_continuous(continuous)
+        response = (
+            f"OK: {parameter}, {start_hz:.12g}-{stop_hz:.12g} Hz, "
+            f"{points} pts, {power_dbm:.1f} dBm, IFBW {if_bandwidth_hz:.0f} Hz"
+        )
+        self._command_response = response
+        self.command_response_changed.emit(response)
+        self._append_log("INFO", "vna", display_name, response)
+        return response
+
+    def trigger_vna(self, settings: dict[str, Any]) -> str:
+        vna, display_name = self._command_device("vna")
+        parameter = str(settings["parameter"]).strip().upper()
+        vna.trigger_sweep(parameter)
+        response = f"OK: triggered {parameter}"
+        self._command_response = response
+        self.command_response_changed.emit(response)
+        self._append_log("INFO", "vna", display_name, response)
+        return response
+
+    def sample_vna(self, settings: dict[str, Any]) -> str:
+        vna, display_name = self._command_device("vna")
+        parameter = str(settings["parameter"]).strip().upper()
+        measure = getattr(vna, "measure_s_parameter", None)
+        trace = measure(parameter) if callable(measure) else vna.read_s_parameter(parameter)
+        points = len(trace.frequency_hz)
+        start_ghz = float(trace.frequency_hz[0]) / 1e9 if points else 0.0
+        stop_ghz = float(trace.frequency_hz[-1]) / 1e9 if points else 0.0
+        response = f"OK: sampled {trace.parameter}, {points} pts, {start_ghz:.3f}-{stop_ghz:.3f} GHz"
+        self._command_response = response
+        self.command_response_changed.emit(response)
+        self._append_log("INFO", "vna", display_name, response)
+        return response
+
     def preset_command(self, preset: str) -> str:
         return self.device_preset_command("link_box", preset)
 
@@ -340,9 +424,23 @@ class CalibrationViewModel(QObject):
         presets = {
             "vna": {
                 "*IDN?": "*IDN?",
-                "配置 S21": "CALCulate:PARameter:DEFine 'Meas1',S21",
-                "触发扫描": "INITiate:IMMediate",
-                "读取轨迹": "CALCulate:DATA? FDATA",
+                "清状态": "*CLS",
+                "停止扫描": "ABOR",
+                "查询错误": "SYST:ERR?",
+                "设置起频": "SENS:FREQ:STAR 10GHz",
+                "设置止频": "SENS:FREQ:STOP 17GHz",
+                "设置点数": "SENS:SWE:POIN 71",
+                "设置功率": "SOUR:POW -10",
+                "设置 IFBW": "SENS:BAND:RES 1000",
+                "配置 S21": "CALC1:PAR:DEF:EXT 'CH1_SPARAM','S21'",
+                "选择轨迹": "CALC1:PAR:SEL 'CH1_SPARAM'",
+                "单次扫描": "SENS1:SWE:MODE SING",
+                "保持扫描": "SENS1:SWE:MODE HOLD",
+                "连续扫描": "SENS1:SWE:MODE CONT",
+                "触发源 IMM": "TRIG:SOUR IMM",
+                "等待完成": "*OPC?",
+                "查询扫时": "SENS1:SWE:TIME?",
+                "读取 SDATA": "CALC:DATA? SDATA",
             },
             "signal_generator": {
                 "*IDN?": "*IDN?",
@@ -351,12 +449,7 @@ class CalibrationViewModel(QObject):
                 "打开输出": "OUTPut:STATe ON",
             },
             "link_box": {
-                "H_TO_VNA1": link_command("H", "VNA1"),
-                "V_TO_VNA1": link_command("V", "VNA1"),
-                "DUT_TO_VNA2": link_command("DUT", "VNA2"),
-                "DUT_AMP1_VNA2": link_command("DUT", "AMP1", "VNA2"),
-                "DUT_TO_SA": link_command("DUT", "SA"),
-                "HV_AMP2_SA": "CONFigure:LINK H/V, AMP2, SA",
+                **self._link_box_command_presets(),
             },
             "spectrum_analyzer": {
                 "*IDN?": "*IDN?",
@@ -366,6 +459,71 @@ class CalibrationViewModel(QObject):
             },
         }
         return presets
+
+    def _link_box_command_presets(self) -> dict[str, str]:
+        quiet_zone_commands = (
+            "CONFigure:LINK DUT, AMP1, SA",
+            "CONFigure:LINK DUT, VNA2",
+            "CONFigure:LINK DUT, AMP1, VNA2",
+            "CONFigure:LINK H, SG",
+            "CONFigure:LINK H, VNA1",
+            "CONFigure:LINK H, SA",
+            "CONFigure:LINK H, AMP2, SG",
+            "CONFigure:LINK H, AMP2, VNA1",
+            "CONFigure:LINK H, AMP2, SA",
+            "CONFigure:LINK V, SG",
+            "CONFigure:LINK V, VNA1",
+            "CONFigure:LINK V, SA",
+            "CONFigure:LINK V, AMP2, SG",
+            "CONFigure:LINK V, AMP2, VNA1",
+            "CONFigure:LINK V, AMP2, SA",
+        )
+        calibration_commands = tuple(
+            command
+            for item in self.catalog.items
+            for step in item.steps
+            for command in step.link_commands
+        )
+        utility_commands = (
+            "*IDN?",
+            "*OPC?",
+            "SYSTem:ERRor:COUNt?",
+            "SYSTem:ERRor:NEXT?",
+        )
+        commands = self._unique_commands((*quiet_zone_commands, *calibration_commands, *utility_commands))
+        return {self._link_box_command_label(command): command for command in commands}
+
+    @staticmethod
+    def _unique_commands(commands: tuple[str, ...]) -> tuple[str, ...]:
+        seen: set[str] = set()
+        unique: list[str] = []
+        for command in commands:
+            normalized = command.strip()
+            key = normalized.upper().replace(" ", "")
+            if normalized and key not in seen:
+                seen.add(key)
+                unique.append(normalized)
+        return tuple(unique)
+
+    @staticmethod
+    def _unique_texts(values: tuple[str, ...]) -> tuple[str, ...]:
+        seen: set[str] = set()
+        unique: list[str] = []
+        for value in values:
+            text = str(value).strip()
+            key = text.upper()
+            if text and key not in seen:
+                seen.add(key)
+                unique.append(text)
+        return tuple(unique)
+
+    @staticmethod
+    def _link_box_command_label(command: str) -> str:
+        normalized = command.strip()
+        if not normalized.upper().startswith("CONFIGURE:LINK"):
+            return normalized
+        route = normalized.split(" ", 1)[1] if " " in normalized else normalized
+        return route.replace(",", " ->").replace("  ", " ").strip()
 
     def refresh_overview(self) -> None:
         item = self.selected_item

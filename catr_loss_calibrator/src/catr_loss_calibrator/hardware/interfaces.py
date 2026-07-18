@@ -47,6 +47,9 @@ class Vna(Protocol):
     def read_s_parameter(self, parameter: str = "S21") -> SParameterTrace:
         ...
 
+    def send_command(self, command: str) -> str:
+        ...
+
 
 class LinkBox(Protocol):
     @property
