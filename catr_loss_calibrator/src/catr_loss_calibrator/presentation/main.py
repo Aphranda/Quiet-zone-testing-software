@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import html
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -82,7 +84,7 @@ def run_gui() -> int:
     from catr_loss_calibrator.storage.loss_file_policy import FEED_HORN_BANDS
 
     from PySide6.QtCore import QRectF, Qt
-    from PySide6.QtGui import QAction, QCursor, QFont, QPainter, QPixmap, QTextCursor
+    from PySide6.QtGui import QAction, QBrush, QColor, QCursor, QFont, QPainter, QPixmap, QTextCursor
     from PySide6.QtSvg import QSvgRenderer
     from PySide6.QtWidgets import (
         QApplication,
@@ -121,6 +123,299 @@ def run_gui() -> int:
     project_config = ProjectConfig()
     base_dir = Path(__file__).resolve().parents[1]
     style_dir = base_dir / "style"
+
+    _DISPLAY_TEXT_REPLACEMENTS: tuple[tuple[re.Pattern[str], str], ...] = (
+        (re.compile(r"\bVNA1\b"), "网分1"),
+        (re.compile(r"\bVNA2\b"), "网分2"),
+        (re.compile(r"\bVNA\b"), "网分"),
+        (re.compile(r"\bSG\b"), "信号源"),
+        (re.compile(r"\bSA\b"), "频谱仪"),
+        (re.compile(r"\bLB\b"), "链路箱"),
+        (re.compile(r"\bTD\b"), "转台 DUT 接口"),
+        (re.compile(r"\bCP\b"), "暗室接口板"),
+        (re.compile(r"\bAMP1\b"), "放大器1"),
+        (re.compile(r"\bAMP2\b"), "放大器2"),
+    )
+
+    _NODE_LABELS: dict[str, str] = {
+        "PORT1": "网分 PORT1",
+        "PORT2": "网分 PORT2",
+        "P1": "网分 PORT1",
+        "P2": "网分 PORT2",
+        "CP-H": "暗室接口板 H",
+        "CP-V": "暗室接口板 V",
+        "CP-DUT": "暗室接口板 DUT",
+        "TD": "转台 DUT 接口",
+        "转台DUT接口": "转台 DUT 接口",
+        "DUT_REF": "DUT 参考面",
+        "FH": "馈源 H",
+        "FV": "馈源 V",
+        "LB-H": "链路箱 H",
+        "LB-V": "链路箱 V",
+        "LB-DUT": "链路箱 DUT",
+        "LB-VNA1": "链路箱 网分1",
+        "LB-VNA2": "链路箱 网分2",
+        "LB-SG": "链路箱 信号源",
+        "LB-SA": "链路箱 频谱仪",
+        "VNA1": "网分1",
+        "VNA2": "网分2",
+        "VNA": "网分",
+        "SG": "信号源",
+        "SA": "频谱仪",
+        "AMP1": "放大器1",
+        "AMP2": "放大器2",
+        "POL-H": "H 极化",
+        "POL-V": "V 极化",
+    }
+
+    _COMMAND_TOKEN_LABELS: tuple[tuple[re.Pattern[str], str], ...] = (
+        (re.compile(r"\bDUT_REF\b"), "被测件参考面"),
+        (re.compile(r"\bCP-DUT\b"), "暗室接口板-被测件"),
+        (re.compile(r"\bCP-H\b"), "暗室接口板-水平极化"),
+        (re.compile(r"\bCP-V\b"), "暗室接口板-垂直极化"),
+        (re.compile(r"\bLB\b"), "链路箱"),
+        (re.compile(r"\bTD\b"), "转台DUT接口"),
+        (re.compile(r"\bDUT\b"), "被测件"),
+        (re.compile(r"\bFH\b"), "馈源H"),
+        (re.compile(r"\bFV\b"), "馈源V"),
+        (re.compile(r"\bPORT1\b"), "网分PORT1"),
+        (re.compile(r"\bPORT2\b"), "网分PORT2"),
+        (re.compile(r"\bP1\b"), "网分PORT1"),
+        (re.compile(r"\bP2\b"), "网分PORT2"),
+        (re.compile(r"\bVNA1\b"), "网分1"),
+        (re.compile(r"\bVNA2\b"), "网分2"),
+        (re.compile(r"\bSG\b"), "信号源"),
+        (re.compile(r"\bSA\b"), "频谱仪"),
+        (re.compile(r"\bAMP1\b"), "放大器1"),
+        (re.compile(r"\bAMP2\b"), "放大器2"),
+        (re.compile(r"(?<![A-Za-z0-9_/])H(?![A-Za-z0-9_/])"), "水平极化"),
+        (re.compile(r"(?<![A-Za-z0-9_/])V(?![A-Za-z0-9_/])"), "垂直极化"),
+    )
+
+    def _friendly_text(value: Any) -> str:
+        text = str(value)
+        for pattern, replacement in _DISPLAY_TEXT_REPLACEMENTS:
+            text = pattern.sub(replacement, text)
+        return text
+
+    def _friendly_join(values: tuple[str, ...], *, empty: str = "无") -> str:
+        if not values:
+            return empty
+        return ", ".join(_friendly_text(value) for value in values)
+
+    def _plain_join(values: tuple[str, ...], *, empty: str = "无") -> str:
+        return ", ".join(values) if values else empty
+
+    def _friendly_node_text(value: str) -> str:
+        text = value.strip()
+        exact = _NODE_LABELS.get(text.upper())
+        if exact:
+            return exact
+        if "/" in text:
+            return "/".join(_friendly_node_text(part) for part in text.split("/"))
+        return _friendly_text(text)
+
+    def _route_nodes_from_instruction(instruction: str) -> list[list[str]]:
+        routes: list[list[str]] = []
+        for segment in re.split(r"[；;\n]+", instruction):
+            segment = segment.strip(" 。.\t")
+            if not re.search(r"(?:->|→)", segment):
+                continue
+            nodes = [node.strip(" 。.\t") for node in re.split(r"\s*(?:->|→)\s*", segment)]
+            nodes = [node for node in nodes if node]
+            if len(nodes) >= 2:
+                routes.append(nodes)
+        return routes
+
+    def _aux_route(aux_name: str) -> list[str]:
+        return ["网分 PORT1", aux_name, "网分 PORT2"]
+
+    def _dut_vna2_return_route(aux_name: str, *, amp1: bool = False) -> list[str]:
+        route = ["网分 PORT1", aux_name, "转台 DUT 接口", "暗室接口板 DUT"]
+        if amp1:
+            route.append("AMP1")
+        route.extend(["链路箱 VNA2", "网分 PORT2"])
+        return route
+
+    def _space_nodes(polarization: str, *, reverse: bool = False) -> list[str]:
+        nodes = [
+            f"链路箱 {polarization}",
+            f"暗室接口板 {polarization}",
+            f"馈源 {polarization}",
+            "反射面",
+            "标准增益喇叭",
+            "暗室接口板 DUT",
+        ]
+        return list(reversed(nodes)) if reverse else nodes
+
+    def _vna_main_route(polarization: str, *, amp1: bool = False, amp2: bool = False) -> list[str]:
+        if amp2:
+            return [
+                "网分 PORT1",
+                "链路箱 VNA2",
+                "暗室接口板 DUT",
+                "标准增益喇叭",
+                "反射面",
+                f"馈源 {polarization}",
+                f"暗室接口板 {polarization}",
+                f"链路箱 {polarization}",
+                "AMP2",
+                "链路箱 VNA1",
+                "网分 PORT2",
+            ]
+        route = ["网分 PORT1", "链路箱 VNA1", *_space_nodes(polarization)]
+        if amp1:
+            route.append("AMP1")
+        route.extend(["链路箱 VNA2", "网分 PORT2"])
+        return route
+
+    def _sa_hv_route(polarization: str, *, amp1: bool = False, amp2: bool = False) -> list[str]:
+        if amp2:
+            return [
+                "网分 PORT1",
+                "链路箱 VNA2",
+                "暗室接口板 DUT",
+                "标准增益喇叭",
+                "反射面",
+                f"馈源 {polarization}",
+                f"暗室接口板 {polarization}",
+                f"链路箱 {polarization}",
+                "AMP2",
+                "链路箱 SA",
+                "网分 PORT2",
+            ]
+        route = ["网分 PORT1", "链路箱 SA", *_space_nodes(polarization)]
+        if amp1:
+            route.append("AMP1")
+        route.extend(["链路箱 VNA2", "网分 PORT2"])
+        return route
+
+    def _sg_route(polarization: str, *, amp1: bool = False, amp2: bool = False) -> list[str]:
+        if amp2:
+            return [
+                "网分 PORT1",
+                "链路箱 VNA2",
+                "暗室接口板 DUT",
+                "标准增益喇叭",
+                "反射面",
+                f"馈源 {polarization}",
+                f"暗室接口板 {polarization}",
+                f"链路箱 {polarization}",
+                "AMP2",
+                "链路箱 SG",
+                "网分 PORT2",
+            ]
+        route = ["网分 PORT1", "链路箱 SG", *_space_nodes(polarization)]
+        if amp1:
+            route.append("AMP1")
+        route.extend(["链路箱 VNA2", "网分 PORT2"])
+        return route
+
+    def _path_routes_from_template(step: StepViewData) -> list[list[str]]:
+        key = f"{step.step_id}:{step.substep_id}" if step.substep_id else step.step_id
+        templates: dict[str, list[list[str]]] = {
+            "CAL001-AUX:AUX-A": [_aux_route("AUX-A")],
+            "CAL001-AUX:AUX-B": [_aux_route("AUX-B")],
+            "CAL001-AUX:AUX-C": [_aux_route("AUX-C")],
+            "CAL001-AUX": [["网分 PORT1", "3M 辅助线 A/B/C", "网分 PORT2"]],
+            "CAL001-H": [["网分 PORT1", "AUX-A", "暗室接口板 H", "馈源 H", "反射面", "标准增益喇叭", "暗室接口板 DUT", "AUX-C", "网分 PORT2"]],
+            "CAL001-V": [["网分 PORT1", "AUX-B", "暗室接口板 V", "馈源 V", "反射面", "标准增益喇叭", "暗室接口板 DUT", "AUX-C", "网分 PORT2"]],
+            "CAL001-DUT": [["网分 PORT1", "AUX-A", "转台 DUT 接口", "DUT 内部段", "暗室接口板 DUT", "AUX-C", "网分 PORT2"]],
+            "CAL002-AUX-D": [_aux_route("AUX-D")],
+            "CAL002-DUT-VNA2": [_dut_vna2_return_route("AUX-D")],
+            "CAL002-DUT-AMP1-VNA2": [_dut_vna2_return_route("AUX-D", amp1=True)],
+            "CAL002-MAIN:H-THRU": [_vna_main_route("H")],
+            "CAL002-MAIN:V-THRU": [_vna_main_route("V")],
+            "CAL002-MAIN:H-DUTAMP1": [_vna_main_route("H", amp1=True)],
+            "CAL002-MAIN:V-DUTAMP1": [_vna_main_route("V", amp1=True)],
+            "CAL002-MAIN:H-AMP2": [_vna_main_route("H", amp2=True)],
+            "CAL002-MAIN:V-AMP2": [_vna_main_route("V", amp2=True)],
+            "CAL003-AUX-E": [_aux_route("AUX-E")],
+            "CAL003-DUT-SA": [
+                ["网分 PORT1", "AUX-E", "转台 DUT 接口", "暗室接口板 DUT", "链路箱 SA", "网分 PORT2"],
+                ["网分 PORT1", "AUX-E", "转台 DUT 接口", "暗室接口板 DUT", "AMP1", "链路箱 SA", "网分 PORT2"],
+            ],
+            "CAL004-AUX-F": [_aux_route("AUX-F")],
+            "CAL004-DUT-VNA2": [
+                _dut_vna2_return_route("AUX-F"),
+                _dut_vna2_return_route("AUX-F", amp1=True),
+            ],
+            "CAL004-SA-HV-THRU:H-SA": [_sa_hv_route("H")],
+            "CAL004-SA-HV-THRU:V-SA": [_sa_hv_route("V")],
+            "CAL004-SA-HV-AMP2:H-AMP2-SA": [_sa_hv_route("H", amp2=True)],
+            "CAL004-SA-HV-AMP2:V-AMP2-SA": [_sa_hv_route("V", amp2=True)],
+            "CAL004-SA-HV-DUTAMP1-CHECK:H-SA-DUTAMP1-CHECK": [_sa_hv_route("H", amp1=True)],
+            "CAL004-SA-HV-DUTAMP1-CHECK:V-SA-DUTAMP1-CHECK": [_sa_hv_route("V", amp1=True)],
+            "CAL005-AUX-G": [_aux_route("AUX-G")],
+            "CAL005-DUT-VNA2": [
+                _dut_vna2_return_route("AUX-G"),
+                _dut_vna2_return_route("AUX-G", amp1=True),
+            ],
+            "CAL005-SG:H-SG": [_sg_route("H")],
+            "CAL005-SG:V-SG": [_sg_route("V")],
+            "CAL005-SG:H-SG-DUTAMP1": [_sg_route("H", amp1=True)],
+            "CAL005-SG:V-SG-DUTAMP1": [_sg_route("V", amp1=True)],
+            "CAL005-SG:H-AMP2-SG": [_sg_route("H", amp2=True)],
+            "CAL005-SG:V-AMP2-SG": [_sg_route("V", amp2=True)],
+        }
+        if key in templates:
+            return templates[key]
+        if step.step_id in templates:
+            return templates[step.step_id]
+        return []
+
+    def _node_style(node: str) -> str:
+        normalized = node.upper()
+        if "AUX-" in normalized or "辅助线" in node:
+            return "border-color:#f2a56b;color:#c45113;background:#fff7ed;"
+        if "标准增益喇叭" in node or "标准喇叭" in node:
+            return "border-color:#88c999;color:#2f7d45;background:#f3fbf4;"
+        if "暗室接口板" in node or "CP-" in normalized:
+            return "border-color:#8ea8ce;color:#1f3f68;background:#f8fbff;"
+        if "PORT" in normalized or re.search(r"\bP[12]\b", normalized) or "VNA" in normalized or "网分" in node:
+            return "border-color:#7c95bb;color:#18375f;background:#fbfdff;"
+        if "转台" in node or "DUT" in normalized:
+            return "border-color:#82b584;color:#2f6f3b;background:#f7fcf7;"
+        return "border-color:#9eb2ca;color:#263238;background:#ffffff;"
+
+    def _format_path_html(step: StepViewData) -> str:
+        title = f"步骤 {step.step_index}: {_friendly_text(step.step_name)}"
+        if step.substep_id:
+            title = f"步骤 {step.step_index}.{step.substep_index}: {_friendly_text(step.substep_name)}"
+
+        routes = _path_routes_from_template(step) or _route_nodes_from_instruction(step.manual_instruction)
+        route_html: list[str] = []
+        for nodes in routes:
+            parts: list[str] = []
+            for index, node in enumerate(nodes):
+                label = html.escape(_friendly_node_text(node))
+                style = _node_style(node)
+                parts.append(
+                    "<span style='display:inline-block;border:1px solid "
+                    "#9eb2ca;border-radius:5px;padding:5px 11px;margin:3px 4px 3px 0;"
+                    f"{style}'>{label}</span>"
+                )
+                if index < len(nodes) - 1:
+                    parts.append("<span style='color:#64748b;margin:0 6px;'>→</span>")
+            route_html.append("<div style='margin-top:5px;'>" + "".join(parts) + "</div>")
+
+        instruction = html.escape(step.manual_instruction or "无接线说明")
+        route_ids = ""
+        if step.route_ids:
+            route_ids = (
+                "<div style='margin-top:6px;color:#78909c;font-size:12px;'>路线标识: "
+                + html.escape(", ".join(step.route_ids))
+                + "</div>"
+            )
+        body = "".join(route_html) if route_html else f"<div style='margin-top:6px;color:#455a64;'>{instruction}</div>"
+        return (
+            "<div style='font-family:Microsoft YaHei UI, Segoe UI, sans-serif;font-size:13px;color:#263238;'>"
+            f"<div style='font-weight:700;color:#1f3f68;margin-bottom:4px;'>{html.escape(title)}</div>"
+            f"{body}"
+            f"<div style='margin-top:7px;color:#607d8b;font-size:12px;'>{instruction}</div>"
+            f"{route_ids}"
+            "</div>"
+        )
 
     def _load_text(path: Path) -> str:
         try:
@@ -382,11 +677,8 @@ def run_gui() -> int:
             selected = self.presets.get(command.strip(), command.strip())
             if self.device_key != "link_box":
                 return
-            tokens = [
-                token
-                for token in ("DUT", "H", "V", "VNA1", "VNA2", "SG", "SA", "AMP1", "AMP2")
-                if token in selected.upper()
-            ]
+            tokens = [label for pattern, label in self._COMMAND_TOKEN_LABELS if pattern.search(selected)]
+            tokens = list(dict.fromkeys(tokens))
             suffix = f" | 节点: {', '.join(tokens)}" if tokens else ""
             self.current_command_label.setText(f"当前命令: {selected}{suffix}")
 
@@ -520,6 +812,8 @@ def run_gui() -> int:
             spinbox.setSuffix(suffix)
             return spinbox
 
+    DeviceCommandPanel._COMMAND_TOKEN_LABELS = _COMMAND_TOKEN_LABELS
+
     class MainWindow(QMainWindow):
         def __init__(self) -> None:
             super().__init__()
@@ -529,8 +823,7 @@ def run_gui() -> int:
 
             self.item_list = QListWidget()
             self.item_list.setMinimumWidth(220)
-            for item in vm.catalog.items:
-                QListWidgetItem(f"{item.id}\n{item.name}", self.item_list)
+            self._sync_item_list()
             self.step_list = QListWidget()
             self.step_list.setMinimumWidth(220)
 
@@ -572,12 +865,11 @@ def run_gui() -> int:
             self.horn_gain_file_input.setPlaceholderText("选择标准增益喇叭增益文件")
             self.btn_browse_horn_gain = QPushButton("浏览")
             self.substep_list = QListWidget()
-            self.substep_list.setMaximumHeight(132)
-            self.substep_list.setMinimumHeight(72)
+            self.substep_list.setMinimumWidth(220)
+            self.substep_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
-            self.path_view = QPlainTextEdit()
+            self.path_view = QTextEdit()
             self.path_view.setReadOnly(True)
-            self.path_view.setMaximumBlockCount(200)
             self.path_view.setPlaceholderText("接线路径将显示在这里")
 
             self.command_view = QPlainTextEdit()
@@ -642,7 +934,7 @@ def run_gui() -> int:
                 panel.set_resource_options(vm.device_mock_resource_options(panel.device_key), state.resource)
 
             self.status_label = QLabel("Ready")
-            self.connection_label = QLabel("VNA: disconnected | SG: disconnected | LinkBox: disconnected | SA: disconnected")
+            self.connection_label = QLabel("网分: disconnected | 信号源: disconnected | 链路箱: disconnected | 频谱仪: disconnected")
 
             self.btn_connect = QPushButton("连接全部设备")
             self.btn_disconnect = QPushButton("断开全部设备")
@@ -748,17 +1040,32 @@ def run_gui() -> int:
             center_layout.addWidget(self.step_title)
             center_layout.addWidget(self.step_status)
             center_layout.addWidget(self.step_progress)
-            self.step_hint = QLabel("选择左侧步骤以查看对应接线与命令。")
+            self.step_hint = QLabel("选择左侧步骤后，在细分步骤框中查看 STEP1、STEP2、STEP3。")
             self.step_hint.setStyleSheet("color: #64748B;")
             center_layout.addWidget(self.step_hint)
-            center_layout.addWidget(QLabel("小步骤"))
-            center_layout.addWidget(self.substep_list)
-            center_layout.addWidget(QLabel("接线路径"))
-            center_layout.addWidget(self.path_view)
-            center_layout.addWidget(QLabel("命令 / 说明"))
-            center_layout.addWidget(self.command_view)
-            center_layout.addWidget(QLabel("步骤详情"))
-            center_layout.addWidget(self.detail_view)
+
+            execution_body = QSplitter(Qt.Horizontal)
+
+            substep_box = QGroupBox("细分步骤")
+            substep_box.setMinimumWidth(220)
+            substep_layout = QVBoxLayout(substep_box)
+            substep_layout.addWidget(self.substep_list)
+
+            detail_box = QWidget()
+            detail_layout = QVBoxLayout(detail_box)
+            detail_layout.setContentsMargins(0, 0, 0, 0)
+            detail_layout.addWidget(QLabel("接线路径"))
+            detail_layout.addWidget(self.path_view)
+            detail_layout.addWidget(QLabel("命令 / 说明"))
+            detail_layout.addWidget(self.command_view)
+            detail_layout.addWidget(QLabel("步骤详情"))
+            detail_layout.addWidget(self.detail_view)
+
+            execution_body.addWidget(substep_box)
+            execution_body.addWidget(detail_box)
+            execution_body.setStretchFactor(0, 1)
+            execution_body.setStretchFactor(1, 3)
+            center_layout.addWidget(execution_body, 1)
 
             button_row = QHBoxLayout()
             button_row.addWidget(self.btn_start)
@@ -766,12 +1073,12 @@ def run_gui() -> int:
             center_layout.addLayout(button_row)
             center_stack_layout.addWidget(center, 1)
 
-            splitter = QSplitter(Qt.Horizontal)
-            splitter.addWidget(left)
-            splitter.addWidget(center_stack)
-            splitter.setStretchFactor(0, 1)
-            splitter.setStretchFactor(1, 3)
-            layout.addWidget(splitter)
+            page_splitter = QSplitter(Qt.Horizontal)
+            page_splitter.addWidget(left)
+            page_splitter.addWidget(center_stack)
+            page_splitter.setStretchFactor(0, 1)
+            page_splitter.setStretchFactor(1, 3)
+            layout.addWidget(page_splitter)
             return page
 
         def _build_band_config_group(self) -> QGroupBox:
@@ -858,8 +1165,10 @@ def run_gui() -> int:
                 panel.clear_filter_action.triggered.connect(lambda _checked=False, log_panel=panel: self._clear_log_filters(log_panel))
 
             vm.selected_item_changed.connect(self._sync_item_detail)
-            vm.selected_step_changed.connect(self._sync_step_list)
+            vm.selected_step_changed.connect(self._sync_step_list_colored)
             vm.step_view_changed.connect(self._sync_step_view)
+            vm.step_view_changed.connect(self._sync_step_list_colored)
+            vm.overview_changed.connect(self._sync_item_list)
             vm.logs_changed.connect(self._sync_logs)
             vm.status_changed.connect(self.status_label.setText)
             vm.overview_changed.connect(self._sync_overview)
@@ -868,38 +1177,74 @@ def run_gui() -> int:
             vm.run_finished.connect(self._confirm_run_finished)
 
         def _refresh_item_list(self) -> None:
-            self.item_list.blockSignals(True)
-            self.item_list.setCurrentRow(0)
-            self.item_list.blockSignals(False)
+            self._sync_item_list()
             self._sync_item_detail()
+
+        @staticmethod
+        def _list_status_text(status: str) -> str:
+            return {
+                "pending": "未开始",
+                "running": "进行中",
+                "done": "已完成",
+            }.get(status, "未开始")
+
+        @staticmethod
+        def _list_status_palette(status: str) -> tuple[str, str, bool]:
+            return {
+                "pending": ("#6d7b86", "#f5f7f8", False),
+                "running": ("#9a6b17", "#fff4df", True),
+                "done": ("#356a45", "#edf6ef", True),
+            }.get(status, ("#6d7b86", "#f5f7f8", False))
+
+        def _apply_status_style(self, item: QListWidgetItem, status: str) -> None:
+            foreground, background, bold = self._list_status_palette(status)
+            item.setForeground(QBrush(QColor(foreground)))
+            item.setBackground(QBrush(QColor(background)))
+            font = item.font()
+            font.setBold(bold)
+            item.setFont(font)
+            item.setToolTip(self._list_status_text(status))
+
+        def _sync_item_list(self) -> None:
+            current_item_id = vm.selected_item.id if vm.catalog.items else ""
+            self.item_list.blockSignals(True)
+            self.item_list.clear()
+            current_row = 0
+            for index, item in enumerate(vm.catalog.items):
+                status = vm.item_progress_state(item.id)
+                list_item = QListWidgetItem(
+                    f"{self._list_status_text(status)}\n{item.id}\n{_friendly_text(item.name)}"
+                )
+                self._apply_status_style(list_item, status)
+                self.item_list.addItem(list_item)
+                if item.id == current_item_id:
+                    current_row = index
+            if vm.catalog.items:
+                self.item_list.setCurrentRow(current_row)
+            self.item_list.blockSignals(False)
 
         def _sync_item_detail(self) -> None:
             item = vm.selected_item
             self.item_summary.setText(
                 f"ID: {item.id}\n"
-                f"名称: {item.name}\n"
+                f"名称: {_friendly_text(item.name)}\n"
                 f"步骤数: {len(item.steps)}\n"
-                f"用途: {item.purpose}"
+                f"用途: {_friendly_text(item.purpose)}"
             )
-            self._sync_step_list()
+            self._sync_step_list_colored()
             self._sync_overview()
 
-        def _sync_step_list(self) -> None:
+        def _sync_step_list_colored(self) -> None:
             item = vm.selected_item
             self.step_list.blockSignals(True)
             self.step_list.clear()
-            completed_step_ids: set[str] = set()
-            run_summary = vm.run_summary_for_item(item.id)
-            if isinstance(run_summary, dict) and run_summary.get("item_id") == item.id:
-                completed_step_ids = {str(step_id) for step_id in run_summary.get("completed_step_ids", ())}
             for index, step in enumerate(item.steps, start=1):
-                if step.id in completed_step_ids:
-                    prefix = "✓ 已完成"
-                elif index == vm.selected_step_index + 1:
-                    prefix = "▶ 当前"
-                else:
-                    prefix = "○ 未开始"
-                QListWidgetItem(f"{prefix}\n{index}. {step.id}\n{step.name}", self.step_list)
+                status = vm.step_progress_state(item.id, step.id)
+                list_item = QListWidgetItem(
+                    f"{self._list_status_text(status)}\n{index}. {step.id}\n{_friendly_text(step.name)}"
+                )
+                self._apply_status_style(list_item, status)
+                self.step_list.addItem(list_item)
             if item.steps:
                 self.step_list.setCurrentRow(vm.selected_step_index)
             self.step_list.blockSignals(False)
@@ -909,7 +1254,7 @@ def run_gui() -> int:
                     vm._step_view_data(current_step, vm.selected_step_index + 1, len(item.steps))
                 )
                 self._sync_substep_list()
-                self.step_hint.setText(f"当前步骤：{current_step.id} · {current_step.name}")
+                self.step_hint.setText(f"当前步骤：{current_step.id} · {_friendly_text(current_step.name)}")
             else:
                 self.substep_list.clear()
                 self.step_hint.setText("当前校准项暂无步骤。")
@@ -917,18 +1262,15 @@ def run_gui() -> int:
         def _sync_step_view(self, step: StepViewData) -> None:
             substep_text = ""
             if step.substep_id:
-                substep_text = f" | 小步骤 {step.substep_index}/{step.substep_total}: {step.substep_name}"
-            self.step_title.setText(f"[{step.step_index}/{step.step_total}] {step.step_id} - {step.step_name}{substep_text}")
+                substep_text = f" | 小步骤 {step.substep_index}/{step.substep_total}: {_friendly_text(step.substep_name)}"
+            self.step_title.setText(f"[{step.step_index}/{step.step_total}] {step.step_id} - {_friendly_text(step.step_name)}{substep_text}")
             self.step_status.setText(f"状态：{step.status}")
             total_substeps = max(step.item_total_substeps, 1)
             progress = int(step.item_completed_substeps / total_substeps * 100)
             self.step_progress.setValue(progress)
             self._sync_substep_list(step)
-            self.path_view.setPlainText(
-                step.manual_instruction
-                + ("\n\nRoute IDs: " + ", ".join(step.route_ids) if step.route_ids else "")
-            )
-            self.command_view.setPlainText("\n".join(step.link_commands) or "无链路命令")
+            self.path_view.setHtml(_format_path_html(step))
+            self.command_view.setPlainText("\n".join(step.link_commands) if step.link_commands else "无链路命令")
             phase_text = ""
             if step.confirm_phase == "start":
                 phase_text = "确认阶段: 开始前确认\n"
@@ -936,12 +1278,12 @@ def run_gui() -> int:
                 phase_text = "确认阶段: 数据保存完成确认\n"
             self.detail_view.setPlainText(
                 phase_text
-                + (f"小步骤: {step.substep_id} {step.substep_name}\n" if step.substep_id else "")
-                + f"输入端口: {step.input_port}\n"
-                f"输出端口: {step.output_port}\n"
-                f"原始输出: {', '.join(step.raw_outputs) or '无'}\n"
-                f"最终输出: {', '.join(step.final_outputs) or '无'}\n"
-                f"所需输入: {', '.join(step.required_inputs) or '无'}\n"
+                + (f"小步骤: {step.substep_id} {_friendly_text(step.substep_name)}\n" if step.substep_id else "")
+                + f"输入端口: {_friendly_node_text(step.input_port)}\n"
+                f"输出端口: {_friendly_node_text(step.output_port)}\n"
+                f"原始输出: {_plain_join(step.raw_outputs)}\n"
+                f"最终输出: {_plain_join(step.final_outputs)}\n"
+                f"所需输入: {_plain_join(step.required_inputs)}\n"
                 f"备注: {step.notes or '无'}"
             )
             self._show_substep_confirmation(step)
@@ -953,21 +1295,31 @@ def run_gui() -> int:
             if step is None:
                 self.substep_list.blockSignals(False)
                 return
+            item_id = vm.selected_item.id
             active_id = active_step.substep_id if active_step and active_step.step_id == step.id else ""
-            active_index = active_step.substep_index if active_id else 0
             phase = active_step.confirm_phase if active_step and active_id else ""
             current_row = -1
             for index, substep in enumerate(vm.substep_view_data(step), start=1):
+                status = vm.substep_progress_state(item_id, step.id, substep.id)
                 if substep.id == active_id:
                     phase_text = "开始确认" if phase == "start" else "保存确认"
-                    prefix = f"▶ 当前 {phase_text}"
+                    prefix = f"当前 {phase_text}"
                     current_row = index - 1
-                elif active_id and index < active_index:
-                    prefix = "✓ 已处理"
+                elif status == "done":
+                    prefix = "已完成"
+                elif status == "running":
+                    prefix = "进行中"
                 else:
-                    prefix = "○ 待处理"
-                detail = substep.raw_output or substep.final_output or substep.name
-                QListWidgetItem(f"{prefix}\n{index}. {substep.id} - {substep.name}\n{detail}", self.substep_list)
+                    prefix = "未开始"
+                detail = substep.raw_output or substep.final_output
+                detail_text = detail if detail else _friendly_text(substep.name)
+                list_item = QListWidgetItem(
+                    f"{prefix}\nSTEP{index}. {substep.id}\n{_friendly_text(substep.name)}\n{detail_text}"
+                )
+                self._apply_status_style(list_item, status)
+                self.substep_list.addItem(list_item)
+                if substep.id == active_id:
+                    current_row = index - 1
             if current_row >= 0:
                 self.substep_list.setCurrentRow(current_row)
             self.substep_list.blockSignals(False)
@@ -988,7 +1340,7 @@ def run_gui() -> int:
             vna = "connected" if overview.get("vna_connected") else "disconnected"
             sg = "connected" if overview.get("signal_generator_connected") else "disconnected"
             sa = "connected" if overview.get("spectrum_analyzer_connected") else "disconnected"
-            self.connection_label.setText(f"VNA: {vna} | SG: {sg} | LinkBox: {link_box} | SA: {sa}")
+            self.connection_label.setText(f"网分: {vna} | 信号源: {sg} | 链路箱: {link_box} | 频谱仪: {sa}")
             self.status_label.setText(str(overview.get("status", "Ready")))
             self._sync_start_button_state(str(overview.get("status", "Ready")))
 
@@ -1033,10 +1385,10 @@ def run_gui() -> int:
             if step.confirm_phase == "start":
                 message = (
                     f"请确认小步骤接线已完成。\n\n"
-                    f"大步骤: {step.step_id} - {step.step_name}\n"
-                    f"小步骤: {step.substep_index}/{step.substep_total} {step.substep_id} - {step.substep_name}\n"
-                    f"输入端口: {step.input_port or '无'}\n"
-                    f"输出端口: {step.output_port or '无'}\n\n"
+                    f"大步骤: {step.step_id} - {_friendly_text(step.step_name)}\n"
+                    f"小步骤: {step.substep_index}/{step.substep_total} {step.substep_id} - {_friendly_text(step.substep_name)}\n"
+                    f"输入端口: {_friendly_node_text(step.input_port or '无')}\n"
+                    f"输出端口: {_friendly_node_text(step.output_port or '无')}\n\n"
                     f"{step.manual_instruction or '无接线说明'}"
                 )
                 self._show_prompt_action_dialog(
@@ -1053,10 +1405,10 @@ def run_gui() -> int:
 
             message = (
                 f"请确认小步骤数据已保存。\n\n"
-                f"大步骤: {step.step_id} - {step.step_name}\n"
-                f"小步骤: {step.substep_index}/{step.substep_total} {step.substep_id} - {step.substep_name}\n"
-                f"原始输出: {', '.join(step.raw_outputs) or '无'}\n"
-                f"最终输出: {', '.join(step.final_outputs) or '无'}"
+                f"大步骤: {step.step_id} - {_friendly_text(step.step_name)}\n"
+                f"小步骤: {step.substep_index}/{step.substep_total} {step.substep_id} - {_friendly_text(step.substep_name)}\n"
+                f"原始输出: {_plain_join(step.raw_outputs)}\n"
+                f"最终输出: {_plain_join(step.final_outputs)}"
             )
             self._show_prompt_action_dialog(
                 title="确认数据保存完成",
@@ -1087,8 +1439,8 @@ def run_gui() -> int:
                     *tuple(("下一步", action, "right") for label, action in actions if action == "skip"),
                 ),
                 default_action=default_action,
-                width=720,
-                height=420,
+                width=620,
+                height=320,
             )
             vm.submit_action(action or "cancel")
 
@@ -1099,8 +1451,8 @@ def run_gui() -> int:
             message: str,
             buttons: tuple[tuple[str, str, str], ...],
             default_action: str = "",
-            width: int = 680,
-            height: int = 360,
+            width: int = 600,
+            height: int = 300,
         ) -> str:
             dialog = QDialog(self)
             dialog.setWindowTitle(title)
@@ -1172,11 +1524,14 @@ def run_gui() -> int:
             item = vm.selected_item
             action = self._show_modal_dialog(
                 title="开始校准确认",
-                message=f"确认开始执行 {item.id} - {item.name}？\n\n步骤列表显示大步骤，步骤执行区会逐个小步骤等待确认。",
+                message=(
+                    f"确认开始执行 {item.id} - {_friendly_text(item.name)}？\n\n"
+                    "步骤列表显示校准项，步骤执行区会逐个小步骤等待确认。"
+                ),
                 buttons=(("开始校准", "yes", "center"), ("取消", "cancel", "center")),
                 default_action="yes",
-                width=600,
-                height=280,
+                width=520,
+                height=240,
             )
             if action == "yes":
                 vm.start_selected()
@@ -1188,15 +1543,15 @@ def run_gui() -> int:
                 title="校准完成确认",
                 message=(
                     "校准执行已完成。\n\n"
-                    f"校准项: {data.get('item_id', '')}\n"
-                    f"状态: {data.get('state', '')}\n"
+                    f"校准项: {_friendly_text(data.get('item_id', ''))}\n"
+                    f"状态: {_friendly_text(data.get('state', ''))}\n"
                     f"完成小步骤: {data.get('completed_steps', '')}/{data.get('total_substeps', data.get('total_steps', ''))}\n"
-                    f"最后事件: {data.get('last_event', '')}"
+                    f"最后事件: {_friendly_text(data.get('last_event', ''))}"
                 ),
                 buttons=(("确定", "ok", "center"),),
                 default_action="ok",
-                width=620,
-                height=300,
+                width=540,
+                height=250,
             )
 
         def _sync_start_button_state(self, state: str) -> None:
@@ -1222,7 +1577,7 @@ def run_gui() -> int:
             try:
                 response = vm.send_device_command(panel.device_key, panel.command_text())
             except Exception as exc:
-                self._show_modal_dialog(title="命令发送失败", message=str(exc), buttons=(("确定", "ok", "center"),), default_action="ok", width=560, height=260)
+                self._show_modal_dialog(title="命令发送失败", message=str(exc), buttons=(("确定", "ok", "center"),), default_action="ok", width=500, height=220)
                 return
             panel.set_response(response)
 
@@ -1230,7 +1585,7 @@ def run_gui() -> int:
             try:
                 response = vm.configure_vna(panel.vna_settings())
             except Exception as exc:
-                self._show_modal_dialog(title="网分配置失败", message=str(exc), buttons=(("确定", "ok", "center"),), default_action="ok", width=560, height=260)
+                self._show_modal_dialog(title="网分配置失败", message=str(exc), buttons=(("确定", "ok", "center"),), default_action="ok", width=500, height=220)
                 return
             panel.set_response(response)
 
@@ -1238,7 +1593,7 @@ def run_gui() -> int:
             try:
                 response = vm.trigger_vna(panel.vna_settings())
             except Exception as exc:
-                self._show_modal_dialog(title="网分触发失败", message=str(exc), buttons=(("确定", "ok", "center"),), default_action="ok", width=560, height=260)
+                self._show_modal_dialog(title="网分触发失败", message=str(exc), buttons=(("确定", "ok", "center"),), default_action="ok", width=500, height=220)
                 return
             panel.set_response(response)
 
@@ -1246,7 +1601,7 @@ def run_gui() -> int:
             try:
                 response = vm.sample_vna(panel.vna_settings())
             except Exception as exc:
-                self._show_modal_dialog(title="网分采样失败", message=str(exc), buttons=(("确定", "ok", "center"),), default_action="ok", width=560, height=260)
+                self._show_modal_dialog(title="网分采样失败", message=str(exc), buttons=(("确定", "ok", "center"),), default_action="ok", width=500, height=220)
                 return
             panel.set_response(response)
 
@@ -1263,7 +1618,7 @@ def run_gui() -> int:
                 vm.update_device_config(panel.device_key, **panel.connection_config())
                 state = vm.connect_device(panel.device_key)
             except Exception as exc:
-                self._show_modal_dialog(title="设备连接失败", message=str(exc), buttons=(("确定", "ok", "center"),), default_action="ok", width=560, height=260)
+                self._show_modal_dialog(title="设备连接失败", message=str(exc), buttons=(("确定", "ok", "center"),), default_action="ok", width=500, height=220)
                 return
             panel.set_connection_state(state)
             self._sync_overview()
@@ -1272,7 +1627,7 @@ def run_gui() -> int:
             try:
                 state = vm.disconnect_device(panel.device_key)
             except Exception as exc:
-                self._show_modal_dialog(title="设备断开失败", message=str(exc), buttons=(("确定", "ok", "center"),), default_action="ok", width=560, height=260)
+                self._show_modal_dialog(title="设备断开失败", message=str(exc), buttons=(("确定", "ok", "center"),), default_action="ok", width=500, height=220)
                 return
             panel.set_connection_state(state)
             self._sync_overview()
@@ -1284,10 +1639,10 @@ def run_gui() -> int:
             try:
                 resources = vm.list_visa_resources()
             except Exception as exc:
-                self._show_modal_dialog(title="VISA 资源搜索失败", message=str(exc), buttons=(("确定", "ok", "center"),), default_action="ok", width=560, height=260)
+                self._show_modal_dialog(title="VISA 资源搜索失败", message=str(exc), buttons=(("确定", "ok", "center"),), default_action="ok", width=500, height=220)
                 return
             if not resources:
-                self._show_modal_dialog(title="VISA 资源搜索", message="未发现 VISA 资源。", buttons=(("确定", "ok", "center"),), default_action="ok", width=520, height=240)
+                self._show_modal_dialog(title="VISA 资源搜索", message="未发现 VISA 资源。", buttons=(("确定", "ok", "center"),), default_action="ok", width=480, height=210)
                 return
             panel.set_resource_options(resources, resources[0])
 
@@ -1319,13 +1674,13 @@ def run_gui() -> int:
         def _format_overview_summary(self, overview: dict[str, Any]) -> str:
             run_summary = overview.get("run_summary") or {}
             lines = [
-                f"项目: {overview.get('item_name', '')}",
+                f"项目: {_friendly_text(overview.get('item_name', ''))}",
                 f"当前步骤: {overview.get('selected_step_id', '')}",
                 f"状态: {overview.get('status', '')}",
                 f"校准步数: {overview.get('steps', '')}",
                 f"连接: {'OK' if self._all_command_devices_connected(overview) else '待连接'}",
                 f"已完成步骤: {run_summary.get('completed_steps', 0) if isinstance(run_summary, dict) else 0}",
-                f"最后事件: {run_summary.get('last_event', '') if isinstance(run_summary, dict) else ''}",
+                f"最后事件: {_friendly_text(run_summary.get('last_event', '') if isinstance(run_summary, dict) else '')}",
             ]
             return "\n".join(lines)
 
@@ -1333,7 +1688,7 @@ def run_gui() -> int:
             run_summary = overview.get("run_summary") or {}
             lines = [
                 f"item_id: {overview.get('item_id', '')}",
-                f"purpose: {overview.get('purpose', '')}",
+                f"purpose: {_friendly_text(overview.get('purpose', ''))}",
                 f"link_box_connected: {overview.get('link_box_connected', False)}",
                 f"vna_connected: {overview.get('vna_connected', False)}",
                 f"signal_generator_connected: {overview.get('signal_generator_connected', False)}",
@@ -1357,7 +1712,7 @@ def run_gui() -> int:
             ]
             if isinstance(run_summary, dict) and run_summary:
                 lines.append(f"completed_steps: {run_summary.get('completed_steps', '')}")
-                lines.append(f"last_event: {run_summary.get('last_event', '')}")
+                lines.append(f"last_event: {_friendly_text(run_summary.get('last_event', ''))}")
                 lines.append(f"link_box_connected: {run_summary.get('link_box_connected', '')}")
                 lines.append(f"vna_connected: {run_summary.get('vna_connected', '')}")
             return "\n".join(lines)

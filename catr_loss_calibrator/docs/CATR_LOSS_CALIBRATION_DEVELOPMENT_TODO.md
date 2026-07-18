@@ -65,12 +65,21 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_SOFTWARE_DESIGN.md`, `
 - [x] P1-04 为每个 `LINK-CAL` 步骤定义明确的输入端口、输出端口、人工接线说明、链路箱指令。
 - [ ] P1-05 区分正式输出参数、原始 `S21_*`、临时追溯参数 `T_*`。
 - [ ] P1-06 为链路模板增加单元测试，覆盖直通、AMP1、AMP2、SG、SA、VNA1/VNA2 工况。
+- [ ] P1-07 将“路损校准操作台”定位为通用路损校准控制台，代码和 UI 文案中避免把 CATR 写死为软件名称。
+- [ ] P1-08 根据 `CATR_CHAMBER_CALIBRATION_TEST_PLAN.html` 生成内置 CATR 链路配置 JSON，覆盖当前 `LINK-CAL-001` 至 `LINK-CAL-005` 的校准项、大步骤、细分步骤、命令、结果参数和接线路径节点图。
+- [ ] P1-09 实现链路配置 JSON loader，将 `CATR_LOSS_CALIBRATION_LINK_CONFIG_JSON.md` 定义的 JSON 转换为 `CalibrationCatalog` / `CalibrationItem` / `CalibrationStep` / `CalibrationSubStep`。
+- [ ] P1-10 将 `default_calibration_catalog()` 改为默认加载内置 CATR JSON，保留 Python 硬编码 catalog 作为迁移期测试基准或 fallback。
+- [ ] P1-11 为 JSON 导入增加单元测试，验证导入后的 5 个校准项、步骤数、细分步骤顺序、链路命令、raw/final/required 参数与现有 catalog 一致。
+- [ ] P1-12 将接线路径节点图从 presentation 硬编码模板迁移到 JSON 的 `node_catalog` / `path_templates` / `path` 字段。
 
 ### P1 验收
 
 - 每个校准步骤都能列出：步骤 ID、人工接线说明、链路箱指令、原始输出、最终输出、依赖输入。
 - `CONFigure:LINK ...` 命令生成器对非法端口给出稳定错误。
 - LCD74000F profile 能校验 AMP1/AMP2 的方向约束。
+- 默认启动时仍能列出当前 5 个 CATR 校准项，但来源为内置 JSON。
+- 删除或替换内置 JSON 后，软件能给出可读导入错误，而不是静默回退到错误 catalog。
+- UI 接线路径节点图由 JSON 配置驱动，不再依赖 Python 中按步骤 ID 写死模板。
 
 ## P2 - 数据与公式闭环
 

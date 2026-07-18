@@ -15,3 +15,4 @@ def main() -> int:
 
 if __name__ == "__main__":  # pragma: no cover - direct script execution support
     raise SystemExit(main())
+"""  """

@@ -240,6 +240,70 @@ class CalibrationViewModel(QObject):
     def run_summary_for_item(self, item_id: str) -> dict[str, object]:
         return dict(self._run_summaries_by_item.get(item_id, {}))
 
+    def item_progress_state(self, item_id: str) -> str:
+        summary = self._run_summaries_by_item.get(item_id, {})
+        if item_id == self._active_run_item_id:
+            if not summary or summary.get("item_id") != item_id:
+                return "running"
+        if not summary or summary.get("item_id") != item_id:
+            return "pending"
+        state = str(summary.get("state", "")).strip().upper()
+        completed_substeps = {
+            str(substep_id)
+            for substep_id in summary.get("completed_substep_ids", ())
+        }
+        total_substeps = self._total_substeps_for_item(item_id)
+        if total_substeps and len(completed_substeps) >= total_substeps:
+            return "done"
+        if state in {"DONE", "CALIBRATION COMPLETED"} or "COMPLETE" in state:
+            return "done"
+        if completed_substeps or state not in {"READY", "IDLE"}:
+            return "running"
+        return "pending"
+
+    def step_progress_state(self, item_id: str, step_id: str) -> str:
+        summary = self._run_summaries_by_item.get(item_id, {})
+        if not summary or summary.get("item_id") != item_id:
+            return "pending"
+        completed_step_ids = {
+            str(step_id_value)
+            for step_id_value in summary.get("completed_step_ids", ())
+        }
+        if step_id in completed_step_ids:
+            return "done"
+        active_step_id = str(summary.get("active_step_id", "")).strip()
+        state = str(summary.get("state", "")).strip().upper()
+        if active_step_id == step_id and (
+            item_id == self._active_run_item_id or state not in {"READY", "IDLE"} or completed_step_ids
+        ):
+            return "running"
+        return "pending"
+
+    def substep_progress_state(self, item_id: str, step_id: str, substep_id: str) -> str:
+        summary = self._run_summaries_by_item.get(item_id, {})
+        if not summary or summary.get("item_id") != item_id:
+            return "pending"
+        completed_substep_ids = {
+            str(substep_id_value)
+            for substep_id_value in summary.get("completed_substep_ids", ())
+        }
+        if f"{step_id}:{substep_id}" in completed_substep_ids:
+            return "done"
+        completed_step_ids = {
+            str(step_id_value)
+            for step_id_value in summary.get("completed_step_ids", ())
+        }
+        if step_id in completed_step_ids:
+            return "done"
+        active_step_id = str(summary.get("active_step_id", "")).strip()
+        active_substep_id = str(summary.get("active_substep_id", "")).strip()
+        state = str(summary.get("state", "")).strip().upper()
+        if active_step_id == step_id and active_substep_id == substep_id and (
+            item_id == self._active_run_item_id or state not in {"READY", "IDLE"} or completed_substep_ids
+        ):
+            return "running"
+        return "pending"
+
     def select_item(self, index: int) -> None:
         if 0 <= index < len(self.catalog.items):
             self._selected_index = index
@@ -794,6 +858,10 @@ class CalibrationViewModel(QObject):
             )
             for substep in self._substeps_for_step(step)
         ]
+
+    def _total_substeps_for_item(self, item_id: str) -> int:
+        item = self.catalog.get(item_id)
+        return sum(len(self._substeps_for_step(step)) for step in item.steps)
 
     def _substeps_for_step(self, step: CalibrationStep) -> tuple[CalibrationSubStep, ...]:
         if step.substeps:
