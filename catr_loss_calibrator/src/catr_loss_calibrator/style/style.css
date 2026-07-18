@@ -309,6 +309,46 @@ QTabBar::tab:selected {
     font-weight: 700;
 }
 
+QToolBar#logToolbar {
+    background: #edf1f7;
+    border: 1px solid #d8dee9;
+    border-radius: 6px;
+    padding: 2px;
+    spacing: 6px;
+}
+
+QToolBar#logToolbar QLabel {
+    color: #344054;
+    font-weight: 700;
+}
+
+QToolBar#logToolbar QToolButton {
+    background: #ffffff;
+    color: #1769aa;
+    border: 1px solid #c9d2df;
+    border-radius: 5px;
+    padding: 3px 8px;
+    font-weight: 700;
+}
+
+QToolBar#logToolbar QToolButton:hover {
+    background: #e3f2fd;
+}
+
+QToolBar#logToolbar QToolButton:checked {
+    background: #1769aa;
+    color: #ffffff;
+    border-color: #1769aa;
+}
+
+QTextEdit#logText {
+    background: #f8fafc;
+    color: #102033;
+    font-family: Consolas, "Cascadia Mono", monospace;
+    border: 1px solid #d8dee9;
+    border-radius: 6px;
+}
+
 QMenuBar {
     background: #ffffff;
     border-bottom: 1px solid #d8dee9;

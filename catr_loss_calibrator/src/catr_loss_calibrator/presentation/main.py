@@ -7,7 +7,6 @@ from typing import Any
 from catr_loss_calibrator.calibration.definitions import default_calibration_catalog
 from catr_loss_calibrator.calibration.mock_runner import MockCalibrationRunner
 from catr_loss_calibrator.hardware.mock import MockLinkBox, MockVna
-from catr_loss_calibrator.presentation.viewmodels import CalibrationViewModel, LogEntry, StepViewData
 
 
 def run() -> int:
@@ -74,13 +73,14 @@ def run_interactive() -> int:
 
 
 def run_gui() -> int:
-    from PySide6.QtCore import Qt
-    from PySide6.QtGui import QPainter, QPixmap
+    from catr_loss_calibrator.presentation.viewmodels import CalibrationViewModel
+
+    from PySide6.QtCore import QRectF, Qt
+    from PySide6.QtGui import QAction, QFont, QPainter, QPixmap, QTextCursor
     from PySide6.QtSvg import QSvgRenderer
     from PySide6.QtWidgets import (
         QApplication,
         QComboBox,
-        QFormLayout,
         QFrame,
         QGridLayout,
         QGroupBox,
@@ -96,6 +96,8 @@ def run_gui() -> int:
         QProgressBar,
         QSplitter,
         QTabWidget,
+        QTextEdit,
+        QToolBar,
         QVBoxLayout,
         QWidget,
     )
@@ -111,14 +113,152 @@ def run_gui() -> int:
         except Exception:
             return ""
 
-    def _svg_to_pixmap(path: Path, width: int = 88, height: int = 44) -> QPixmap:
+    def _svg_to_pixmap(
+        path: Path,
+        width: int = 88,
+        height: int = 44,
+        view_box: tuple[float, float, float, float] | None = None,
+    ) -> QPixmap:
         pixmap = QPixmap(width, height)
         pixmap.fill(Qt.transparent)
         renderer = QSvgRenderer(str(path))
+        if view_box is not None:
+            renderer.setViewBox(QRectF(*view_box))
         painter = QPainter(pixmap)
-        renderer.render(painter)
+        target = QRectF(0, 0, width, height)
+        source = renderer.viewBoxF()
+        if source.isValid() and source.width() > 0 and source.height() > 0:
+            source_ratio = source.width() / source.height()
+            target_ratio = width / height
+            if target_ratio > source_ratio:
+                target.setWidth(height * source_ratio)
+                target.moveLeft((width - target.width()) / 2)
+            else:
+                target.setHeight(width / source_ratio)
+                target.moveTop((height - target.height()) / 2)
+        renderer.render(painter, target)
         painter.end()
         return pixmap
+
+    class LogPanel(QWidget):
+        def __init__(self, parent: QWidget | None = None) -> None:
+            super().__init__(parent)
+            layout = QVBoxLayout(self)
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(2)
+
+            self.toolbar = QToolBar()
+            self.toolbar.setObjectName("logToolbar")
+            self.toolbar.setMovable(False)
+
+            self.level_combo = QComboBox()
+            self.level_combo.addItems(["ALL", "INFO", "WARNING", "ERROR"])
+            self.level_combo.setMinimumWidth(96)
+            self.toolbar.addWidget(QLabel("级别:"))
+            self.toolbar.addWidget(self.level_combo)
+
+            self.font_combo = QComboBox()
+            self.font_combo.addItems([str(size) for size in range(8, 16)])
+            self.font_combo.setCurrentText("10")
+            self.font_combo.setMaximumWidth(72)
+            self.toolbar.addWidget(QLabel("字体:"))
+            self.toolbar.addWidget(self.font_combo)
+
+            self.wrap_action = QAction("自动换行", self)
+            self.wrap_action.setCheckable(True)
+            self.toolbar.addAction(self.wrap_action)
+
+            self.timestamp_action = QAction("时间戳", self)
+            self.timestamp_action.setCheckable(True)
+            self.timestamp_action.setChecked(True)
+            self.toolbar.addAction(self.timestamp_action)
+
+            self.search_edit = QLineEdit()
+            self.search_edit.setPlaceholderText("搜索...")
+            self.search_edit.setMaximumWidth(220)
+            self.toolbar.addWidget(self.search_edit)
+
+            self.clear_filter_action = QAction("清空筛选", self)
+            self.toolbar.addAction(self.clear_filter_action)
+
+            self.text_edit = QTextEdit()
+            self.text_edit.setObjectName("logText")
+            self.text_edit.setReadOnly(True)
+            self.text_edit.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
+            self.text_edit.setFont(QFont("Consolas", 10))
+
+            self.font_combo.currentTextChanged.connect(self._apply_font_size)
+            self.wrap_action.toggled.connect(self._set_word_wrap)
+
+            layout.addWidget(self.toolbar)
+            layout.addWidget(self.text_edit)
+
+        def current_level(self) -> str:
+            return self.level_combo.currentText()
+
+        def current_keyword(self) -> str:
+            return self.search_edit.text()
+
+        def show_timestamp(self) -> bool:
+            return self.timestamp_action.isChecked()
+
+        def clear_filters(self) -> None:
+            self.level_combo.setCurrentText("ALL")
+            self.search_edit.clear()
+
+        def set_records(self, records: list[LogEntry], formatter: Any) -> None:
+            self.text_edit.setPlainText("\n".join(formatter(record, self.show_timestamp()) for record in records))
+            self.text_edit.moveCursor(QTextCursor.MoveOperation.End)
+
+        def _apply_font_size(self, value: str) -> None:
+            try:
+                size = int(value)
+            except ValueError:
+                return
+            self.text_edit.setFont(QFont("Consolas", size))
+
+        def _set_word_wrap(self, enabled: bool) -> None:
+            mode = QTextEdit.LineWrapMode.WidgetWidth if enabled else QTextEdit.LineWrapMode.NoWrap
+            self.text_edit.setLineWrapMode(mode)
+
+    class DeviceCommandPanel(QGroupBox):
+        def __init__(self, device_key: str, title: str, presets: dict[str, str], parent: QWidget | None = None) -> None:
+            super().__init__(title, parent)
+            self.device_key = device_key
+            self.presets = presets
+
+            layout = QVBoxLayout(self)
+            self.preset_combo = QComboBox()
+            self.preset_combo.addItems(list(presets.keys()))
+            self.command_input = QLineEdit()
+            self.command_input.setPlaceholderText("输入 SCPI / 控制命令")
+            self.response_view = QPlainTextEdit()
+            self.response_view.setReadOnly(True)
+            self.response_view.setMaximumHeight(120)
+            self.response_view.setPlaceholderText("响应")
+            self.btn_preset = QPushButton("填充预设")
+            self.btn_send = QPushButton("发送命令")
+
+            buttons = QHBoxLayout()
+            buttons.addWidget(self.btn_preset)
+            buttons.addWidget(self.btn_send)
+
+            layout.addWidget(QLabel("预设"))
+            layout.addWidget(self.preset_combo)
+            layout.addWidget(QLabel("命令"))
+            layout.addWidget(self.command_input)
+            layout.addLayout(buttons)
+            layout.addWidget(QLabel("当前响应"))
+            layout.addWidget(self.response_view)
+
+        def selected_command(self) -> str:
+            return self.presets[self.preset_combo.currentText()]
+
+        def command_text(self) -> str:
+            return self.command_input.text()
+
+        def set_response(self, response: str) -> None:
+            self.response_view.setPlainText(response)
 
     class MainWindow(QMainWindow):
         def __init__(self) -> None:
@@ -137,14 +277,18 @@ def run_gui() -> int:
             self.item_summary.setWordWrap(True)
 
             self.logo_badge = QLabel()
-            self.logo_badge.setFixedSize(88, 44)
-            self.logo_badge.setPixmap(_svg_to_pixmap(style_dir / "LOGO2 NO Words.svg"))
-            self.logo_badge.setScaledContents(True)
+            self.logo_badge.setFixedSize(56, 44)
+            self.logo_badge.setPixmap(
+                _svg_to_pixmap(
+                    style_dir / "LOGO2 NO Words.svg",
+                    width=56,
+                    height=44,
+                    view_box=(4600, 6750, 3100, 3400),
+                )
+            )
             self.logo_title = QLabel("CATR 路损校准操作台")
             self.logo_title.setObjectName("appTitle")
             self.logo_title.setStyleSheet("font-size: 26px; font-weight: 800; color: #102033;")
-            self.logo_subtitle = QLabel("工业化校准操作台 · PySide6 / MVVM")
-            self.logo_subtitle.setStyleSheet("color: #64748B; font-size: 13px;")
 
             self.step_title = QLabel("未开始")
             self.step_title.setStyleSheet("font-size: 18px; font-weight: 600;")
@@ -165,14 +309,9 @@ def run_gui() -> int:
             self.detail_view.setReadOnly(True)
             self.detail_view.setMaximumBlockCount(200)
 
-            self.log_view = QPlainTextEdit()
-            self.log_view.setReadOnly(True)
-            self.log_view.setMaximumBlockCount(500)
-            self.log_level_filter = QComboBox()
-            self.log_level_filter.addItems(["ALL", "INFO", "WARNING", "ERROR"])
-            self.log_keyword_filter = QLineEdit()
-            self.log_keyword_filter.setPlaceholderText("筛选日志关键字")
-            self.log_clear_button = QPushButton("清空筛选")
+            self.calibration_log_panel = LogPanel()
+            self.full_log_panel = LogPanel()
+            self.log_panels = [self.calibration_log_panel, self.full_log_panel]
 
             self.result_view = QPlainTextEdit()
             self.result_view.setReadOnly(True)
@@ -187,27 +326,20 @@ def run_gui() -> int:
             self.result_session.setMaximumHeight(150)
             self.result_session.setPlaceholderText("会话与运行记录")
 
-            self.command_input = QLineEdit()
-            self.command_input.setPlaceholderText("输入 CONFigure:LINK ... 命令")
-            self.route_selector = QComboBox()
-            self.route_selector.addItems(
-                [
-                    "H_TO_VNA1",
-                    "V_TO_VNA1",
-                    "DUT_TO_VNA2",
-                    "DUT_AMP1_VNA2",
-                    "DUT_TO_SA",
-                    "HV_AMP2_SA",
-                ]
-            )
-
-            self.response_view = QPlainTextEdit()
-            self.response_view.setReadOnly(True)
             self.history_view = QPlainTextEdit()
             self.history_view.setReadOnly(True)
+            self.history_view.setPlaceholderText("四类设备的命令历史")
+
+            command_presets = vm.device_command_presets()
+            self.command_panels = [
+                DeviceCommandPanel("vna", "网分", command_presets["vna"]),
+                DeviceCommandPanel("signal_generator", "信号源", command_presets["signal_generator"]),
+                DeviceCommandPanel("link_box", "链路箱", command_presets["link_box"]),
+                DeviceCommandPanel("spectrum_analyzer", "频谱仪", command_presets["spectrum_analyzer"]),
+            ]
 
             self.status_label = QLabel("Ready")
-            self.connection_label = QLabel("LinkBox: disconnected | VNA: disconnected")
+            self.connection_label = QLabel("VNA: disconnected | SG: disconnected | LinkBox: disconnected | SA: disconnected")
 
             self.btn_connect = QPushButton("连接 Mock 设备")
             self.btn_disconnect = QPushButton("断开 Mock 设备")
@@ -217,8 +349,6 @@ def run_gui() -> int:
             self.btn_retry = QPushButton("重试")
             self.btn_cancel = QPushButton("取消")
 
-            self.btn_send = QPushButton("发送命令")
-            self.btn_preset = QPushButton("填充预设")
             self.btn_refresh = QPushButton("刷新结果")
 
             self.tabs = QTabWidget()
@@ -251,7 +381,7 @@ def run_gui() -> int:
             box = QFrame()
             box.setObjectName("headerBanner")
             box.setObjectName("appHeader")
-            box.setMinimumHeight(100)
+            box.setMinimumHeight(72)
             layout = QHBoxLayout(box)
             left = QVBoxLayout()
             title_row = QHBoxLayout()
@@ -259,10 +389,6 @@ def run_gui() -> int:
             title_row.addWidget(self.logo_title)
             title_row.addStretch(1)
             left.addLayout(title_row)
-            left.addWidget(self.logo_subtitle)
-            hint = QLabel("建议先连接 Mock 设备，再选择校准项。")
-            hint.setStyleSheet("color: #6b7280;")
-            left.addWidget(hint)
             layout.addLayout(left, 1)
             meta = QVBoxLayout()
             self.project_label = QLabel("项目：CATR 路损校准")
@@ -313,14 +439,7 @@ def run_gui() -> int:
             right_tabs = QTabWidget()
             right_log = QWidget()
             right_log_layout = QVBoxLayout(right_log)
-            log_filter_row = QHBoxLayout()
-            log_filter_row.addWidget(QLabel("级别"))
-            log_filter_row.addWidget(self.log_level_filter)
-            log_filter_row.addWidget(QLabel("关键字"))
-            log_filter_row.addWidget(self.log_keyword_filter)
-            log_filter_row.addWidget(self.log_clear_button)
-            right_log_layout.addLayout(log_filter_row)
-            right_log_layout.addWidget(self.log_view)
+            right_log_layout.addWidget(self.calibration_log_panel)
             right_tabs.addTab(right_log, "日志")
 
             right_result = QWidget()
@@ -347,18 +466,11 @@ def run_gui() -> int:
             page = QWidget()
             layout = QVBoxLayout(page)
 
-            form = QGroupBox("命令台")
-            form_layout = QFormLayout(form)
-            form_layout.addRow("route_id", self.route_selector)
-            form_layout.addRow("命令", self.command_input)
-            cmd_buttons = QHBoxLayout()
-            cmd_buttons.addWidget(self.btn_preset)
-            cmd_buttons.addWidget(self.btn_send)
-            form_layout.addRow(cmd_buttons)
+            device_grid = QGridLayout()
+            for column, panel in enumerate(self.command_panels):
+                device_grid.addWidget(panel, 0, column)
 
-            layout.addWidget(form)
-            layout.addWidget(QLabel("当前响应"))
-            layout.addWidget(self.response_view)
+            layout.addLayout(device_grid)
             layout.addWidget(QLabel("历史命令"))
             layout.addWidget(self.history_view)
             layout.addWidget(self.btn_refresh)
@@ -367,14 +479,7 @@ def run_gui() -> int:
         def _build_log_page(self) -> QWidget:
             page = QWidget()
             layout = QVBoxLayout(page)
-            filter_row = QHBoxLayout()
-            filter_row.addWidget(QLabel("级别"))
-            filter_row.addWidget(self.log_level_filter)
-            filter_row.addWidget(QLabel("关键字"))
-            filter_row.addWidget(self.log_keyword_filter)
-            filter_row.addWidget(self.log_clear_button)
-            layout.addLayout(filter_row)
-            layout.addWidget(self.log_view)
+            layout.addWidget(self.full_log_panel)
             return page
 
         def _build_result_page(self) -> QWidget:
@@ -398,12 +503,16 @@ def run_gui() -> int:
             self.btn_skip.clicked.connect(lambda: vm.submit_action("skip"))
             self.btn_retry.clicked.connect(lambda: vm.submit_action("retry"))
             self.btn_cancel.clicked.connect(lambda: vm.submit_action("cancel"))
-            self.btn_send.clicked.connect(self._send_command)
-            self.btn_preset.clicked.connect(self._fill_preset)
             self.btn_refresh.clicked.connect(self._sync_overview)
-            self.log_level_filter.currentTextChanged.connect(self._sync_logs)
-            self.log_keyword_filter.textChanged.connect(self._sync_logs)
-            self.log_clear_button.clicked.connect(self._clear_log_filters)
+            for panel in self.command_panels:
+                panel.btn_preset.clicked.connect(lambda _checked=False, command_panel=panel: self._fill_preset(command_panel))
+                panel.btn_send.clicked.connect(lambda _checked=False, command_panel=panel: self._send_command(command_panel))
+                panel.command_input.returnPressed.connect(lambda command_panel=panel: self._send_command(command_panel))
+            for panel in self.log_panels:
+                panel.level_combo.currentTextChanged.connect(self._sync_logs)
+                panel.search_edit.textChanged.connect(self._sync_logs)
+                panel.timestamp_action.toggled.connect(self._sync_logs)
+                panel.clear_filter_action.triggered.connect(lambda _checked=False, log_panel=panel: self._clear_log_filters(log_panel))
 
             vm.selected_item_changed.connect(self._sync_item_detail)
             vm.selected_step_changed.connect(self._sync_step_list)
@@ -479,10 +588,9 @@ def run_gui() -> int:
             )
 
         def _sync_logs(self, *_args: Any) -> None:
-            level = self.log_level_filter.currentText()
-            keyword = self.log_keyword_filter.text()
-            records = vm.filtered_logs(level=level, keyword=keyword)
-            self.log_view.setPlainText("\n".join(self._format_log_entry(record) for record in records))
+            for panel in self.log_panels:
+                records = vm.filtered_logs(level=panel.current_level(), keyword=panel.current_keyword())
+                panel.set_records(records, self._format_log_entry)
             self.history_view.setPlainText("\n".join(vm.command_history))
 
         def _sync_overview(self, *_args: Any) -> None:
@@ -494,35 +602,32 @@ def run_gui() -> int:
             self.result_session.setPlainText(self._format_session_detail(overview))
             link_box = "connected" if overview.get("link_box_connected") else "disconnected"
             vna = "connected" if overview.get("vna_connected") else "disconnected"
-            self.connection_label.setText(f"LinkBox: {link_box} | VNA: {vna}")
+            sg = "connected" if overview.get("signal_generator_connected") else "disconnected"
+            sa = "connected" if overview.get("spectrum_analyzer_connected") else "disconnected"
+            self.connection_label.setText(f"VNA: {vna} | SG: {sg} | LinkBox: {link_box} | SA: {sa}")
             self.status_label.setText(str(overview.get("status", "Ready")))
 
         def _on_state_changed(self, state: str) -> None:
             self.step_status.setText(f"状态：{state}")
 
         def _sync_command_response(self, response: str) -> None:
-            self.response_view.setPlainText(response)
+            self.status_label.setText(f"命令响应: {response}")
 
-        def _clear_log_filters(self) -> None:
-            self.log_level_filter.setCurrentText("ALL")
-            self.log_keyword_filter.clear()
+        def _clear_log_filters(self, panel: LogPanel) -> None:
+            panel.clear_filters()
             self._sync_logs()
 
-        def _fill_preset(self) -> None:
-            try:
-                command = vm.preset_command(self.route_selector.currentText())
-            except Exception as exc:
-                QMessageBox.warning(self, "预设命令失败", str(exc))
-                return
-            self.command_input.setText(command)
+        def _fill_preset(self, panel: DeviceCommandPanel) -> None:
+            panel.command_input.setText(panel.selected_command())
 
-        def _send_command(self) -> None:
+        def _send_command(self, panel: DeviceCommandPanel) -> None:
             try:
-                response = vm.send_command(self.command_input.text())
+                response = vm.send_device_command(panel.device_key, panel.command_text())
             except Exception as exc:
                 QMessageBox.warning(self, "命令发送失败", str(exc))
                 return
-            self.response_view.setPlainText(response)
+            panel.set_response(response)
+            self.history_view.setPlainText("\n\n".join(vm.command_history))
 
         def _connect_devices(self) -> None:
             vm.connect_mock_devices()
@@ -530,8 +635,9 @@ def run_gui() -> int:
         def _disconnect_devices(self) -> None:
             vm.disconnect_mock_devices()
 
-        def _format_log_entry(self, record: LogEntry) -> str:
-            return f"{record.timestamp} [{record.level}] {record.source}/{record.name} - {record.message}"
+        def _format_log_entry(self, record: LogEntry, show_timestamp: bool = True) -> str:
+            prefix = f"{record.timestamp} " if show_timestamp else ""
+            return f"{prefix}[{record.level}] {record.source}/{record.name} - {record.message}"
 
         def _format_overview_summary(self, overview: dict[str, Any]) -> str:
             run_summary = overview.get("run_summary") or {}
@@ -540,7 +646,7 @@ def run_gui() -> int:
                 f"当前步骤: {overview.get('selected_step_id', '')}",
                 f"状态: {overview.get('status', '')}",
                 f"校准步数: {overview.get('steps', '')}",
-                f"连接: {'OK' if overview.get('link_box_connected') and overview.get('vna_connected') else '待连接'}",
+                f"连接: {'OK' if self._all_command_devices_connected(overview) else '待连接'}",
                 f"已完成步骤: {run_summary.get('completed_steps', 0) if isinstance(run_summary, dict) else 0}",
                 f"最后事件: {run_summary.get('last_event', '') if isinstance(run_summary, dict) else ''}",
             ]
@@ -553,6 +659,8 @@ def run_gui() -> int:
                 f"purpose: {overview.get('purpose', '')}",
                 f"link_box_connected: {overview.get('link_box_connected', False)}",
                 f"vna_connected: {overview.get('vna_connected', False)}",
+                f"signal_generator_connected: {overview.get('signal_generator_connected', False)}",
+                f"spectrum_analyzer_connected: {overview.get('spectrum_analyzer_connected', False)}",
                 f"selected_step_id: {overview.get('selected_step_id', '')}",
             ]
             if isinstance(run_summary, dict) and run_summary:
@@ -576,6 +684,14 @@ def run_gui() -> int:
                 lines.append(f"link_box_connected: {run_summary.get('link_box_connected', '')}")
                 lines.append(f"vna_connected: {run_summary.get('vna_connected', '')}")
             return "\n".join(lines)
+
+        def _all_command_devices_connected(self, overview: dict[str, Any]) -> bool:
+            return bool(
+                overview.get("vna_connected")
+                and overview.get("signal_generator_connected")
+                and overview.get("link_box_connected")
+                and overview.get("spectrum_analyzer_connected")
+            )
 
     app.setStyleSheet(
         """

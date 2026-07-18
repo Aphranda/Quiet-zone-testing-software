@@ -6,11 +6,14 @@ from catr_loss_calibrator.hardware.interfaces import InstrumentInfo, SParameterT
 
 
 class MockVna:
-    def __init__(self) -> None:
+    def __init__(self, resource: str = "MOCK::VNA", model: str = "MOCK-VNA") -> None:
+        self.resource = resource
+        self.model = model
         self._connected = False
         self._start_hz = 10e9
         self._stop_hz = 15e9
         self._points = 51
+        self.commands: list[str] = []
 
     @property
     def is_connected(self) -> bool:
@@ -18,7 +21,7 @@ class MockVna:
 
     def connect(self) -> InstrumentInfo:
         self._connected = True
-        return InstrumentInfo(resource="MOCK::VNA", model="MOCK-VNA")
+        return InstrumentInfo(resource=self.resource, model=self.model)
 
     def disconnect(self) -> None:
         self._connected = False
@@ -43,9 +46,23 @@ class MockVna:
         phase = np.zeros(self._points)
         return SParameterTrace(frequency, value_db, phase, parameter)
 
+    def send_command(self, command: str) -> str:
+        if not self._connected:
+            raise RuntimeError("Mock VNA is not connected.")
+        self.commands.append(command)
+        upper = command.strip().upper()
+        if upper == "*IDN?":
+            return f"MOCK,{self.model},0001,1.0"
+        if upper.endswith("?"):
+            return "0"
+        return "OK"
 
-class MockLinkBox:
-    def __init__(self) -> None:
+
+class MockScpiInstrument:
+    def __init__(self, name: str, model: str, resource: str | None = None) -> None:
+        self.name = name
+        self.model = model
+        self.resource = resource or f"MOCK::{name}"
         self._connected = False
         self.commands: list[str] = []
 
@@ -55,7 +72,37 @@ class MockLinkBox:
 
     def connect(self) -> InstrumentInfo:
         self._connected = True
-        return InstrumentInfo(resource="MOCK::LINKBOX", model="LCD74000F-MOCK")
+        return InstrumentInfo(resource=self.resource, model=self.model)
+
+    def disconnect(self) -> None:
+        self._connected = False
+
+    def send_command(self, command: str) -> str:
+        if not self._connected:
+            raise RuntimeError(f"Mock {self.name} is not connected.")
+        self.commands.append(command)
+        upper = command.strip().upper()
+        if upper == "*IDN?":
+            return f"MOCK,{self.model},0001,1.0"
+        if upper.endswith("?"):
+            return "0"
+        return "OK"
+
+
+class MockLinkBox:
+    def __init__(self, resource: str = "MOCK::LINKBOX", model: str = "LCD74000F-MOCK") -> None:
+        self.resource = resource
+        self.model = model
+        self._connected = False
+        self.commands: list[str] = []
+
+    @property
+    def is_connected(self) -> bool:
+        return self._connected
+
+    def connect(self) -> InstrumentInfo:
+        self._connected = True
+        return InstrumentInfo(resource=self.resource, model=self.model)
 
     def disconnect(self) -> None:
         self._connected = False

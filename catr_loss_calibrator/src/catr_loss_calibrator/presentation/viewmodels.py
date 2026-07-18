@@ -10,7 +10,7 @@ from PySide6.QtCore import QObject, QThread, Signal
 
 from catr_loss_calibrator.calibration.definitions import default_calibration_catalog
 from catr_loss_calibrator.calibration.mock_runner import MockCalibrationRunner
-from catr_loss_calibrator.hardware.mock import MockLinkBox, MockVna
+from catr_loss_calibrator.hardware.mock import MockLinkBox, MockScpiInstrument, MockVna
 from catr_loss_calibrator.link_management.link_templates import link_command
 
 
@@ -130,6 +130,8 @@ class CalibrationViewModel(QObject):
         self._worker: CalibrationRunWorker | None = None
         self._mock_link_box = MockLinkBox()
         self._mock_vna = MockVna()
+        self._mock_signal_generator = MockScpiInstrument("SG", "MOCK-SG")
+        self._mock_spectrum_analyzer = MockScpiInstrument("SA", "MOCK-SA")
         self._command_history: list[str] = []
 
     @property
@@ -190,6 +192,8 @@ class CalibrationViewModel(QObject):
     def connect_mock_devices(self) -> None:
         self._mock_link_box.connect()
         self._mock_vna.connect()
+        self._mock_signal_generator.connect()
+        self._mock_spectrum_analyzer.connect()
         self._status_text = "Mock devices connected"
         self.status_changed.emit(self._status_text)
         self._append_log("INFO", "device", "mock", "Mock 设备已连接")
@@ -198,6 +202,8 @@ class CalibrationViewModel(QObject):
     def disconnect_mock_devices(self) -> None:
         self._mock_link_box.disconnect()
         self._mock_vna.disconnect()
+        self._mock_signal_generator.disconnect()
+        self._mock_spectrum_analyzer.disconnect()
         self._status_text = "Mock devices disconnected"
         self.status_changed.emit(self._status_text)
         self._append_log("INFO", "device", "mock", "Mock 设备已断开")
@@ -237,29 +243,58 @@ class CalibrationViewModel(QObject):
             self._append_log("WARNING", "ui", self.selected_item.name, f"忽略操作: {action}")
 
     def send_command(self, command: str) -> str:
+        return self.send_device_command("link_box", command)
+
+    def send_device_command(self, device: str, command: str) -> str:
         command = command.strip()
         if not command:
             raise ValueError("Command is empty.")
-        if not self._mock_link_box.is_connected:
-            raise RuntimeError("Mock link box is not connected.")
-        response = self._mock_link_box.send_command(command)
-        self._command_history.append(command)
+        instrument, display_name = self._command_device(device)
+        response = instrument.send_command(command)
+        self._command_history.append(f"{display_name}> {command}\n{response}")
         self._command_response = response
         self.command_response_changed.emit(response)
-        self._append_log("INFO", "command", "linkbox", f"发送命令: {command}")
-        self._append_log("INFO", "command", "linkbox", f"返回响应: {response}")
+        self._append_log("INFO", "command", display_name, f"发送命令: {command}")
+        self._append_log("INFO", "command", display_name, f"返回响应: {response}")
         return response
 
     def preset_command(self, preset: str) -> str:
-        presets = {
-            "H_TO_VNA1": link_command("H", "VNA1"),
-            "V_TO_VNA1": link_command("V", "VNA1"),
-            "DUT_TO_VNA2": link_command("DUT", "VNA2"),
-            "DUT_AMP1_VNA2": link_command("DUT", "AMP1", "VNA2"),
-            "DUT_TO_SA": link_command("DUT", "SA"),
-            "HV_AMP2_SA": link_command("H/V", "AMP2", "SA"),
-        }
+        return self.device_preset_command("link_box", preset)
+
+    def device_preset_command(self, device: str, preset: str) -> str:
+        presets = self.device_command_presets()[device]
         return presets[preset]
+
+    def device_command_presets(self) -> dict[str, dict[str, str]]:
+        presets = {
+            "vna": {
+                "*IDN?": "*IDN?",
+                "配置 S21": "CALCulate:PARameter:DEFine 'Meas1',S21",
+                "触发扫描": "INITiate:IMMediate",
+                "读取轨迹": "CALCulate:DATA? FDATA",
+            },
+            "signal_generator": {
+                "*IDN?": "*IDN?",
+                "设置频率": "FREQuency:CW 10GHz",
+                "设置功率": "POWer:LEVel -10dBm",
+                "打开输出": "OUTPut:STATe ON",
+            },
+            "link_box": {
+                "H_TO_VNA1": link_command("H", "VNA1"),
+                "V_TO_VNA1": link_command("V", "VNA1"),
+                "DUT_TO_VNA2": link_command("DUT", "VNA2"),
+                "DUT_AMP1_VNA2": link_command("DUT", "AMP1", "VNA2"),
+                "DUT_TO_SA": link_command("DUT", "SA"),
+                "HV_AMP2_SA": "CONFigure:LINK H/V, AMP2, SA",
+            },
+            "spectrum_analyzer": {
+                "*IDN?": "*IDN?",
+                "设置中心频率": "FREQuency:CENTer 10GHz",
+                "设置 Span": "FREQuency:SPAN 100MHz",
+                "读取峰值": "CALCulate:MARKer1:Y?",
+            },
+        }
+        return presets
 
     def refresh_overview(self) -> None:
         item = self.selected_item
@@ -271,10 +306,24 @@ class CalibrationViewModel(QObject):
             "selected_step_id": self.selected_step.id if self.selected_step else "",
             "link_box_connected": self._mock_link_box.is_connected,
             "vna_connected": self._mock_vna.is_connected,
+            "signal_generator_connected": self._mock_signal_generator.is_connected,
+            "spectrum_analyzer_connected": self._mock_spectrum_analyzer.is_connected,
             "status": self._status_text,
             **({"run_summary": self._run_summary} if self._run_summary else {}),
         }
         self.overview_changed.emit(self._overview)
+
+    def _command_device(self, device: str) -> tuple[Any, str]:
+        devices = {
+            "vna": (self._mock_vna, "网分"),
+            "signal_generator": (self._mock_signal_generator, "信号源"),
+            "link_box": (self._mock_link_box, "链路箱"),
+            "spectrum_analyzer": (self._mock_spectrum_analyzer, "频谱仪"),
+        }
+        try:
+            return devices[device]
+        except KeyError as exc:
+            raise ValueError(f"Unknown command device: {device}") from exc
 
     def _on_prompt_ready(self, prompt: StepViewData) -> None:
         self._selected_step_index = max(prompt.step_index - 1, 0)
