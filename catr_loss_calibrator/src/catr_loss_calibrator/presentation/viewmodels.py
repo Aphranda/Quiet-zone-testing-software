@@ -42,6 +42,8 @@ class StepViewData:
     substep_index: int = 0
     substep_total: int = 0
     confirm_phase: str = ""
+    item_total_substeps: int = 0
+    item_completed_substeps: int = 0
 
 
 @dataclass(frozen=True)
@@ -104,6 +106,8 @@ class CalibrationRunWorker(QThread):
 
     def confirm_step(self, step, substep, phase: str, index: int, total: int, substep_index: int, substep_total: int) -> str:
         status = "等待开始确认" if phase == "start" else "等待保存完成确认"
+        item_total_substeps = sum(len(self._runner._substeps_for(item_step)) for item_step in self._runner.item.steps)
+        item_completed_substeps = self._item_completed_substeps(index, substep_index, phase)
         prompt = StepViewData(
             item_id=self._runner.item.id,
             item_name=self._runner.item.name,
@@ -126,6 +130,8 @@ class CalibrationRunWorker(QThread):
             substep_index=substep_index,
             substep_total=substep_total,
             confirm_phase=phase,
+            item_total_substeps=item_total_substeps,
+            item_completed_substeps=item_completed_substeps,
         )
         self._active_prompt = prompt
         self.prompt_ready.emit(prompt)
@@ -146,6 +152,16 @@ class CalibrationRunWorker(QThread):
     @property
     def active_prompt(self) -> StepViewData | None:
         return self._active_prompt
+
+    def _item_completed_substeps(self, step_index: int, substep_index: int, phase: str) -> int:
+        completed = 0
+        for item_step in self._runner.item.steps[: max(step_index - 1, 0)]:
+            completed += len(self._runner._substeps_for(item_step))
+        if phase == "saved":
+            completed += substep_index
+        else:
+            completed += max(0, substep_index - 1)
+        return completed
 
 
 class CalibrationViewModel(QObject):
@@ -642,12 +658,46 @@ class CalibrationViewModel(QObject):
         raise ValueError(f"Unknown command device: {device}")
 
     def _on_prompt_ready(self, prompt: StepViewData) -> None:
+        self._update_run_progress(prompt)
         self._selected_step_index = max(prompt.step_index - 1, 0)
         self._run_status_by_item[prompt.item_id] = prompt.status
         self.selected_step_changed.emit()
         self.step_view_changed.emit(prompt)
         self._append_log("INFO", "runner", prompt.item_name, f"步骤确认提示: {prompt.step_id}")
         self.refresh_overview()
+
+    def _update_run_progress(self, prompt: StepViewData) -> None:
+        item = self.catalog.get(prompt.item_id)
+        completed_steps = item.steps[: max(prompt.step_index - 1, 0)]
+        completed_step_ids = tuple(step.id for step in completed_steps)
+        current_step_completed = max(
+            0,
+            prompt.item_completed_substeps - sum(len(self._substeps_for_step(step)) for step in completed_steps),
+        )
+        completed_substep_ids = [
+            f"{step.id}:{substep.id}"
+            for step in completed_steps
+            for substep in self._substeps_for_step(step)
+        ]
+        if 0 <= prompt.step_index - 1 < len(item.steps):
+            current_step = item.steps[prompt.step_index - 1]
+            completed_substep_ids.extend(
+                f"{current_step.id}:{substep.id}"
+                for substep in self._substeps_for_step(current_step)[:current_step_completed]
+            )
+        self._run_summaries_by_item[prompt.item_id] = {
+            "item_id": prompt.item_id,
+            "item_name": prompt.item_name,
+            "state": prompt.status,
+            "total_steps": prompt.step_total,
+            "completed_big_steps": len(completed_step_ids),
+            "completed_step_ids": completed_step_ids,
+            "completed_steps": len(completed_substep_ids),
+            "completed_substep_ids": tuple(completed_substep_ids),
+            "active_step_id": prompt.step_id,
+            "active_substep_id": prompt.substep_id,
+            "active_confirm_phase": prompt.confirm_phase,
+        }
 
     def _on_finished_summary(self, summary: object) -> None:
         run_summary = dict(summary)
@@ -665,6 +715,7 @@ class CalibrationViewModel(QObject):
         self._run_status_by_item[item_id] = f"Error: {message}"
         self._append_log("ERROR", "runner", self.selected_item.name, message)
         self.status_text_update(f"Error: {message}")
+        self.refresh_overview()
 
     def _cleanup_worker(self) -> None:
         self._worker = None
@@ -701,6 +752,9 @@ class CalibrationViewModel(QObject):
 
     def _step_view_data(self, step, index: int, total: int) -> StepViewData:
         substeps = self.substep_view_data(step)
+        item_total_substeps = sum(len(self._substeps_for_step(item_step)) for item_step in self.selected_item.steps)
+        run_summary = self._run_summaries_by_item.get(self.selected_item.id, {})
+        item_completed_substeps = len({str(step_id) for step_id in run_summary.get("completed_substep_ids", ())})
         return StepViewData(
             item_id=self.selected_item.id,
             item_name=self.selected_item.name,
@@ -719,6 +773,8 @@ class CalibrationViewModel(QObject):
             required_inputs=step.required_inputs,
             notes=step.notes,
             substep_total=len(substeps),
+            item_total_substeps=item_total_substeps,
+            item_completed_substeps=item_completed_substeps,
         )
 
     def substep_view_data(self, step: CalibrationStep) -> list[SubStepViewData]:

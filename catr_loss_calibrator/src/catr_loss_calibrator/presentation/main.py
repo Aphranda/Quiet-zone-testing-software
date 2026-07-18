@@ -103,9 +103,9 @@ def run_gui() -> int:
         QListWidgetItem,
         QMainWindow,
         QPlainTextEdit,
-        QMessageBox,
         QPushButton,
         QProgressBar,
+        QScrollArea,
         QSizePolicy,
         QSplitter,
         QSpinBox,
@@ -154,6 +154,15 @@ def run_gui() -> int:
         renderer.render(painter, target)
         painter.end()
         return pixmap
+
+    def _style_button(button: QPushButton, *, role: str, state: str | None = None) -> None:
+        button.setProperty("buttonRole", role)
+        if state is not None:
+            button.setProperty("buttonState", state)
+        style = button.style()
+        style.unpolish(button)
+        style.polish(button)
+        button.update()
 
     class LogPanel(QWidget):
         def __init__(self, parent: QWidget | None = None) -> None:
@@ -306,6 +315,12 @@ def run_gui() -> int:
             self.btn_vna_trigger: QPushButton | None = None
             self.btn_vna_sample: QPushButton | None = None
 
+            _style_button(self.btn_search_visa, role="secondary")
+            _style_button(self.btn_connect, role="success")
+            _style_button(self.btn_disconnect, role="danger")
+            _style_button(self.btn_preset, role="secondary")
+            _style_button(self.btn_send, role="primary")
+
             buttons = QHBoxLayout()
             buttons.addWidget(self.btn_preset)
             buttons.addWidget(self.btn_send)
@@ -453,6 +468,9 @@ def run_gui() -> int:
             self.btn_vna_configure = QPushButton("配置")
             self.btn_vna_trigger = QPushButton("触发")
             self.btn_vna_sample = QPushButton("采样")
+            _style_button(self.btn_vna_configure, role="primary")
+            _style_button(self.btn_vna_trigger, role="warning")
+            _style_button(self.btn_vna_sample, role="success")
 
             for spinbox in (self.vna_start_ghz, self.vna_stop_ghz, self.vna_step_mhz):
                 spinbox.valueChanged.connect(lambda _value: self._refresh_vna_points_label())
@@ -531,10 +549,10 @@ def run_gui() -> int:
             )
             self.logo_title = QLabel("CATR 路损校准操作台")
             self.logo_title.setObjectName("appTitle")
-            self.logo_title.setStyleSheet("font-size: 26px; font-weight: 800; color: #102033;")
+            self.logo_title.setStyleSheet("font-size: 20px; font-weight: 700; color: #23405c;")
 
             self.step_title = QLabel("未开始")
-            self.step_title.setStyleSheet("font-size: 18px; font-weight: 600;")
+            self.step_title.setStyleSheet("font-size: 15px; font-weight: 600;")
             self.step_status = QLabel("状态：IDLE")
             self.step_progress = QProgressBar()
             self.step_progress.setRange(0, 100)
@@ -631,6 +649,10 @@ def run_gui() -> int:
             self.btn_start = QPushButton("开始校准")
 
             self.btn_refresh = QPushButton("刷新结果")
+            _style_button(self.btn_connect, role="success")
+            _style_button(self.btn_disconnect, role="danger")
+            _style_button(self.btn_start, role="primary", state="idle")
+            _style_button(self.btn_refresh, role="secondary")
 
             self.tabs = QTabWidget()
             self.calibration_page = self._build_calibration_page()
@@ -672,7 +694,13 @@ def run_gui() -> int:
             available_geometry = screen.availableGeometry()
             frame_geometry = self.frameGeometry()
             frame_geometry.moveCenter(available_geometry.center())
-            self.move(frame_geometry.topLeft())
+            top_left = frame_geometry.topLeft()
+            offset_x = 200
+            offset_y = 48
+            self.move(
+                max(available_geometry.left(), top_left.x() - offset_x),
+                max(available_geometry.top(), top_left.y() - offset_y),
+            )
 
         def _build_header(self) -> QWidget:
             box = QFrame()
@@ -892,7 +920,8 @@ def run_gui() -> int:
                 substep_text = f" | 小步骤 {step.substep_index}/{step.substep_total}: {step.substep_name}"
             self.step_title.setText(f"[{step.step_index}/{step.step_total}] {step.step_id} - {step.step_name}{substep_text}")
             self.step_status.setText(f"状态：{step.status}")
-            progress = int(step.step_index / max(step.step_total, 1) * 100)
+            total_substeps = max(step.item_total_substeps, 1)
+            progress = int(step.item_completed_substeps / total_substeps * 100)
             self.step_progress.setValue(progress)
             self._sync_substep_list(step)
             self.path_view.setPlainText(
@@ -961,9 +990,11 @@ def run_gui() -> int:
             sa = "connected" if overview.get("spectrum_analyzer_connected") else "disconnected"
             self.connection_label.setText(f"VNA: {vna} | SG: {sg} | LinkBox: {link_box} | SA: {sa}")
             self.status_label.setText(str(overview.get("status", "Ready")))
+            self._sync_start_button_state(str(overview.get("status", "Ready")))
 
         def _on_state_changed(self, state: str) -> None:
             self.step_status.setText(f"状态：{state}")
+            self._sync_start_button_state(state)
 
         def _sync_command_response(self, response: str) -> None:
             self.status_label.setText(f"命令响应: {response}")
@@ -1047,70 +1078,138 @@ def run_gui() -> int:
             actions: tuple[tuple[str, str], ...],
             default_action: str,
         ) -> None:
+            action = self._show_modal_dialog(
+                title=title,
+                message=message,
+                buttons=(
+                    *tuple(("上一步", action, "left") for label, action in actions if action == "retry"),
+                    *tuple((label, action, "center") for label, action in actions if action not in {"retry", "skip"}),
+                    *tuple(("下一步", action, "right") for label, action in actions if action == "skip"),
+                ),
+                default_action=default_action,
+                width=720,
+                height=420,
+            )
+            vm.submit_action(action or "cancel")
+
+        def _show_modal_dialog(
+            self,
+            *,
+            title: str,
+            message: str,
+            buttons: tuple[tuple[str, str, str], ...],
+            default_action: str = "",
+            width: int = 680,
+            height: int = 360,
+        ) -> str:
             dialog = QDialog(self)
             dialog.setWindowTitle(title)
-            dialog.setMinimumWidth(520)
-            selected_action = {"value": "cancel"}
+            dialog.setFixedSize(width, height)
+            selected_action = {"value": ""}
 
             layout = QVBoxLayout(dialog)
+            layout.setContentsMargins(16, 16, 16, 14)
+            layout.setSpacing(10)
+
             message_label = QLabel(message)
             message_label.setWordWrap(True)
-            layout.addWidget(message_label)
+            message_label.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+            message_label.setObjectName("dialogMessage")
 
-            left_actions = [(label, action) for label, action in actions if action == "retry"]
-            right_actions = [(label, action) for label, action in actions if action == "skip"]
-            center_actions = [(label, action) for label, action in actions if action not in {"retry", "skip"}]
+            message_area = QScrollArea()
+            message_area.setWidgetResizable(True)
+            message_area.setFrameShape(QFrame.Shape.NoFrame)
+            message_area.setWidget(message_label)
+            layout.addWidget(message_area, 1)
 
             button_row = QHBoxLayout()
+            button_row.setSpacing(10)
+            groups = {"left": [], "center": [], "right": []}
 
             def add_action_button(label: str, action: str) -> QPushButton:
                 button = QPushButton(label)
-                button.clicked.connect(lambda _checked=False, selected=action: self._finish_prompt_dialog(dialog, selected_action, selected))
+                role = {
+                    "continue": "success",
+                    "ok": "primary",
+                    "yes": "success",
+                    "no": "danger",
+                    "retry": "warning",
+                    "skip": "primary",
+                    "cancel": "danger",
+                }.get(action, "secondary")
+                _style_button(button, role=role)
+                button.clicked.connect(
+                    lambda _checked=False, selected=action: self._finish_modal_dialog(
+                        dialog,
+                        selected_action,
+                        selected,
+                    )
+                )
                 if action == default_action:
                     button.setDefault(True)
                     button.setAutoDefault(True)
                 return button
 
-            for label, action in left_actions:
-                button_row.addWidget(add_action_button(label, action))
+            for label, action, position in buttons:
+                groups[position].append(add_action_button(label, action))
+            for button in groups["left"]:
+                button_row.addWidget(button)
             button_row.addStretch(1)
-            for label, action in center_actions:
-                button_row.addWidget(add_action_button(label, action))
+            for button in groups["center"]:
+                button_row.addWidget(button)
             button_row.addStretch(1)
-            for label, action in right_actions:
-                button_row.addWidget(add_action_button(label, action))
-
+            for button in groups["right"]:
+                button_row.addWidget(button)
             layout.addLayout(button_row)
             dialog.exec()
-            vm.submit_action(selected_action["value"])
+            return selected_action["value"]
 
-        def _finish_prompt_dialog(self, dialog: QDialog, selected_action: dict[str, str], action: str) -> None:
+        def _finish_modal_dialog(self, dialog: QDialog, selected_action: dict[str, str], action: str) -> None:
             selected_action["value"] = action
             dialog.accept()
 
         def _confirm_start_calibration(self) -> None:
             item = vm.selected_item
-            answer = QMessageBox.question(
-                self,
-                "开始校准确认",
-                f"确认开始执行 {item.id} - {item.name}？\n\n步骤列表显示大步骤，步骤执行区会逐个小步骤等待确认。",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No,
+            action = self._show_modal_dialog(
+                title="开始校准确认",
+                message=f"确认开始执行 {item.id} - {item.name}？\n\n步骤列表显示大步骤，步骤执行区会逐个小步骤等待确认。",
+                buttons=(("开始校准", "yes", "center"), ("取消", "cancel", "center")),
+                default_action="yes",
+                width=600,
+                height=280,
             )
-            if answer == QMessageBox.StandardButton.Yes:
+            if action == "yes":
                 vm.start_selected()
 
         def _confirm_run_finished(self, summary: object) -> None:
             data = dict(summary) if isinstance(summary, dict) else {}
-            QMessageBox.information(
-                self,
-                "校准完成确认",
-                "校准执行已完成。\n\n"
-                f"校准项: {data.get('item_id', '')}\n"
-                f"状态: {data.get('state', '')}\n"
-                f"完成小步骤: {data.get('completed_steps', '')}/{data.get('total_substeps', data.get('total_steps', ''))}\n"
-                f"最后事件: {data.get('last_event', '')}",
+            self._sync_start_button_state("DONE")
+            self._show_modal_dialog(
+                title="校准完成确认",
+                message=(
+                    "校准执行已完成。\n\n"
+                    f"校准项: {data.get('item_id', '')}\n"
+                    f"状态: {data.get('state', '')}\n"
+                    f"完成小步骤: {data.get('completed_steps', '')}/{data.get('total_substeps', data.get('total_steps', ''))}\n"
+                    f"最后事件: {data.get('last_event', '')}"
+                ),
+                buttons=(("确定", "ok", "center"),),
+                default_action="ok",
+                width=620,
+                height=300,
             )
+
+        def _sync_start_button_state(self, state: str) -> None:
+            normalized = str(state).upper()
+            if normalized in {"DONE"}:
+                button_state = "done"
+            elif normalized in {"FAILED", "CANCELLED", "ERROR"} or normalized.startswith("ERROR"):
+                button_state = "error"
+            elif normalized in {"IDLE", "READY"}:
+                button_state = "idle"
+            else:
+                button_state = "running"
+            _style_button(self.btn_start, role="primary", state=button_state)
 
         def _clear_log_filters(self, panel: LogPanel) -> None:
             panel.clear_filters()
@@ -1123,7 +1222,7 @@ def run_gui() -> int:
             try:
                 response = vm.send_device_command(panel.device_key, panel.command_text())
             except Exception as exc:
-                QMessageBox.warning(self, "命令发送失败", str(exc))
+                self._show_modal_dialog(title="命令发送失败", message=str(exc), buttons=(("确定", "ok", "center"),), default_action="ok", width=560, height=260)
                 return
             panel.set_response(response)
 
@@ -1131,7 +1230,7 @@ def run_gui() -> int:
             try:
                 response = vm.configure_vna(panel.vna_settings())
             except Exception as exc:
-                QMessageBox.warning(self, "网分配置失败", str(exc))
+                self._show_modal_dialog(title="网分配置失败", message=str(exc), buttons=(("确定", "ok", "center"),), default_action="ok", width=560, height=260)
                 return
             panel.set_response(response)
 
@@ -1139,7 +1238,7 @@ def run_gui() -> int:
             try:
                 response = vm.trigger_vna(panel.vna_settings())
             except Exception as exc:
-                QMessageBox.warning(self, "网分触发失败", str(exc))
+                self._show_modal_dialog(title="网分触发失败", message=str(exc), buttons=(("确定", "ok", "center"),), default_action="ok", width=560, height=260)
                 return
             panel.set_response(response)
 
@@ -1147,7 +1246,7 @@ def run_gui() -> int:
             try:
                 response = vm.sample_vna(panel.vna_settings())
             except Exception as exc:
-                QMessageBox.warning(self, "网分采样失败", str(exc))
+                self._show_modal_dialog(title="网分采样失败", message=str(exc), buttons=(("确定", "ok", "center"),), default_action="ok", width=560, height=260)
                 return
             panel.set_response(response)
 
@@ -1164,7 +1263,7 @@ def run_gui() -> int:
                 vm.update_device_config(panel.device_key, **panel.connection_config())
                 state = vm.connect_device(panel.device_key)
             except Exception as exc:
-                QMessageBox.warning(self, "设备连接失败", str(exc))
+                self._show_modal_dialog(title="设备连接失败", message=str(exc), buttons=(("确定", "ok", "center"),), default_action="ok", width=560, height=260)
                 return
             panel.set_connection_state(state)
             self._sync_overview()
@@ -1173,7 +1272,7 @@ def run_gui() -> int:
             try:
                 state = vm.disconnect_device(panel.device_key)
             except Exception as exc:
-                QMessageBox.warning(self, "设备断开失败", str(exc))
+                self._show_modal_dialog(title="设备断开失败", message=str(exc), buttons=(("确定", "ok", "center"),), default_action="ok", width=560, height=260)
                 return
             panel.set_connection_state(state)
             self._sync_overview()
@@ -1185,10 +1284,10 @@ def run_gui() -> int:
             try:
                 resources = vm.list_visa_resources()
             except Exception as exc:
-                QMessageBox.warning(self, "VISA 资源搜索失败", str(exc))
+                self._show_modal_dialog(title="VISA 资源搜索失败", message=str(exc), buttons=(("确定", "ok", "center"),), default_action="ok", width=560, height=260)
                 return
             if not resources:
-                QMessageBox.information(self, "VISA 资源搜索", "未发现 VISA 资源。")
+                self._show_modal_dialog(title="VISA 资源搜索", message="未发现 VISA 资源。", buttons=(("确定", "ok", "center"),), default_action="ok", width=520, height=240)
                 return
             panel.set_resource_options(resources, resources[0])
 
@@ -1275,10 +1374,7 @@ def run_gui() -> int:
         """
         """
     )
-    style_text = _load_text(style_dir / "style.css")
-    style_text = style_text.replace('image: url("__COMBOBOX_ARROW_ICON__");', f'image: url("{(style_dir / "chevron-down.svg").as_posix()}");')
-    style_text = style_text.replace('image: url("__SPINBOX_UP_ICON__");', f'image: url("{(style_dir / "chevron-up-small.svg").as_posix()}");')
-    style_text = style_text.replace('image: url("__SPINBOX_DOWN_ICON__");', f'image: url("{(style_dir / "chevron-down-small.svg").as_posix()}");')
+    style_text = _load_text(style_dir / "style_bule.qss")
     app.setStyleSheet(style_text)
 
     window = MainWindow()
