@@ -49,6 +49,61 @@ Last updated: 2026-07-18
 
 ## 任务记录
 
+### CATR-CAL-TASK-20260718-013 - P5 追溯与导出基础
+
+- 状态：完成
+- 日期：2026-07-18
+- 任务目标：
+  - 建立校准 session 管理、日志与错误报告、结果导出基础。
+  - 让最终结果和运行记录具备追溯与浏览能力。
+- 完成内容：
+  - 扩展 `CalibrationSessionRepository`，支持会话记录保存。
+  - 扩展 `ErrorReport` 与 `LogRecord`，支持 JSON 落盘。
+  - 新增 `report_exporter.py`，支持 session 报告 JSON/CSV 导出。
+  - 新增 `tests/test_p5_reporting.py`。
+- 验证结果：
+  - 使用 `d:\Microsoft\Python\quiet-zone-tester-venv\Scripts\python.exe` 手动调用当前测试函数通过。
+  - 生成的 session、log、error、report 文件可正常写出。
+- 还需完成：
+  - P5-04 / P5-05：长期稳定性测试与版本管理。
+  - P5-06：继续跟随 HTML 方案同步文档变更。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/storage/calibration_session_repository.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/diagnostics/error_report.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/diagnostics/log_record.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/storage/report_exporter.py`
+  - `catr_loss_calibrator/tests/test_p5_reporting.py`
+- 下一步：
+  - 推进 P5-04 / P5-05，补长期稳定性和版本管理。
+
+### CATR-CAL-TASK-20260718-012 - P4 超时回滚与硬件验证记录
+
+- 状态：完成
+- 日期：2026-07-18
+- 任务目标：
+  - 建立真实硬件连接失败后的超时/回滚策略。
+  - 建立真实硬件验证记录模型。
+  - 固化真实硬件验证 checklist。
+- 完成内容：
+  - 新增 `ConnectionRecoveryPolicy`，支持连接重试与回滚清理。
+  - `InstrumentConnectionService` 连接失败后会自动清理已连接仪表，并支持按策略重试。
+  - 新增 `HardwareValidationRecord` 与 `save_hardware_validation_record()`。
+  - 新增 `tests/test_hardware_validation.py`。
+- 验证结果：
+  - 使用 `d:\Microsoft\Python\quiet-zone-tester-venv\Scripts\python.exe` 手动调用当前测试函数通过。
+  - 未接入真实 VNA/LCD74000F，未做真实硬件验证。
+- 还需完成：
+  - P4-01 / P4-02：真实设备实机联调。
+  - 若现场需要，可继续补充更细的命令级错误映射。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/instrument_management/recovery.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/instrument_management/connection_service.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/diagnostics/hardware_validation.py`
+  - `catr_loss_calibrator/tests/test_instrument_management.py`
+  - `catr_loss_calibrator/tests/test_hardware_validation.py`
+- 下一步：
+  - 回到 P4-01 / P4-02，等真实设备信息补全后做上机验证。
+
 ### CATR-CAL-TASK-20260718-011 - P4 硬件适配与连接管理骨架
 
 - 状态：进行中

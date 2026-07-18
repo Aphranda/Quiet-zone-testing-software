@@ -3,6 +3,7 @@ from __future__ import annotations
 from catr_loss_calibrator.instrument_management.connection_service import InstrumentConnectionService
 from catr_loss_calibrator.instrument_management.instrument_management_service import InstrumentManagementService
 from catr_loss_calibrator.instrument_management.models import InstrumentConnectionConfig
+from catr_loss_calibrator.instrument_management.recovery import ConnectionRecoveryPolicy
 from catr_loss_calibrator.instrument_management.resource_lock import ResourceLock
 from catr_loss_calibrator.hardware.mock import MockLinkBox, MockVna
 
@@ -62,3 +63,25 @@ def test_connection_service_rolls_back_on_partial_failure() -> None:
     vna_state, link_box_state = service.snapshot()
     assert vna_state.is_connected is False
     assert link_box_state.is_connected is False
+
+
+def test_connection_service_can_retry_after_failure() -> None:
+    class FlakyLinkBox(MockLinkBox):
+        def __init__(self) -> None:
+            super().__init__()
+            self.calls = 0
+
+        def connect(self):  # type: ignore[override]
+            self.calls += 1
+            if self.calls == 1:
+                raise RuntimeError("temporary")
+            return super().connect()
+
+    service = InstrumentConnectionService(
+        vna=MockVna(),
+        link_box=FlakyLinkBox(),
+        recovery_policy=ConnectionRecoveryPolicy(max_retries=1, retry_delay_ms=0),
+    )
+    vna_info, link_box_info = service.connect_all()
+    assert vna_info.model == "MOCK-VNA"
+    assert link_box_info.model == "LCD74000F-MOCK"
