@@ -1,0 +1,19 @@
+from __future__ import annotations
+
+from enum import Enum
+
+
+class CalibrationState(str, Enum):
+    IDLE = "IDLE"
+    WAIT_MANUAL_CONFIRM = "WAIT_MANUAL_CONFIRM"
+    CONFIGURE_LINK = "CONFIGURE_LINK"
+    CONFIGURE_VNA = "CONFIGURE_VNA"
+    TRIGGER_SWEEP = "TRIGGER_SWEEP"
+    READ_TRACE = "READ_TRACE"
+    SAVE_RAW = "SAVE_RAW"
+    COMPUTE_OUTPUT = "COMPUTE_OUTPUT"
+    SAVE_OUTPUT = "SAVE_OUTPUT"
+    DONE = "DONE"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+

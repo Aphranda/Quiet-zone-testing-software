@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "catr-loss-calibrator"
+version = "0.1.0"
+description = "Standalone CATR chamber loss calibration application"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "pyvisa>=1.14",
+    "pyserial>=3.5",
+]
+
+[project.optional-dependencies]
+ui = ["PySide6>=6.6", "pyqtgraph>=0.13"]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+catr-loss-calibrator = "catr_loss_calibrator.app.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
