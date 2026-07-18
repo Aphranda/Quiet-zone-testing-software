@@ -9,6 +9,7 @@ from typing import Any, Callable
 from PySide6.QtCore import QObject, QThread, Signal
 
 from catr_loss_calibrator.calibration.definitions import default_calibration_catalog
+from catr_loss_calibrator.calibration.models import CalibrationStep, CalibrationSubStep
 from catr_loss_calibrator.calibration.mock_runner import MockCalibrationRunner
 from catr_loss_calibrator.hardware.mock import MockLinkBox, MockScpiInstrument, MockVna
 from catr_loss_calibrator.hardware.link_box.lcd74000f import Lcd74000fLinkBox
@@ -36,6 +37,11 @@ class StepViewData:
     final_outputs: tuple[str, ...]
     required_inputs: tuple[str, ...]
     notes: str
+    substep_id: str = ""
+    substep_name: str = ""
+    substep_index: int = 0
+    substep_total: int = 0
+    confirm_phase: str = ""
 
 
 @dataclass(frozen=True)
@@ -56,6 +62,21 @@ class DeviceConnectionViewData:
     use_mock: bool
     timeout_ms: int
     is_connected: bool
+
+
+@dataclass(frozen=True)
+class SubStepViewData:
+    id: str
+    name: str
+    input_port: str
+    output_port: str
+    manual_instruction: str
+    route_ids: tuple[str, ...]
+    link_commands: tuple[str, ...]
+    raw_output: str
+    final_output: str
+    required_inputs: tuple[str, ...]
+    notes: str
 
 
 class CalibrationRunWorker(QThread):
@@ -81,7 +102,8 @@ class CalibrationRunWorker(QThread):
         except Exception as exc:  # pragma: no cover - Qt thread
             self.error_occurred.emit(str(exc))
 
-    def confirm_step(self, step, index: int, total: int) -> str:
+    def confirm_step(self, step, substep, phase: str, index: int, total: int, substep_index: int, substep_total: int) -> str:
+        status = "等待开始确认" if phase == "start" else "等待保存完成确认"
         prompt = StepViewData(
             item_id=self._runner.item.id,
             item_name=self._runner.item.name,
@@ -89,20 +111,25 @@ class CalibrationRunWorker(QThread):
             step_name=step.name,
             step_index=index,
             step_total=total,
-            status=self._runner.state_machine.state.value,
-            manual_instruction=step.manual_instruction,
-            route_ids=step.route_ids,
-            link_commands=step.link_commands,
-            input_port=step.input_port,
-            output_port=step.output_port,
-            raw_outputs=step.raw_outputs,
-            final_outputs=step.final_outputs,
-            required_inputs=step.required_inputs,
-            notes=step.notes,
+            status=status,
+            manual_instruction=substep.manual_instruction or step.manual_instruction,
+            route_ids=substep.route_ids or step.route_ids,
+            link_commands=substep.link_commands or step.link_commands,
+            input_port=substep.input_port or step.input_port,
+            output_port=substep.output_port or step.output_port,
+            raw_outputs=((substep.raw_output,) if substep.raw_output else step.raw_outputs),
+            final_outputs=((substep.final_output,) if substep.final_output else step.final_outputs),
+            required_inputs=substep.required_inputs or step.required_inputs,
+            notes=substep.notes or step.notes,
+            substep_id=substep.id,
+            substep_name=substep.name,
+            substep_index=substep_index,
+            substep_total=substep_total,
+            confirm_phase=phase,
         )
         self._active_prompt = prompt
         self.prompt_ready.emit(prompt)
-        self.state_changed.emit("WAIT_MANUAL_CONFIRM")
+        self.state_changed.emit(status)
         with self._action_lock:
             while self._pending_action is None:
                 self._action_lock.wait()
@@ -131,6 +158,7 @@ class CalibrationViewModel(QObject):
     overview_changed = Signal(object)
     run_state_changed = Signal(str)
     command_response_changed = Signal(str)
+    run_finished = Signal(object)
 
     def __init__(self) -> None:
         super().__init__()
@@ -139,7 +167,9 @@ class CalibrationViewModel(QObject):
         self._selected_step_index = 0
         self._logs: list[LogEntry] = []
         self._overview: dict[str, object] = {}
-        self._run_summary: dict[str, object] = {}
+        self._run_summaries_by_item: dict[str, dict[str, object]] = {}
+        self._run_status_by_item: dict[str, str] = {}
+        self._active_run_item_id = ""
         self._status_text = "Ready"
         self._command_response = ""
         self._worker: CalibrationRunWorker | None = None
@@ -191,12 +221,15 @@ class CalibrationViewModel(QObject):
     def command_history(self) -> list[str]:
         return list(self._command_history)
 
+    def run_summary_for_item(self, item_id: str) -> dict[str, object]:
+        return dict(self._run_summaries_by_item.get(item_id, {}))
+
     def select_item(self, index: int) -> None:
         if 0 <= index < len(self.catalog.items):
             self._selected_index = index
+            self.refresh_overview()
             self.selected_item_changed.emit()
             self.select_step(0)
-            self.refresh_overview()
 
     def select_step(self, index: int) -> None:
         steps = self.selected_item.steps
@@ -318,6 +351,9 @@ class CalibrationViewModel(QObject):
             self._append_log("runner already running")
             return
         item = self.selected_item
+        self._run_summaries_by_item.pop(item.id, None)
+        self._run_status_by_item[item.id] = f"Running {item.id}"
+        self._active_run_item_id = item.id
         runner = MockCalibrationRunner(
             item=item,
             vna=self._mock_vna,
@@ -527,6 +563,7 @@ class CalibrationViewModel(QObject):
 
     def refresh_overview(self) -> None:
         item = self.selected_item
+        run_summary = self._run_summaries_by_item.get(item.id, {})
         self._overview = {
             "item_id": item.id,
             "item_name": item.name,
@@ -537,10 +574,17 @@ class CalibrationViewModel(QObject):
             "vna_connected": self._mock_vna.is_connected,
             "signal_generator_connected": self._mock_signal_generator.is_connected,
             "spectrum_analyzer_connected": self._mock_spectrum_analyzer.is_connected,
-            "status": self._status_text,
-            **({"run_summary": self._run_summary} if self._run_summary else {}),
+            "status": self._overview_status_for(item.id),
+            **({"run_summary": run_summary} if run_summary else {}),
         }
         self.overview_changed.emit(self._overview)
+
+    def _overview_status_for(self, item_id: str) -> str:
+        if item_id in self._run_status_by_item:
+            return self._run_status_by_item[item_id]
+        if self._active_run_item_id == item_id:
+            return self._status_text
+        return "Ready"
 
     def _command_device(self, device: str) -> tuple[Any, str]:
         devices = {
@@ -599,22 +643,32 @@ class CalibrationViewModel(QObject):
 
     def _on_prompt_ready(self, prompt: StepViewData) -> None:
         self._selected_step_index = max(prompt.step_index - 1, 0)
-        self.step_view_changed.emit(prompt)
+        self._run_status_by_item[prompt.item_id] = prompt.status
         self.selected_step_changed.emit()
+        self.step_view_changed.emit(prompt)
         self._append_log("INFO", "runner", prompt.item_name, f"步骤确认提示: {prompt.step_id}")
-
-    def _on_finished_summary(self, summary: object) -> None:
-        self._run_summary = dict(summary)
-        self.status_text_update("Calibration completed")
-        self._append_log("INFO", "runner", self.selected_item.name, "校准完成")
         self.refresh_overview()
 
+    def _on_finished_summary(self, summary: object) -> None:
+        run_summary = dict(summary)
+        item_id = str(run_summary.get("item_id") or self._active_run_item_id or self.selected_item.id)
+        item_name = str(run_summary.get("item_name") or self.selected_item.name)
+        self._run_summaries_by_item[item_id] = run_summary
+        self._run_status_by_item[item_id] = "Calibration completed"
+        self.status_text_update("Calibration completed")
+        self._append_log("INFO", "runner", item_name, "校准完成")
+        self.refresh_overview()
+        self.run_finished.emit(run_summary)
+
     def _on_worker_error(self, message: str) -> None:
+        item_id = self._active_run_item_id or self.selected_item.id
+        self._run_status_by_item[item_id] = f"Error: {message}"
         self._append_log("ERROR", "runner", self.selected_item.name, message)
         self.status_text_update(f"Error: {message}")
 
     def _cleanup_worker(self) -> None:
         self._worker = None
+        self._active_run_item_id = ""
         self.refresh_overview()
 
     def _append_log(self, level: str, source: str, name: str, message: str) -> None:
@@ -646,6 +700,7 @@ class CalibrationViewModel(QObject):
         return records
 
     def _step_view_data(self, step, index: int, total: int) -> StepViewData:
+        substeps = self.substep_view_data(step)
         return StepViewData(
             item_id=self.selected_item.id,
             item_name=self.selected_item.name,
@@ -653,7 +708,7 @@ class CalibrationViewModel(QObject):
             step_name=step.name,
             step_index=index,
             step_total=total,
-            status=self._status_text,
+            status=self._overview_status_for(self.selected_item.id),
             manual_instruction=step.manual_instruction,
             route_ids=step.route_ids,
             link_commands=step.link_commands,
@@ -663,7 +718,65 @@ class CalibrationViewModel(QObject):
             final_outputs=step.final_outputs,
             required_inputs=step.required_inputs,
             notes=step.notes,
+            substep_total=len(substeps),
         )
+
+    def substep_view_data(self, step: CalibrationStep) -> list[SubStepViewData]:
+        return [
+            SubStepViewData(
+                id=substep.id,
+                name=substep.name,
+                input_port=substep.input_port,
+                output_port=substep.output_port,
+                manual_instruction=substep.manual_instruction,
+                route_ids=substep.route_ids,
+                link_commands=substep.link_commands,
+                raw_output=substep.raw_output,
+                final_output=substep.final_output,
+                required_inputs=substep.required_inputs,
+                notes=substep.notes,
+            )
+            for substep in self._substeps_for_step(step)
+        ]
+
+    def _substeps_for_step(self, step: CalibrationStep) -> tuple[CalibrationSubStep, ...]:
+        if step.substeps:
+            return tuple(sorted(step.substeps, key=self._substep_order_key))
+        raw_outputs = step.raw_outputs or (f"{step.id}_RAW",)
+        substeps = []
+        for index, raw_output in enumerate(raw_outputs):
+            final_output = step.final_outputs[index] if index < len(step.final_outputs) else ""
+            commands = (step.link_commands[index],) if len(step.link_commands) == len(raw_outputs) else step.link_commands
+            route_ids = (step.route_ids[index],) if len(step.route_ids) == len(raw_outputs) else step.route_ids
+            substeps.append(
+                CalibrationSubStep(
+                    id=self._safe_token(raw_output),
+                    name=raw_output,
+                    input_port=step.input_port,
+                    output_port=step.output_port,
+                    manual_instruction=step.manual_instruction,
+                    route_ids=route_ids,
+                    link_commands=commands,
+                    raw_output=raw_output,
+                    final_output=final_output,
+                    required_inputs=step.required_inputs,
+                    notes=step.notes,
+                )
+            )
+        return tuple(substeps)
+
+    @staticmethod
+    def _substep_order_key(substep: CalibrationSubStep) -> tuple[int, int]:
+        token = substep.id.upper()
+        if token.startswith("V-") or token.startswith("V_") or token == "V":
+            return (0, 0)
+        if token.startswith("H-") or token.startswith("H_") or token == "H":
+            return (1, 0)
+        return (0, 1)
+
+    @staticmethod
+    def _safe_token(value: str) -> str:
+        return "".join(char if char.isalnum() or char in {"-", "_"} else "_" for char in value.strip()) or "MEAS"
 
     def status_text_update(self, text: str) -> None:
         self._status_text = text

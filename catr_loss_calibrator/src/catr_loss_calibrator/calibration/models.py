@@ -11,6 +11,22 @@ class MeasurementRole(str, Enum):
 
 
 @dataclass(frozen=True)
+class CalibrationSubStep:
+    id: str
+    name: str
+    input_port: str = ""
+    output_port: str = ""
+    manual_instruction: str = ""
+    route_ids: tuple[str, ...] = ()
+    link_commands: tuple[str, ...] = ()
+    raw_output: str = ""
+    final_output: str = ""
+    required_inputs: tuple[str, ...] = ()
+    notes: str = ""
+    parameter: str = "S21"
+
+
+@dataclass(frozen=True)
 class CalibrationStep:
     id: str
     name: str
@@ -24,6 +40,7 @@ class CalibrationStep:
     final_outputs: tuple[str, ...] = ()
     required_inputs: tuple[str, ...] = ()
     notes: str = ""
+    substeps: tuple[CalibrationSubStep, ...] = ()
 
 
 @dataclass(frozen=True)

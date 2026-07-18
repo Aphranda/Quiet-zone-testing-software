@@ -27,7 +27,7 @@ class CalibrationStateMachine:
     def transition(self, next_state: CalibrationState) -> CalibrationState:
         allowed: dict[CalibrationState, set[CalibrationState]] = {
             CalibrationState.IDLE: {CalibrationState.WAIT_MANUAL_CONFIRM, CalibrationState.CANCELLED},
-            CalibrationState.WAIT_MANUAL_CONFIRM: {CalibrationState.CONFIGURE_LINK, CalibrationState.CANCELLED, CalibrationState.FAILED},
+            CalibrationState.WAIT_MANUAL_CONFIRM: {CalibrationState.CONFIGURE_LINK, CalibrationState.DONE, CalibrationState.CANCELLED, CalibrationState.FAILED},
             CalibrationState.CONFIGURE_LINK: {CalibrationState.CONFIGURE_VNA, CalibrationState.FAILED, CalibrationState.CANCELLED},
             CalibrationState.CONFIGURE_VNA: {CalibrationState.TRIGGER_SWEEP, CalibrationState.FAILED, CalibrationState.CANCELLED},
             CalibrationState.TRIGGER_SWEEP: {CalibrationState.READ_TRACE, CalibrationState.FAILED, CalibrationState.CANCELLED},

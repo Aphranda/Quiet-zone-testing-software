@@ -54,8 +54,12 @@ def run_interactive() -> int:
         print("Invalid selection.")
         return 1
 
-    def confirm(step, step_index: int, total: int) -> str:
+    def confirm(step, substep, phase: str, step_index: int, total: int, substep_index: int, substep_total: int) -> str:
         print(runner.format_step_status(step, step_index, total))
+        print(f"  小步骤: [{substep_index}/{substep_total}] {substep.id} - {substep.name}")
+        print(f"  确认阶段: {'开始前确认' if phase == 'start' else '数据保存完成确认'}")
+        if substep.manual_instruction:
+            print(f"  小步骤说明: {substep.manual_instruction}")
         action = input("Continue / Skip / Retry / Cancel ? [c/s/r/x]: ").strip().lower()
         return {"c": "continue", "s": "skip", "r": "retry", "x": "cancel"}.get(action, "continue")
 
@@ -74,18 +78,22 @@ def run_interactive() -> int:
 
 def run_gui() -> int:
     from catr_loss_calibrator.presentation.viewmodels import CalibrationViewModel
+    from catr_loss_calibrator.project.config import ProjectConfig
+    from catr_loss_calibrator.storage.loss_file_policy import FEED_HORN_BANDS
 
     from PySide6.QtCore import QRectF, Qt
-    from PySide6.QtGui import QAction, QFont, QPainter, QPixmap, QTextCursor
+    from PySide6.QtGui import QAction, QCursor, QFont, QPainter, QPixmap, QTextCursor
     from PySide6.QtSvg import QSvgRenderer
     from PySide6.QtWidgets import (
         QApplication,
         QButtonGroup,
         QCheckBox,
         QComboBox,
+        QDialog,
         QDoubleSpinBox,
         QFormLayout,
         QFrame,
+        QFileDialog,
         QGridLayout,
         QGroupBox,
         QHBoxLayout,
@@ -110,6 +118,7 @@ def run_gui() -> int:
 
     app = QApplication.instance() or QApplication(sys.argv)
     vm = CalibrationViewModel()
+    project_config = ProjectConfig()
     base_dir = Path(__file__).resolve().parents[1]
     style_dir = base_dir / "style"
 
@@ -498,6 +507,7 @@ def run_gui() -> int:
             super().__init__()
             self.setWindowTitle("CATR 路损校准操作台")
             self.resize(1180, 780)
+            self._last_confirmation_prompt_key = ""
 
             self.item_list = QListWidget()
             self.item_list.setMinimumWidth(220)
@@ -528,6 +538,24 @@ def run_gui() -> int:
             self.step_status = QLabel("状态：IDLE")
             self.step_progress = QProgressBar()
             self.step_progress.setRange(0, 100)
+            self.feed_combo = QComboBox()
+            self.feed_combo.addItems(sorted({feed for feed, _horn in FEED_HORN_BANDS}))
+            self.feed_combo.setCurrentText(project_config.feed)
+            self.feed_combo.setMinimumContentsLength(8)
+            self.feed_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+            self.feed_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            self.horn_combo = QComboBox()
+            self.horn_combo.addItems(sorted({horn for _feed, horn in FEED_HORN_BANDS}))
+            self.horn_combo.setCurrentText(project_config.horn)
+            self.horn_combo.setMinimumContentsLength(10)
+            self.horn_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+            self.horn_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            self.horn_gain_file_input = QLineEdit()
+            self.horn_gain_file_input.setPlaceholderText("选择标准增益喇叭增益文件")
+            self.btn_browse_horn_gain = QPushButton("浏览")
+            self.substep_list = QListWidget()
+            self.substep_list.setMaximumHeight(132)
+            self.substep_list.setMinimumHeight(72)
 
             self.path_view = QPlainTextEdit()
             self.path_view.setReadOnly(True)
@@ -601,10 +629,6 @@ def run_gui() -> int:
             self.btn_connect = QPushButton("连接全部设备")
             self.btn_disconnect = QPushButton("断开全部设备")
             self.btn_start = QPushButton("开始校准")
-            self.btn_continue = QPushButton("下一步")
-            self.btn_skip = QPushButton("跳过")
-            self.btn_retry = QPushButton("重试")
-            self.btn_cancel = QPushButton("取消")
 
             self.btn_refresh = QPushButton("刷新结果")
 
@@ -634,11 +658,21 @@ def run_gui() -> int:
             self.statusBar().addPermanentWidget(self.connection_label)
 
             self._bind_events()
+            self._sync_horn_options(project_config.feed, project_config.horn)
             self._refresh_item_list()
             self._sync_device_connection_panels()
             self.item_list.setCurrentRow(0)
             vm.refresh_overview()
             self._sync_overview()
+
+        def _center_on_screen(self) -> None:
+            screen = QApplication.screenAt(QCursor.pos()) or QApplication.primaryScreen()
+            if screen is None:
+                return
+            available_geometry = screen.availableGeometry()
+            frame_geometry = self.frameGeometry()
+            frame_geometry.moveCenter(available_geometry.center())
+            self.move(frame_geometry.topLeft())
 
         def _build_header(self) -> QWidget:
             box = QFrame()
@@ -676,6 +710,11 @@ def run_gui() -> int:
             left_layout.addWidget(self.btn_connect)
             left_layout.addWidget(self.btn_disconnect)
 
+            center_stack = QWidget()
+            center_stack_layout = QVBoxLayout(center_stack)
+            center_stack_layout.setContentsMargins(0, 0, 0, 0)
+            center_stack_layout.addWidget(self._build_band_config_group())
+
             center = QGroupBox("步骤执行")
             center_layout = QVBoxLayout(center)
             center_layout.addWidget(self.step_title)
@@ -684,6 +723,8 @@ def run_gui() -> int:
             self.step_hint = QLabel("选择左侧步骤以查看对应接线与命令。")
             self.step_hint.setStyleSheet("color: #64748B;")
             center_layout.addWidget(self.step_hint)
+            center_layout.addWidget(QLabel("小步骤"))
+            center_layout.addWidget(self.substep_list)
             center_layout.addWidget(QLabel("接线路径"))
             center_layout.addWidget(self.path_view)
             center_layout.addWidget(QLabel("命令 / 说明"))
@@ -693,19 +734,34 @@ def run_gui() -> int:
 
             button_row = QHBoxLayout()
             button_row.addWidget(self.btn_start)
-            button_row.addWidget(self.btn_continue)
-            button_row.addWidget(self.btn_skip)
-            button_row.addWidget(self.btn_retry)
-            button_row.addWidget(self.btn_cancel)
+            button_row.addStretch(1)
             center_layout.addLayout(button_row)
+            center_stack_layout.addWidget(center, 1)
 
             splitter = QSplitter(Qt.Horizontal)
             splitter.addWidget(left)
-            splitter.addWidget(center)
+            splitter.addWidget(center_stack)
             splitter.setStretchFactor(0, 1)
             splitter.setStretchFactor(1, 3)
             layout.addWidget(splitter)
             return page
+
+        def _build_band_config_group(self) -> QGroupBox:
+            group = QGroupBox("频段配置")
+            form = QFormLayout(group)
+            form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+            form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
+
+            band_row = QHBoxLayout()
+            band_row.addWidget(QLabel("馈源型号"))
+            band_row.addWidget(self.feed_combo, 1)
+            band_row.addWidget(QLabel("喇叭型号"))
+            band_row.addWidget(self.horn_combo, 1)
+            band_row.addWidget(QLabel("喇叭增益文件"))
+            band_row.addWidget(self.horn_gain_file_input, 3)
+            band_row.addWidget(self.btn_browse_horn_gain)
+            form.addRow("配置", band_row)
+            return group
 
         def _build_command_page(self) -> QWidget:
             page = QWidget()
@@ -747,12 +803,10 @@ def run_gui() -> int:
             self.step_list.currentRowChanged.connect(vm.select_step)
             self.btn_connect.clicked.connect(self._connect_devices)
             self.btn_disconnect.clicked.connect(self._disconnect_devices)
-            self.btn_start.clicked.connect(vm.start_selected)
-            self.btn_continue.clicked.connect(lambda: vm.submit_action("continue"))
-            self.btn_skip.clicked.connect(lambda: vm.submit_action("skip"))
-            self.btn_retry.clicked.connect(lambda: vm.submit_action("retry"))
-            self.btn_cancel.clicked.connect(lambda: vm.submit_action("cancel"))
+            self.btn_start.clicked.connect(self._confirm_start_calibration)
             self.btn_refresh.clicked.connect(self._sync_overview)
+            self.feed_combo.currentTextChanged.connect(self._sync_horn_options)
+            self.btn_browse_horn_gain.clicked.connect(self._browse_horn_gain_file)
             for panel in self.command_panels:
                 panel.btn_preset.clicked.connect(lambda _checked=False, command_panel=panel: self._fill_preset(command_panel))
                 panel.btn_send.clicked.connect(lambda _checked=False, command_panel=panel: self._send_command(command_panel))
@@ -783,6 +837,7 @@ def run_gui() -> int:
             vm.overview_changed.connect(self._sync_overview)
             vm.run_state_changed.connect(self._on_state_changed)
             vm.command_response_changed.connect(self._sync_command_response)
+            vm.run_finished.connect(self._confirm_run_finished)
 
         def _refresh_item_list(self) -> None:
             self.item_list.blockSignals(True)
@@ -805,12 +860,12 @@ def run_gui() -> int:
             item = vm.selected_item
             self.step_list.blockSignals(True)
             self.step_list.clear()
-            completed_count = 0
-            run_summary = vm.overview.get("run_summary") if isinstance(vm.overview.get("run_summary"), dict) else {}
-            if isinstance(run_summary, dict):
-                completed_count = int(run_summary.get("completed_steps", 0) or 0)
+            completed_step_ids: set[str] = set()
+            run_summary = vm.run_summary_for_item(item.id)
+            if isinstance(run_summary, dict) and run_summary.get("item_id") == item.id:
+                completed_step_ids = {str(step_id) for step_id in run_summary.get("completed_step_ids", ())}
             for index, step in enumerate(item.steps, start=1):
-                if index <= completed_count:
+                if step.id in completed_step_ids:
                     prefix = "✓ 已完成"
                 elif index == vm.selected_step_index + 1:
                     prefix = "▶ 当前"
@@ -825,28 +880,68 @@ def run_gui() -> int:
                 self._sync_step_view(
                     vm._step_view_data(current_step, vm.selected_step_index + 1, len(item.steps))
                 )
+                self._sync_substep_list()
                 self.step_hint.setText(f"当前步骤：{current_step.id} · {current_step.name}")
             else:
+                self.substep_list.clear()
                 self.step_hint.setText("当前校准项暂无步骤。")
 
         def _sync_step_view(self, step: StepViewData) -> None:
-            self.step_title.setText(f"[{step.step_index}/{step.step_total}] {step.step_id} - {step.step_name}")
+            substep_text = ""
+            if step.substep_id:
+                substep_text = f" | 小步骤 {step.substep_index}/{step.substep_total}: {step.substep_name}"
+            self.step_title.setText(f"[{step.step_index}/{step.step_total}] {step.step_id} - {step.step_name}{substep_text}")
             self.step_status.setText(f"状态：{step.status}")
             progress = int(step.step_index / max(step.step_total, 1) * 100)
             self.step_progress.setValue(progress)
+            self._sync_substep_list(step)
             self.path_view.setPlainText(
                 step.manual_instruction
                 + ("\n\nRoute IDs: " + ", ".join(step.route_ids) if step.route_ids else "")
             )
             self.command_view.setPlainText("\n".join(step.link_commands) or "无链路命令")
+            phase_text = ""
+            if step.confirm_phase == "start":
+                phase_text = "确认阶段: 开始前确认\n"
+            elif step.confirm_phase == "saved":
+                phase_text = "确认阶段: 数据保存完成确认\n"
             self.detail_view.setPlainText(
-                f"输入端口: {step.input_port}\n"
+                phase_text
+                + (f"小步骤: {step.substep_id} {step.substep_name}\n" if step.substep_id else "")
+                + f"输入端口: {step.input_port}\n"
                 f"输出端口: {step.output_port}\n"
                 f"原始输出: {', '.join(step.raw_outputs) or '无'}\n"
                 f"最终输出: {', '.join(step.final_outputs) or '无'}\n"
                 f"所需输入: {', '.join(step.required_inputs) or '无'}\n"
                 f"备注: {step.notes or '无'}"
             )
+            self._show_substep_confirmation(step)
+
+        def _sync_substep_list(self, active_step: StepViewData | None = None) -> None:
+            step = vm.selected_step
+            self.substep_list.blockSignals(True)
+            self.substep_list.clear()
+            if step is None:
+                self.substep_list.blockSignals(False)
+                return
+            active_id = active_step.substep_id if active_step and active_step.step_id == step.id else ""
+            active_index = active_step.substep_index if active_id else 0
+            phase = active_step.confirm_phase if active_step and active_id else ""
+            current_row = -1
+            for index, substep in enumerate(vm.substep_view_data(step), start=1):
+                if substep.id == active_id:
+                    phase_text = "开始确认" if phase == "start" else "保存确认"
+                    prefix = f"▶ 当前 {phase_text}"
+                    current_row = index - 1
+                elif active_id and index < active_index:
+                    prefix = "✓ 已处理"
+                else:
+                    prefix = "○ 待处理"
+                detail = substep.raw_output or substep.final_output or substep.name
+                QListWidgetItem(f"{prefix}\n{index}. {substep.id} - {substep.name}\n{detail}", self.substep_list)
+            if current_row >= 0:
+                self.substep_list.setCurrentRow(current_row)
+            self.substep_list.blockSignals(False)
 
         def _sync_logs(self, *_args: Any) -> None:
             for panel in self.log_panels:
@@ -872,6 +967,150 @@ def run_gui() -> int:
 
         def _sync_command_response(self, response: str) -> None:
             self.status_label.setText(f"命令响应: {response}")
+
+        def _sync_horn_options(self, feed: str, preferred_horn: str | None = None) -> None:
+            _ = feed
+            current = preferred_horn or self.horn_combo.currentText()
+            horns = sorted({horn for _candidate_feed, horn in FEED_HORN_BANDS})
+            self.horn_combo.blockSignals(True)
+            self.horn_combo.clear()
+            self.horn_combo.addItems(horns)
+            if current in horns:
+                self.horn_combo.setCurrentText(current)
+            elif horns:
+                self.horn_combo.setCurrentIndex(0)
+            self.horn_combo.blockSignals(False)
+
+        def _browse_horn_gain_file(self) -> None:
+            path, _selected_filter = QFileDialog.getOpenFileName(
+                self,
+                "选择喇叭增益文件",
+                "",
+                "Gain Files (*.csv *.txt *.s2p *.dat);;All Files (*)",
+            )
+            if path:
+                self.horn_gain_file_input.setText(path)
+
+        def _show_substep_confirmation(self, step: StepViewData) -> None:
+            if not step.substep_id or step.confirm_phase not in {"start", "saved"}:
+                return
+            prompt_key = f"{step.step_id}:{step.substep_id}:{step.confirm_phase}:{step.substep_index}"
+            if prompt_key == self._last_confirmation_prompt_key:
+                return
+            self._last_confirmation_prompt_key = prompt_key
+
+            if step.confirm_phase == "start":
+                message = (
+                    f"请确认小步骤接线已完成。\n\n"
+                    f"大步骤: {step.step_id} - {step.step_name}\n"
+                    f"小步骤: {step.substep_index}/{step.substep_total} {step.substep_id} - {step.substep_name}\n"
+                    f"输入端口: {step.input_port or '无'}\n"
+                    f"输出端口: {step.output_port or '无'}\n\n"
+                    f"{step.manual_instruction or '无接线说明'}"
+                )
+                self._show_prompt_action_dialog(
+                    title="确认接线完成",
+                    message=message,
+                    actions=(
+                        ("确认接线完成", "continue"),
+                        ("下一步", "skip"),
+                        ("取消校准", "cancel"),
+                    ),
+                    default_action="continue",
+                )
+                return
+
+            message = (
+                f"请确认小步骤数据已保存。\n\n"
+                f"大步骤: {step.step_id} - {step.step_name}\n"
+                f"小步骤: {step.substep_index}/{step.substep_total} {step.substep_id} - {step.substep_name}\n"
+                f"原始输出: {', '.join(step.raw_outputs) or '无'}\n"
+                f"最终输出: {', '.join(step.final_outputs) or '无'}"
+            )
+            self._show_prompt_action_dialog(
+                title="确认数据保存完成",
+                message=message,
+                actions=(
+                    ("完成并继续", "continue"),
+                    ("上一步", "retry"),
+                    ("下一步", "skip"),
+                    ("取消校准", "cancel"),
+                ),
+                default_action="continue",
+            )
+
+        def _show_prompt_action_dialog(
+            self,
+            *,
+            title: str,
+            message: str,
+            actions: tuple[tuple[str, str], ...],
+            default_action: str,
+        ) -> None:
+            dialog = QDialog(self)
+            dialog.setWindowTitle(title)
+            dialog.setMinimumWidth(520)
+            selected_action = {"value": "cancel"}
+
+            layout = QVBoxLayout(dialog)
+            message_label = QLabel(message)
+            message_label.setWordWrap(True)
+            layout.addWidget(message_label)
+
+            left_actions = [(label, action) for label, action in actions if action == "retry"]
+            right_actions = [(label, action) for label, action in actions if action == "skip"]
+            center_actions = [(label, action) for label, action in actions if action not in {"retry", "skip"}]
+
+            button_row = QHBoxLayout()
+
+            def add_action_button(label: str, action: str) -> QPushButton:
+                button = QPushButton(label)
+                button.clicked.connect(lambda _checked=False, selected=action: self._finish_prompt_dialog(dialog, selected_action, selected))
+                if action == default_action:
+                    button.setDefault(True)
+                    button.setAutoDefault(True)
+                return button
+
+            for label, action in left_actions:
+                button_row.addWidget(add_action_button(label, action))
+            button_row.addStretch(1)
+            for label, action in center_actions:
+                button_row.addWidget(add_action_button(label, action))
+            button_row.addStretch(1)
+            for label, action in right_actions:
+                button_row.addWidget(add_action_button(label, action))
+
+            layout.addLayout(button_row)
+            dialog.exec()
+            vm.submit_action(selected_action["value"])
+
+        def _finish_prompt_dialog(self, dialog: QDialog, selected_action: dict[str, str], action: str) -> None:
+            selected_action["value"] = action
+            dialog.accept()
+
+        def _confirm_start_calibration(self) -> None:
+            item = vm.selected_item
+            answer = QMessageBox.question(
+                self,
+                "开始校准确认",
+                f"确认开始执行 {item.id} - {item.name}？\n\n步骤列表显示大步骤，步骤执行区会逐个小步骤等待确认。",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer == QMessageBox.StandardButton.Yes:
+                vm.start_selected()
+
+        def _confirm_run_finished(self, summary: object) -> None:
+            data = dict(summary) if isinstance(summary, dict) else {}
+            QMessageBox.information(
+                self,
+                "校准完成确认",
+                "校准执行已完成。\n\n"
+                f"校准项: {data.get('item_id', '')}\n"
+                f"状态: {data.get('state', '')}\n"
+                f"完成小步骤: {data.get('completed_steps', '')}/{data.get('total_substeps', data.get('total_steps', ''))}\n"
+                f"最后事件: {data.get('last_event', '')}",
+            )
 
         def _clear_log_filters(self, panel: LogPanel) -> None:
             panel.clear_filters()
@@ -1043,5 +1282,6 @@ def run_gui() -> int:
     app.setStyleSheet(style_text)
 
     window = MainWindow()
+    window._center_on_screen()
     window.show()
     return app.exec()

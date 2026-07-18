@@ -1,0 +1,25 @@
+{
+  "session_id": "LINK-CAL-001-CAL001-AUX_AUX-B",
+  "project_name": "CATR Loss Calibrator",
+  "project_version": "0.1.0",
+  "calibration_item": "LINK-CAL-001",
+  "calibration_step": "CAL001-AUX_AUX-B",
+  "instrument_snapshot": {
+    "vna": "MockVna"
+  },
+  "link_commands": [],
+  "manual_confirmation": true,
+  "input_files": [
+    "LINK-CAL-001_CAL001-AUX_AUX-B.raw"
+  ],
+  "input_hashes": [
+    "mock"
+  ],
+  "output_files": [
+    "L_AUX_B"
+  ],
+  "output_hashes": [],
+  "formula_version": "v1",
+  "profile_version": "lcd74000f:v1",
+  "note": "mock-runner:测量 AUX-B 辅助线"
+}

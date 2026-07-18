@@ -1,0 +1,28 @@
+{
+  "session_id": "LINK-CAL-002-CAL002-MAIN_V-AMP2",
+  "project_name": "CATR Loss Calibrator",
+  "project_version": "0.1.0",
+  "calibration_item": "LINK-CAL-002",
+  "calibration_step": "CAL002-MAIN_V-AMP2",
+  "instrument_snapshot": {
+    "vna": "MockVna"
+  },
+  "link_commands": [
+    "CONFigure:LINK DUT, VNA2",
+    "CONFigure:LINK V, AMP2, VNA1"
+  ],
+  "manual_confirmation": true,
+  "input_files": [
+    "LINK-CAL-002_CAL002-MAIN_V-AMP2.raw"
+  ],
+  "input_hashes": [
+    "mock"
+  ],
+  "output_files": [
+    "L_VNA_FEED_V_AMP2"
+  ],
+  "output_hashes": [],
+  "formula_version": "v1",
+  "profile_version": "lcd74000f:v1",
+  "note": "mock-runner:V 极化馈源侧 AMP2"
+}

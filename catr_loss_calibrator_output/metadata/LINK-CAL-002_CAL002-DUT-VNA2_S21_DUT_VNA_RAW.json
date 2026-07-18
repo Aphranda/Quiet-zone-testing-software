@@ -1,0 +1,27 @@
+{
+  "session_id": "LINK-CAL-002-CAL002-DUT-VNA2_S21_DUT_VNA_RAW",
+  "project_name": "CATR Loss Calibrator",
+  "project_version": "0.1.0",
+  "calibration_item": "LINK-CAL-002",
+  "calibration_step": "CAL002-DUT-VNA2_S21_DUT_VNA_RAW",
+  "instrument_snapshot": {
+    "vna": "MockVna"
+  },
+  "link_commands": [
+    "CONFigure:LINK DUT, VNA2"
+  ],
+  "manual_confirmation": true,
+  "input_files": [
+    "LINK-CAL-002_CAL002-DUT-VNA2_S21_DUT_VNA_RAW.raw"
+  ],
+  "input_hashes": [
+    "mock"
+  ],
+  "output_files": [
+    "L_DUT_VNA"
+  ],
+  "output_hashes": [],
+  "formula_version": "v1",
+  "profile_version": "lcd74000f:v1",
+  "note": "mock-runner:S21_DUT_VNA_RAW"
+}
