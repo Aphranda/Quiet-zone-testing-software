@@ -38,7 +38,7 @@ def test_calibration_steps_expose_structured_route_and_ports() -> None:
     assert step.route_ids == ("DUT_SA", "DUT_AMP1_SA")
 
     cal004 = default_calibration_catalog().get("LINK-CAL-004")
-    amp2_step = cal004.steps[1]
+    amp2_step = next(step for step in cal004.steps if step.id == "CAL004-SA-HV-AMP2")
     assert amp2_step.input_port == "LB-VNA2"
     assert amp2_step.output_port == "LB-SA"
     assert amp2_step.route_ids == ("H_AMP2_SA", "V_AMP2_SA")

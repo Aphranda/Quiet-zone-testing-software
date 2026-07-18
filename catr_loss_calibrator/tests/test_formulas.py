@@ -10,8 +10,9 @@ from catr_loss_calibrator.calibration.formulas import (
     link_cal_002_dut_vna,
     link_cal_002_vna_feed,
     link_cal_003_dut_sa,
+    link_cal_004_dut_vna_f,
     link_cal_004_system_tx_sa,
-    link_cal_005_dut_vna_f,
+    link_cal_005_dut_vna_g,
     link_cal_005_sg,
 )
 
@@ -63,10 +64,15 @@ def test_link_cal_004_system_tx_sa() -> None:
     )
 
 
-def test_link_cal_005_dut_vna_f_and_sg() -> None:
-    dut_vna_f = link_cal_005_dut_vna_f(np.array([-60.0]), np.array([2.0]))
+def test_link_cal_004_dut_vna_f() -> None:
+    dut_vna_f = link_cal_004_dut_vna_f(np.array([-60.0]), np.array([2.0]))
     assert np.allclose(dut_vna_f, np.array([-58.0]))
-    assert np.allclose(link_cal_005_sg(np.array([-90.0]), np.array([20.0]), dut_vna_f), np.array([-52.0]))
+
+
+def test_link_cal_005_dut_vna_g_and_sg() -> None:
+    dut_vna_g = link_cal_005_dut_vna_g(np.array([-60.0]), np.array([2.0]))
+    assert np.allclose(dut_vna_g, np.array([-58.0]))
+    assert np.allclose(link_cal_005_sg(np.array([-90.0]), np.array([20.0]), dut_vna_g), np.array([-52.0]))
 
 
 def test_formula_module_does_not_define_aux_corr_or_positive_aux_conversion() -> None:

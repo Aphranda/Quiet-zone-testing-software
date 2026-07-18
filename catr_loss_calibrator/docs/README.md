@@ -13,6 +13,8 @@ Last updated: 2026-07-18
 | 领域 | 当前 canonical 主文档 | 说明 |
 |---|---|---|
 | SOFTWARE | `CATR_LOSS_CALIBRATION_SOFTWARE_DESIGN.md` | 独立路损校准软件总体设计入口。 |
+| UI | `CATR_LOSS_CALIBRATION_UI_DESIGN.md` | 面向操作员的 PySide6/MVVM 界面设计入口。 |
+| UI TODO | `CATR_LOSS_CALIBRATION_UI_TODO.md` | UI 实现待办，按 P0-P3 跟踪。 |
 | CALIBRATION_PLAN | `CATR_CHAMBER_CALIBRATION_TEST_PLAN.html` | CATR 暗室校准测试方案报告版，定义 5 个校准项和测试项链路。 |
 | DOCS | `DOCS_NAMING_STRUCTURE_PLAN.md` | 文档命名、层级、元数据和新增文件规则。 |
 | DEVELOPMENT | `CATR_LOSS_CALIBRATION_DEVELOPMENT_TODO.md` | 软件开发待办，按 P0-P5 跟踪。 |
@@ -33,6 +35,7 @@ Last updated: 2026-07-18
 | 文档 | 用途 |
 |---|---|
 | `CATR_LOSS_CALIBRATION_SOFTWARE_DESIGN.md` | 独立路损校准软件设计方案。 |
+| `CATR_LOSS_CALIBRATION_UI_DESIGN.md` | 独立路损校准软件 UI 设计方案。 |
 | `CATR_LOSS_CALIBRATION_DEVELOPMENT_TODO.md` | CATR 路损校准软件 P0-P5 开发 TODO。 |
 | `CATR_LOSS_CALIBRATION_TASK_PROGRESS.md` | CATR 路损校准软件任务进度记录。 |
 
@@ -60,6 +63,7 @@ Last updated: 2026-07-18
 ## 快速查找规则
 
 - 查软件边界和目录结构：先读 `CATR_LOSS_CALIBRATION_SOFTWARE_DESIGN.md`。
+- 查 UI 设计和 UI 实现待办：先读 `CATR_LOSS_CALIBRATION_UI_DESIGN.md` 与 `CATR_LOSS_CALIBRATION_UI_TODO.md`。
 - 查文档命名和新增文件规则：先读 `DOCS_NAMING_STRUCTURE_PLAN.md`。
 - 查当前开发优先级：先读 `CATR_LOSS_CALIBRATION_DEVELOPMENT_TODO.md`。
 - 查已经做过什么：先读 `CATR_LOSS_CALIBRATION_TASK_PROGRESS.md`。

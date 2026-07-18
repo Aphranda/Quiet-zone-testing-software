@@ -62,16 +62,20 @@ def link_cal_004_system_tx_sa(t_sys_tx_sa_db: np.ndarray | float, horn_gain_db: 
     return signed_add(t_sys_tx_sa_db, -np.asarray(horn_gain_db, dtype=float), -np.asarray(l_dut_vna_db, dtype=float))
 
 
-def link_cal_005_dut_vna_f(s21_raw_db: np.ndarray | float, l_aux_f_db: np.ndarray | float) -> np.ndarray:
+def link_cal_004_dut_vna_f(s21_raw_db: np.ndarray | float, l_aux_f_db: np.ndarray | float) -> np.ndarray:
     return signed_add(s21_raw_db, l_aux_f_db)
+
+
+def link_cal_005_dut_vna_g(s21_raw_db: np.ndarray | float, l_aux_g_db: np.ndarray | float) -> np.ndarray:
+    return signed_add(s21_raw_db, l_aux_g_db)
 
 
 def link_cal_005_sg(
     t_sg_db: np.ndarray | float,
     horn_gain_db: np.ndarray | float,
-    l_dut_vna_f_db: np.ndarray | float,
+    l_dut_vna_g_db: np.ndarray | float,
 ) -> np.ndarray:
-    return signed_add(t_sg_db, -np.asarray(horn_gain_db, dtype=float), -np.asarray(l_dut_vna_f_db, dtype=float))
+    return signed_add(t_sg_db, -np.asarray(horn_gain_db, dtype=float), -np.asarray(l_dut_vna_g_db, dtype=float))
 
 
 def feed_loss(ch_int_db: np.ndarray, ch_int_dut_db: np.ndarray) -> np.ndarray:

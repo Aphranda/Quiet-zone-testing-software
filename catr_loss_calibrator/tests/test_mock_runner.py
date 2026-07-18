@@ -76,6 +76,6 @@ def test_mock_runner_rejects_unconnected_instruments() -> None:
 
 
 def test_presentation_cli_runs_demo_flow() -> None:
-    from catr_loss_calibrator.presentation.main import run
+    from catr_loss_calibrator.presentation.main import run_cli
 
-    assert run() == 0
+    assert run_cli() == 0
