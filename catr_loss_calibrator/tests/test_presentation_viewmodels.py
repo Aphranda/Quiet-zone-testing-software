@@ -109,3 +109,15 @@ def test_worker_counts_progress_by_substep_not_big_step() -> None:
 
     assert worker._item_completed_substeps(2, 1, "start") == first_step_substeps
     assert worker._item_completed_substeps(2, 1, "saved") == first_step_substeps + 1
+
+
+def test_viewmodel_exposes_substep_path_templates_for_detail_switching() -> None:
+    _app = QCoreApplication.instance() or QCoreApplication([])
+    vm = CalibrationViewModel()
+    vm.select_item(1)
+    main_step = next(step for step in vm.selected_item.steps if step.id == "CAL002-MAIN")
+
+    templates = {substep.id: substep.path_template for substep in vm.substep_view_data(main_step)}
+
+    assert templates["V-THRU"] == "CAL002-MAIN:V-THRU"
+    assert templates["V-AMP2"] == "CAL002-MAIN:V-AMP2"

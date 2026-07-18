@@ -96,7 +96,7 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_DESIGN.md`, `catr_l
 - [x] UI-67 提示窗内支持“上一步”重测当前小步骤，“下一步”跳过当前小步骤并进入下一个小步骤。
 - [ ] UI-68 支持导入 `CATR_LOSS_CALIBRATION_LINK_CONFIG_JSON.md` 定义的链路配置 JSON，生成校准项、大步骤、细分步骤和接线路径节点图。
 - [ ] UI-70 校准执行页显示当前已加载链路配置名称、版本和来源文件路径，区分“控制台名称”和“当前 CATR 配置”。
-- [ ] UI-71 接线路径节点图完全读取导入 JSON 的 `node_catalog`、`path_templates` 或内联 `path.routes`，不再在 UI 层按 CATR 步骤 ID 写死。
+- [x] UI-71 接线路径节点图完全读取导入 JSON 的 `node_catalog`、`path_templates` 或内联 `path.routes`，不再在 UI 层按 CATR 步骤 ID 写死。
 - [ ] UI-72 增加“导入链路配置”入口，支持选择 JSON 文件并刷新校准项列表；导入失败时显示字段路径和错误原因。
 
 ### P2 验收

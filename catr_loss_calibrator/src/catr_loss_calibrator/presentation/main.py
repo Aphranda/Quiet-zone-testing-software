@@ -208,12 +208,23 @@ def run_gui() -> int:
 
     def _friendly_node_text(value: str) -> str:
         text = value.strip()
+        catalog_entry = _node_catalog_entry(text)
+        if catalog_entry:
+            label = str(catalog_entry.get("label", "")).strip()
+            if label:
+                return label
         exact = _NODE_LABELS.get(text.upper())
         if exact:
             return exact
         if "/" in text:
             return "/".join(_friendly_node_text(part) for part in text.split("/"))
         return _friendly_text(text)
+
+    def _node_catalog_entry(key: str) -> dict[str, Any]:
+        node_catalog = vm.catalog.node_catalog
+        raw_key = str(key).strip()
+        entry = node_catalog.get(raw_key) or node_catalog.get(raw_key.upper())
+        return entry if isinstance(entry, dict) else {}
 
     def _route_nodes_from_instruction(instruction: str) -> list[list[str]]:
         routes: list[list[str]] = []
@@ -227,144 +238,54 @@ def run_gui() -> int:
                 routes.append(nodes)
         return routes
 
-    def _aux_route(aux_name: str) -> list[str]:
-        return ["网分 PORT1", aux_name, "网分 PORT2"]
+    def _path_data_for_step(step: StepViewData) -> dict[str, Any]:
+        if step.path:
+            return step.path
+        template_id = step.path_template.strip()
+        if not template_id:
+            return {}
+        template = vm.catalog.path_templates.get(template_id)
+        return template if isinstance(template, dict) else {}
 
-    def _dut_vna2_return_route(aux_name: str, *, amp1: bool = False) -> list[str]:
-        route = ["网分 PORT1", aux_name, "转台 DUT 接口", "暗室接口板 DUT"]
-        if amp1:
-            route.append("AMP1")
-        route.extend(["链路箱 VNA2", "网分 PORT2"])
-        return route
+    def _path_routes_from_data(path_data: dict[str, Any]) -> list[list[tuple[str, str]]]:
+        routes_payload = path_data.get("routes", ())
+        if not isinstance(routes_payload, (list, tuple)):
+            return []
+        routes: list[list[tuple[str, str]]] = []
+        for route_payload in routes_payload:
+            if isinstance(route_payload, dict):
+                nodes_payload = route_payload.get("nodes", ())
+            else:
+                nodes_payload = route_payload
+            if not isinstance(nodes_payload, (list, tuple)):
+                continue
+            route: list[tuple[str, str]] = []
+            for node_key in nodes_payload:
+                raw_node = str(node_key).strip()
+                if not raw_node:
+                    continue
+                entry = _node_catalog_entry(raw_node)
+                label = str(entry.get("label", "")).strip() if entry else ""
+                style_role = str(entry.get("style", "")).strip() if entry else ""
+                route.append((label or _friendly_node_text(raw_node), style_role))
+            if len(route) >= 2:
+                routes.append(route)
+        return routes
 
-    def _space_nodes(polarization: str, *, reverse: bool = False) -> list[str]:
-        nodes = [
-            f"链路箱 {polarization}",
-            f"暗室接口板 {polarization}",
-            f"馈源 {polarization}",
-            "反射面",
-            "标准增益喇叭",
-            "暗室接口板 DUT",
-        ]
-        return list(reversed(nodes)) if reverse else nodes
-
-    def _vna_main_route(polarization: str, *, amp1: bool = False, amp2: bool = False) -> list[str]:
-        if amp2:
-            return [
-                "网分 PORT1",
-                "链路箱 VNA2",
-                "暗室接口板 DUT",
-                "标准增益喇叭",
-                "反射面",
-                f"馈源 {polarization}",
-                f"暗室接口板 {polarization}",
-                f"链路箱 {polarization}",
-                "AMP2",
-                "链路箱 VNA1",
-                "网分 PORT2",
-            ]
-        route = ["网分 PORT1", "链路箱 VNA1", *_space_nodes(polarization)]
-        if amp1:
-            route.append("AMP1")
-        route.extend(["链路箱 VNA2", "网分 PORT2"])
-        return route
-
-    def _sa_hv_route(polarization: str, *, amp1: bool = False, amp2: bool = False) -> list[str]:
-        if amp2:
-            return [
-                "网分 PORT1",
-                "链路箱 VNA2",
-                "暗室接口板 DUT",
-                "标准增益喇叭",
-                "反射面",
-                f"馈源 {polarization}",
-                f"暗室接口板 {polarization}",
-                f"链路箱 {polarization}",
-                "AMP2",
-                "链路箱 SA",
-                "网分 PORT2",
-            ]
-        route = ["网分 PORT1", "链路箱 SA", *_space_nodes(polarization)]
-        if amp1:
-            route.append("AMP1")
-        route.extend(["链路箱 VNA2", "网分 PORT2"])
-        return route
-
-    def _sg_route(polarization: str, *, amp1: bool = False, amp2: bool = False) -> list[str]:
-        if amp2:
-            return [
-                "网分 PORT1",
-                "链路箱 VNA2",
-                "暗室接口板 DUT",
-                "标准增益喇叭",
-                "反射面",
-                f"馈源 {polarization}",
-                f"暗室接口板 {polarization}",
-                f"链路箱 {polarization}",
-                "AMP2",
-                "链路箱 SG",
-                "网分 PORT2",
-            ]
-        route = ["网分 PORT1", "链路箱 SG", *_space_nodes(polarization)]
-        if amp1:
-            route.append("AMP1")
-        route.extend(["链路箱 VNA2", "网分 PORT2"])
-        return route
-
-    def _path_routes_from_template(step: StepViewData) -> list[list[str]]:
-        key = f"{step.step_id}:{step.substep_id}" if step.substep_id else step.step_id
-        templates: dict[str, list[list[str]]] = {
-            "CAL001-AUX:AUX-A": [_aux_route("AUX-A")],
-            "CAL001-AUX:AUX-B": [_aux_route("AUX-B")],
-            "CAL001-AUX:AUX-C": [_aux_route("AUX-C")],
-            "CAL001-AUX": [["网分 PORT1", "3M 辅助线 A/B/C", "网分 PORT2"]],
-            "CAL001-H": [["网分 PORT1", "AUX-A", "暗室接口板 H", "馈源 H", "反射面", "标准增益喇叭", "暗室接口板 DUT", "AUX-C", "网分 PORT2"]],
-            "CAL001-V": [["网分 PORT1", "AUX-B", "暗室接口板 V", "馈源 V", "反射面", "标准增益喇叭", "暗室接口板 DUT", "AUX-C", "网分 PORT2"]],
-            "CAL001-DUT": [["网分 PORT1", "AUX-A", "转台 DUT 接口", "DUT 内部段", "暗室接口板 DUT", "AUX-C", "网分 PORT2"]],
-            "CAL002-AUX-D": [_aux_route("AUX-D")],
-            "CAL002-DUT-VNA2": [_dut_vna2_return_route("AUX-D")],
-            "CAL002-DUT-AMP1-VNA2": [_dut_vna2_return_route("AUX-D", amp1=True)],
-            "CAL002-MAIN:H-THRU": [_vna_main_route("H")],
-            "CAL002-MAIN:V-THRU": [_vna_main_route("V")],
-            "CAL002-MAIN:H-DUTAMP1": [_vna_main_route("H", amp1=True)],
-            "CAL002-MAIN:V-DUTAMP1": [_vna_main_route("V", amp1=True)],
-            "CAL002-MAIN:H-AMP2": [_vna_main_route("H", amp2=True)],
-            "CAL002-MAIN:V-AMP2": [_vna_main_route("V", amp2=True)],
-            "CAL003-AUX-E": [_aux_route("AUX-E")],
-            "CAL003-DUT-SA": [
-                ["网分 PORT1", "AUX-E", "转台 DUT 接口", "暗室接口板 DUT", "链路箱 SA", "网分 PORT2"],
-                ["网分 PORT1", "AUX-E", "转台 DUT 接口", "暗室接口板 DUT", "AMP1", "链路箱 SA", "网分 PORT2"],
-            ],
-            "CAL004-AUX-F": [_aux_route("AUX-F")],
-            "CAL004-DUT-VNA2": [
-                _dut_vna2_return_route("AUX-F"),
-                _dut_vna2_return_route("AUX-F", amp1=True),
-            ],
-            "CAL004-SA-HV-THRU:H-SA": [_sa_hv_route("H")],
-            "CAL004-SA-HV-THRU:V-SA": [_sa_hv_route("V")],
-            "CAL004-SA-HV-AMP2:H-AMP2-SA": [_sa_hv_route("H", amp2=True)],
-            "CAL004-SA-HV-AMP2:V-AMP2-SA": [_sa_hv_route("V", amp2=True)],
-            "CAL004-SA-HV-DUTAMP1-CHECK:H-SA-DUTAMP1-CHECK": [_sa_hv_route("H", amp1=True)],
-            "CAL004-SA-HV-DUTAMP1-CHECK:V-SA-DUTAMP1-CHECK": [_sa_hv_route("V", amp1=True)],
-            "CAL005-AUX-G": [_aux_route("AUX-G")],
-            "CAL005-DUT-VNA2": [
-                _dut_vna2_return_route("AUX-G"),
-                _dut_vna2_return_route("AUX-G", amp1=True),
-            ],
-            "CAL005-SG:H-SG": [_sg_route("H")],
-            "CAL005-SG:V-SG": [_sg_route("V")],
-            "CAL005-SG:H-SG-DUTAMP1": [_sg_route("H", amp1=True)],
-            "CAL005-SG:V-SG-DUTAMP1": [_sg_route("V", amp1=True)],
-            "CAL005-SG:H-AMP2-SG": [_sg_route("H", amp2=True)],
-            "CAL005-SG:V-AMP2-SG": [_sg_route("V", amp2=True)],
+    def _node_style(node: str, style_role: str = "") -> str:
+        styles = {
+            "vna": "border-color:#9fb3d4;color:#294566;background:#fbfdff;",
+            "aux": "border-color:#e7b284;color:#8b4a1f;background:#fff9f3;",
+            "panel": "border-color:#a9bbd8;color:#324f72;background:#f8fbff;",
+            "dut": "border-color:#9cc79f;color:#376c3a;background:#f8fcf8;",
+            "feed": "border-color:#a9c7a7;color:#3d6f42;background:#f7fcf7;",
+            "space": "border-color:#c2cbd6;color:#455a64;background:#ffffff;",
+            "reference": "border-color:#9fcba7;color:#3a7446;background:#f6fbf7;",
+            "link_box": "border-color:#b4bfd0;color:#3f5268;background:#fbfcfe;",
+            "amp": "border-color:#d7b589;color:#735225;background:#fffaf2;",
         }
-        if key in templates:
-            return templates[key]
-        if step.step_id in templates:
-            return templates[step.step_id]
-        return []
-
-    def _node_style(node: str) -> str:
+        if style_role in styles:
+            return styles[style_role]
         normalized = node.upper()
         if "AUX-" in normalized or "辅助线" in node:
             return "border-color:#f2a56b;color:#c45113;background:#fff7ed;"
@@ -383,13 +304,16 @@ def run_gui() -> int:
         if step.substep_id:
             title = f"步骤 {step.step_index}.{step.substep_index}: {_friendly_text(step.substep_name)}"
 
-        routes = _path_routes_from_template(step) or _route_nodes_from_instruction(step.manual_instruction)
+        path_data = _path_data_for_step(step)
+        routes = _path_routes_from_data(path_data)
+        if not routes:
+            routes = [[(_friendly_node_text(node), "") for node in route] for route in _route_nodes_from_instruction(step.manual_instruction)]
         route_html: list[str] = []
         for nodes in routes:
             parts: list[str] = []
-            for index, node in enumerate(nodes):
-                label = html.escape(_friendly_node_text(node))
-                style = _node_style(node)
+            for index, (node, style_role) in enumerate(nodes):
+                label = html.escape(node)
+                style = _node_style(node, style_role)
                 parts.append(
                     "<span style='display:inline-block;border:1px solid "
                     "#9eb2ca;border-radius:5px;padding:5px 11px;margin:3px 4px 3px 0;"
@@ -400,6 +324,11 @@ def run_gui() -> int:
             route_html.append("<div style='margin-top:5px;'>" + "".join(parts) + "</div>")
 
         instruction = html.escape(step.manual_instruction or "无接线说明")
+        caption = ""
+        if path_data:
+            caption_text = str(path_data.get("caption", "")).strip()
+            if caption_text:
+                caption = f"<div style='margin-top:6px;color:#607d8b;font-size:12px;'>{html.escape(caption_text)}</div>"
         route_ids = ""
         if step.route_ids:
             route_ids = (
@@ -412,6 +341,7 @@ def run_gui() -> int:
             "<div style='font-family:Microsoft YaHei UI, Segoe UI, sans-serif;font-size:13px;color:#263238;'>"
             f"<div style='font-weight:700;color:#1f3f68;margin-bottom:4px;'>{html.escape(title)}</div>"
             f"{body}"
+            f"{caption}"
             f"<div style='margin-top:7px;color:#607d8b;font-size:12px;'>{instruction}</div>"
             f"{route_ids}"
             "</div>"
@@ -820,6 +750,7 @@ def run_gui() -> int:
             self.setWindowTitle("通用路损校准控制台")
             self.resize(1180, 780)
             self._last_confirmation_prompt_key = ""
+            self._current_step_view: StepViewData | None = None
 
             self.item_list = QListWidget()
             self.item_list.setMinimumWidth(220)
@@ -1169,6 +1100,7 @@ def run_gui() -> int:
             vm.selected_step_changed.connect(self._sync_step_list_colored)
             vm.step_view_changed.connect(self._sync_step_view)
             vm.step_view_changed.connect(self._sync_step_list_colored)
+            self.substep_list.currentRowChanged.connect(self._on_substep_selected)
             vm.overview_changed.connect(self._sync_item_list)
             vm.logs_changed.connect(self._sync_logs)
             vm.status_changed.connect(self.status_label.setText)
@@ -1261,6 +1193,7 @@ def run_gui() -> int:
                 self.step_hint.setText("当前校准项暂无步骤。")
 
         def _sync_step_view(self, step: StepViewData) -> None:
+            self._current_step_view = step
             substep_text = ""
             if step.substep_id:
                 substep_text = f" | 小步骤 {step.substep_index}/{step.substep_total}: {_friendly_text(step.substep_name)}"
@@ -1270,8 +1203,19 @@ def run_gui() -> int:
             progress = int(step.item_completed_substeps / total_substeps * 100)
             self.step_progress.setValue(progress)
             self._sync_substep_list(step)
+            detail_step = step
+            if not step.substep_id:
+                detail_step = self._step_view_for_substep_row(self.substep_list.currentRow(), step) or step
+            self._sync_step_detail_views(detail_step)
+            self._show_substep_confirmation(step)
+
+        def _sync_step_detail_views(self, step: StepViewData) -> None:
             self.path_view.setHtml(_format_path_html(step))
-            self.command_view.setPlainText("\n".join(step.link_commands) if step.link_commands else "无链路命令")
+            command_lines = list(step.link_commands)
+            command_text = "\n".join(f"{index}. {command}" for index, command in enumerate(command_lines, start=1))
+            if step.manual_instruction:
+                command_text = (command_text + "\n\n" if command_text else "") + f"说明:\n{step.manual_instruction}"
+            self.command_view.setPlainText(command_text or "无链路命令")
             phase_text = ""
             if step.confirm_phase == "start":
                 phase_text = "确认阶段: 开始前确认\n"
@@ -1287,7 +1231,62 @@ def run_gui() -> int:
                 f"所需输入: {_plain_join(step.required_inputs)}\n"
                 f"备注: {step.notes or '无'}"
             )
-            self._show_substep_confirmation(step)
+
+        def _step_view_for_substep_row(self, row: int, base_step: StepViewData | None = None) -> StepViewData | None:
+            source_step = vm.selected_step
+            if source_step is None:
+                return None
+            substeps = vm.substep_view_data(source_step)
+            if not substeps:
+                return None
+            row = max(0, min(row, len(substeps) - 1))
+            substep = substeps[row]
+            base = base_step or self._current_step_view or vm._step_view_data(
+                source_step,
+                vm.selected_step_index + 1,
+                len(vm.selected_item.steps),
+            )
+            return StepViewData(
+                item_id=base.item_id,
+                item_name=base.item_name,
+                step_id=base.step_id,
+                step_name=base.step_name,
+                step_index=base.step_index,
+                step_total=base.step_total,
+                status=base.status,
+                manual_instruction=substep.manual_instruction or base.manual_instruction,
+                route_ids=substep.route_ids or base.route_ids,
+                link_commands=substep.link_commands or base.link_commands,
+                input_port=substep.input_port or base.input_port,
+                output_port=substep.output_port or base.output_port,
+                raw_outputs=((substep.raw_output,) if substep.raw_output else base.raw_outputs),
+                final_outputs=((substep.final_output,) if substep.final_output else base.final_outputs),
+                required_inputs=substep.required_inputs or base.required_inputs,
+                notes=substep.notes or base.notes,
+                substep_id=substep.id,
+                substep_name=substep.name,
+                substep_index=row + 1,
+                substep_total=len(substeps),
+                confirm_phase=base.confirm_phase if base.substep_id == substep.id else "",
+                item_total_substeps=base.item_total_substeps,
+                item_completed_substeps=base.item_completed_substeps,
+                path_template=substep.path_template or base.path_template,
+                path=substep.path or base.path,
+            )
+
+        def _on_substep_selected(self, row: int) -> None:
+            detail_step = self._step_view_for_substep_row(row)
+            if detail_step is None:
+                return
+            substep_text = (
+                f" | 小步骤 {detail_step.substep_index}/{detail_step.substep_total}: "
+                f"{_friendly_text(detail_step.substep_name)}"
+            )
+            self.step_title.setText(
+                f"[{detail_step.step_index}/{detail_step.step_total}] "
+                f"{detail_step.step_id} - {_friendly_text(detail_step.step_name)}{substep_text}"
+            )
+            self._sync_step_detail_views(detail_step)
 
         def _sync_substep_list(self, active_step: StepViewData | None = None) -> None:
             step = vm.selected_step
@@ -1321,6 +1320,8 @@ def run_gui() -> int:
                 self.substep_list.addItem(list_item)
                 if substep.id == active_id:
                     current_row = index - 1
+            if current_row < 0 and self.substep_list.count() > 0:
+                current_row = 0
             if current_row >= 0:
                 self.substep_list.setCurrentRow(current_row)
             self.substep_list.blockSignals(False)

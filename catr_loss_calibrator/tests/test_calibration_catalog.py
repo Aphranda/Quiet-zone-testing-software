@@ -34,6 +34,49 @@ def test_builtin_json_catalog_matches_legacy_python_catalog() -> None:
             ]
 
 
+def test_builtin_json_catalog_contains_path_node_templates() -> None:
+    catalog = load_calibration_catalog(DEFAULT_CONFIG_PATH)
+    assert catalog.node_catalog["PORT1"]["label"] == "网分 PORT1"
+    assert catalog.path_templates["CAL001-AUX:AUX-B"]["routes"][0]["nodes"] == [
+        "PORT1",
+        "AUX-B",
+        "PORT2",
+    ]
+    assert catalog.path_templates["CAL002-MAIN:V-AMP2"]["routes"][0]["nodes"][-3:] == [
+        "AMP2",
+        "LB-VNA1",
+        "PORT2",
+    ]
+
+
+def test_builtin_json_steps_reference_path_templates() -> None:
+    catalog = load_calibration_catalog(DEFAULT_CONFIG_PATH)
+    existing_templates = set(catalog.path_templates)
+
+    expected_refs = {
+        "CAL001-AUX:AUX-B",
+        "CAL001-V",
+        "CAL002-MAIN:V-AMP2",
+        "CAL004-SA-HV-AMP2:V-AMP2-SA",
+        "CAL005-SG:V-AMP2-SG",
+    }
+    actual_refs = {
+        step.path_template
+        for item in catalog.items
+        for step in item.steps
+        if step.path_template
+    } | {
+        substep.path_template
+        for item in catalog.items
+        for step in item.steps
+        for substep in step.substeps
+        if substep.path_template
+    }
+
+    assert expected_refs <= actual_refs
+    assert actual_refs <= existing_templates
+
+
 def test_link_cal_005_contains_sg_commands() -> None:
     item = default_calibration_catalog().get("LINK-CAL-005")
     commands = tuple(command for step in item.steps for command in step.link_commands)

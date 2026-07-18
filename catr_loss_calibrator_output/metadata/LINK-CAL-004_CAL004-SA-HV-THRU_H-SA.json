@@ -1,0 +1,28 @@
+{
+  "session_id": "LINK-CAL-004-CAL004-SA-HV-THRU_H-SA",
+  "project_name": "CATR Loss Calibrator",
+  "project_version": "0.1.0",
+  "calibration_item": "LINK-CAL-004",
+  "calibration_step": "CAL004-SA-HV-THRU_H-SA",
+  "instrument_snapshot": {
+    "vna": "MockVna"
+  },
+  "link_commands": [
+    "CONFigure:LINK H, SA",
+    "CONFigure:LINK DUT, VNA2"
+  ],
+  "manual_confirmation": true,
+  "input_files": [
+    "LINK-CAL-004_CAL004-SA-HV-THRU_H-SA.raw"
+  ],
+  "input_hashes": [
+    "mock"
+  ],
+  "output_files": [
+    "L_SYS_TX_SA_H"
+  ],
+  "output_hashes": [],
+  "formula_version": "v1",
+  "profile_version": "lcd74000f:v1",
+  "note": "mock-runner:H 极化到 SA 直通接收"
+}

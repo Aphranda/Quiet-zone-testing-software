@@ -70,8 +70,8 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_SOFTWARE_DESIGN.md`, `
 - [x] P1-09 实现链路配置 JSON loader，将 `CATR_LOSS_CALIBRATION_LINK_CONFIG_JSON.md` 定义的 JSON 转换为 `CalibrationCatalog` / `CalibrationItem` / `CalibrationStep` / `CalibrationSubStep`。
 - [x] P1-10 将 `default_calibration_catalog()` 改为默认加载内置 CATR JSON，保留 Python 硬编码 catalog 作为迁移期测试基准或 fallback。
 - [x] P1-11 为 JSON 导入增加单元测试，验证导入后的 5 个校准项、步骤数、细分步骤顺序、链路命令、raw/final/required 参数与现有 catalog 一致。
-- [ ] P1-12 将接线路径节点图从 presentation 硬编码模板迁移到 JSON 的 `node_catalog` / `path_templates` / `path` 字段。
-- [ ] P1-13 为内置 CATR JSON 补齐 `node_catalog`、`path_templates` 和步骤/细分步骤 `path_template` 引用，覆盖 HTML 中的节点图。
+- [x] P1-12 将接线路径节点图从 presentation 硬编码模板迁移到 JSON 的 `node_catalog` / `path_templates` / `path` 字段。
+- [x] P1-13 为内置 CATR JSON 补齐 `node_catalog`、`path_templates` 和步骤/细分步骤 `path_template` 引用，覆盖 HTML 中的节点图。
 
 ### P1 验收
 

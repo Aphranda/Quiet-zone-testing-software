@@ -5,149 +5,149 @@
   "description": "当前 CATR 暗室 LINK-CAL-001 至 LINK-CAL-005 校准项。",
   "node_catalog": {
     "PORT1": {
-      "label": "?? PORT1",
+      "label": "网分 PORT1",
       "kind": "instrument",
       "style": "vna"
     },
     "PORT2": {
-      "label": "?? PORT2",
+      "label": "网分 PORT2",
       "kind": "instrument",
       "style": "vna"
     },
     "AUX-A": {
-      "label": "AUX-A ???",
+      "label": "AUX-A 辅助线",
       "kind": "cable",
       "style": "aux"
     },
     "AUX-B": {
-      "label": "AUX-B ???",
+      "label": "AUX-B 辅助线",
       "kind": "cable",
       "style": "aux"
     },
     "AUX-C": {
-      "label": "AUX-C ???",
+      "label": "AUX-C 辅助线",
       "kind": "cable",
       "style": "aux"
     },
     "AUX-D": {
-      "label": "AUX-D ???",
+      "label": "AUX-D 辅助线",
       "kind": "cable",
       "style": "aux"
     },
     "AUX-E": {
-      "label": "AUX-E ???",
+      "label": "AUX-E 辅助线",
       "kind": "cable",
       "style": "aux"
     },
     "AUX-F": {
-      "label": "AUX-F ???",
+      "label": "AUX-F 辅助线",
       "kind": "cable",
       "style": "aux"
     },
     "AUX-G": {
-      "label": "AUX-G ???",
+      "label": "AUX-G 辅助线",
       "kind": "cable",
       "style": "aux"
     },
     "AUX-ABC": {
-      "label": "3M ??? A/B/C",
+      "label": "3M 辅助线 A/B/C",
       "kind": "cable",
       "style": "aux"
     },
     "TD": {
-      "label": "?? DUT ??",
+      "label": "转台 DUT 接口",
       "kind": "fixture",
       "style": "dut"
     },
     "DUT-INTERNAL": {
-      "label": "DUT ???",
+      "label": "DUT 内部段",
       "kind": "fixture",
       "style": "dut"
     },
     "CP-H": {
-      "label": "????? H",
+      "label": "暗室接口板 H",
       "kind": "panel",
       "style": "panel"
     },
     "CP-V": {
-      "label": "????? V",
+      "label": "暗室接口板 V",
       "kind": "panel",
       "style": "panel"
     },
     "CP-DUT": {
-      "label": "????? DUT",
+      "label": "暗室接口板 DUT",
       "kind": "panel",
       "style": "panel"
     },
     "FEED-H": {
-      "label": "?? H",
+      "label": "馈源 H",
       "kind": "feed",
       "style": "feed"
     },
     "FEED-V": {
-      "label": "?? V",
+      "label": "馈源 V",
       "kind": "feed",
       "style": "feed"
     },
     "REFLECTOR": {
-      "label": "???",
+      "label": "反射面",
       "kind": "space",
       "style": "space"
     },
     "STD-HORN": {
-      "label": "??????",
+      "label": "标准增益喇叭",
       "kind": "reference",
       "style": "reference"
     },
     "LB-H": {
-      "label": "??? H",
+      "label": "链路箱 H",
       "kind": "link_box",
       "style": "link_box"
     },
     "LB-V": {
-      "label": "??? V",
+      "label": "链路箱 V",
       "kind": "link_box",
       "style": "link_box"
     },
     "LB-DUT": {
-      "label": "??? DUT",
+      "label": "链路箱 DUT",
       "kind": "link_box",
       "style": "link_box"
     },
     "LB-VNA1": {
-      "label": "??? ??1",
+      "label": "链路箱 网分1",
       "kind": "link_box",
       "style": "link_box"
     },
     "LB-VNA2": {
-      "label": "??? ??2",
+      "label": "链路箱 网分2",
       "kind": "link_box",
       "style": "link_box"
     },
     "LB-SA": {
-      "label": "??? ???",
+      "label": "链路箱 频谱仪",
       "kind": "link_box",
       "style": "link_box"
     },
     "LB-SG": {
-      "label": "??? ???",
+      "label": "链路箱 信号源",
       "kind": "link_box",
       "style": "link_box"
     },
     "AMP1": {
-      "label": "???1",
+      "label": "放大器1",
       "kind": "amplifier",
       "style": "amp"
     },
     "AMP2": {
-      "label": "???2",
+      "label": "放大器2",
       "kind": "amplifier",
       "style": "amp"
     }
   },
   "path_templates": {
     "CAL001-AUX": {
-      "title": "AUX-A/B/C ???????",
+      "title": "AUX-A/B/C 辅助线独立测试",
       "routes": [
         {
           "id": "aux-group",
@@ -160,7 +160,7 @@
       ]
     },
     "CAL001-AUX:AUX-A": {
-      "title": "AUX-A ???????",
+      "title": "AUX-A 辅助线独立测试",
       "routes": [
         {
           "id": "main",
@@ -173,7 +173,7 @@
       ]
     },
     "CAL001-AUX:AUX-B": {
-      "title": "AUX-B ???????",
+      "title": "AUX-B 辅助线独立测试",
       "routes": [
         {
           "id": "main",
@@ -186,7 +186,7 @@
       ]
     },
     "CAL001-AUX:AUX-C": {
-      "title": "AUX-C ???????",
+      "title": "AUX-C 辅助线独立测试",
       "routes": [
         {
           "id": "main",
@@ -199,7 +199,7 @@
       ]
     },
     "CAL001-H": {
-      "title": "DUT-H ????",
+      "title": "DUT-H 闭合测量",
       "routes": [
         {
           "id": "main",
@@ -218,7 +218,7 @@
       ]
     },
     "CAL001-V": {
-      "title": "DUT-V ????",
+      "title": "DUT-V 闭合测量",
       "routes": [
         {
           "id": "main",
@@ -237,7 +237,7 @@
       ]
     },
     "CAL001-DUT": {
-      "title": "?? DUT ?????? DUT",
+      "title": "转台 DUT 接口到暗室接口板 DUT",
       "routes": [
         {
           "id": "main",
@@ -254,7 +254,7 @@
       ]
     },
     "CAL002-AUX-D": {
-      "title": "AUX-D ???????",
+      "title": "AUX-D 辅助线独立测试",
       "routes": [
         {
           "id": "main",
@@ -267,7 +267,7 @@
       ]
     },
     "CAL002-DUT-VNA2": {
-      "title": "DUT ? VNA2 ???",
+      "title": "DUT 到 VNA2 回传段",
       "routes": [
         {
           "id": "main",
@@ -283,7 +283,7 @@
       ]
     },
     "CAL002-DUT-AMP1-VNA2": {
-      "title": "DUT ? AMP1 ? VNA2 ???",
+      "title": "DUT 经 AMP1 到 VNA2 回传段",
       "routes": [
         {
           "id": "main",
@@ -300,7 +300,7 @@
       ]
     },
     "CAL002-MAIN:H-THRU": {
-      "title": "H ?? VNA ?????",
+      "title": "H 极化 VNA 主链路直通",
       "routes": [
         {
           "id": "main",
@@ -320,7 +320,7 @@
       ]
     },
     "CAL002-MAIN:V-THRU": {
-      "title": "V ?? VNA ?????",
+      "title": "V 极化 VNA 主链路直通",
       "routes": [
         {
           "id": "main",
@@ -340,7 +340,7 @@
       ]
     },
     "CAL002-MAIN:H-DUTAMP1": {
-      "title": "H ?? VNA ??? DUT AMP1",
+      "title": "H 极化 VNA 主链路 DUT AMP1",
       "routes": [
         {
           "id": "main",
@@ -361,7 +361,7 @@
       ]
     },
     "CAL002-MAIN:V-DUTAMP1": {
-      "title": "V ?? VNA ??? DUT AMP1",
+      "title": "V 极化 VNA 主链路 DUT AMP1",
       "routes": [
         {
           "id": "main",
@@ -382,7 +382,7 @@
       ]
     },
     "CAL002-MAIN:H-AMP2": {
-      "title": "H ?? VNA ??? AMP2",
+      "title": "H 极化 VNA 主链路 AMP2",
       "routes": [
         {
           "id": "main",
@@ -403,7 +403,7 @@
       ]
     },
     "CAL002-MAIN:V-AMP2": {
-      "title": "V ?? VNA ??? AMP2",
+      "title": "V 极化 VNA 主链路 AMP2",
       "routes": [
         {
           "id": "main",
@@ -424,7 +424,7 @@
       ]
     },
     "CAL003-AUX-E": {
-      "title": "AUX-E ???????",
+      "title": "AUX-E 辅助线独立测试",
       "routes": [
         {
           "id": "main",
@@ -437,7 +437,7 @@
       ]
     },
     "CAL003-DUT-SA": {
-      "title": "DUT ? SA ??",
+      "title": "DUT 到 SA 测量",
       "routes": [
         {
           "id": "thru",
@@ -465,7 +465,7 @@
       ]
     },
     "CAL004-AUX-F": {
-      "title": "AUX-F ???????",
+      "title": "AUX-F 辅助线独立测试",
       "routes": [
         {
           "id": "main",
@@ -478,7 +478,7 @@
       ]
     },
     "CAL004-DUT-VNA2": {
-      "title": "DUT ? VNA2 ??? F",
+      "title": "DUT 到 VNA2 回传段 F",
       "routes": [
         {
           "id": "thru",
@@ -506,7 +506,7 @@
       ]
     },
     "CAL004-SA-HV-THRU:H-SA": {
-      "title": "H ?? SA-H/V ??",
+      "title": "H 极化 SA-H/V 直通",
       "routes": [
         {
           "id": "main",
@@ -526,7 +526,7 @@
       ]
     },
     "CAL004-SA-HV-THRU:V-SA": {
-      "title": "V ?? SA-H/V ??",
+      "title": "V 极化 SA-H/V 直通",
       "routes": [
         {
           "id": "main",
@@ -546,7 +546,7 @@
       ]
     },
     "CAL004-SA-HV-AMP2:H-AMP2-SA": {
-      "title": "H ?? SA-H/V AMP2",
+      "title": "H 极化 SA-H/V AMP2",
       "routes": [
         {
           "id": "main",
@@ -567,7 +567,7 @@
       ]
     },
     "CAL004-SA-HV-AMP2:V-AMP2-SA": {
-      "title": "V ?? SA-H/V AMP2",
+      "title": "V 极化 SA-H/V AMP2",
       "routes": [
         {
           "id": "main",
@@ -588,7 +588,7 @@
       ]
     },
     "CAL004-SA-HV-DUTAMP1-CHECK:H-SA-DUTAMP1-CHECK": {
-      "title": "H ?? SA-H/V DUT AMP1 ??",
+      "title": "H 极化 SA-H/V DUT AMP1 校核",
       "routes": [
         {
           "id": "main",
@@ -609,7 +609,7 @@
       ]
     },
     "CAL004-SA-HV-DUTAMP1-CHECK:V-SA-DUTAMP1-CHECK": {
-      "title": "V ?? SA-H/V DUT AMP1 ??",
+      "title": "V 极化 SA-H/V DUT AMP1 校核",
       "routes": [
         {
           "id": "main",
@@ -630,7 +630,7 @@
       ]
     },
     "CAL005-AUX-G": {
-      "title": "AUX-G ???????",
+      "title": "AUX-G 辅助线独立测试",
       "routes": [
         {
           "id": "main",
@@ -643,7 +643,7 @@
       ]
     },
     "CAL005-DUT-VNA2": {
-      "title": "DUT ? VNA2 ??? G",
+      "title": "DUT 到 VNA2 回传段 G",
       "routes": [
         {
           "id": "thru",
@@ -671,7 +671,7 @@
       ]
     },
     "CAL005-SG:H-SG": {
-      "title": "H ?? SG ??",
+      "title": "H 极化 SG 主链路",
       "routes": [
         {
           "id": "main",
@@ -691,7 +691,7 @@
       ]
     },
     "CAL005-SG:V-SG": {
-      "title": "V ?? SG ??",
+      "title": "V 极化 SG 主链路",
       "routes": [
         {
           "id": "main",
@@ -711,7 +711,7 @@
       ]
     },
     "CAL005-SG:H-SG-DUTAMP1": {
-      "title": "H ?? SG DUT AMP1 ??",
+      "title": "H 极化 SG DUT AMP1 主链路",
       "routes": [
         {
           "id": "main",
@@ -732,7 +732,7 @@
       ]
     },
     "CAL005-SG:V-SG-DUTAMP1": {
-      "title": "V ?? SG DUT AMP1 ??",
+      "title": "V 极化 SG DUT AMP1 主链路",
       "routes": [
         {
           "id": "main",
@@ -753,7 +753,7 @@
       ]
     },
     "CAL005-SG:H-AMP2-SG": {
-      "title": "H ?? SG AMP2 ??",
+      "title": "H 极化 SG AMP2 主链路",
       "routes": [
         {
           "id": "main",
@@ -774,7 +774,7 @@
       ]
     },
     "CAL005-SG:V-AMP2-SG": {
-      "title": "V ?? SG AMP2 ??",
+      "title": "V 极化 SG AMP2 主链路",
       "routes": [
         {
           "id": "main",
