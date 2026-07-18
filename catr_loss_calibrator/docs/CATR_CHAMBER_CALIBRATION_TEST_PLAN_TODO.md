@@ -199,7 +199,7 @@
 ### P1：版面与分页
 
 - [ ] 按模板要求继续做 Edge headless 截图检查，确认页眉、页脚、表格和长文件名未压到页脚。
-- [ ] 截图检查操作参考 `docs/HTML_REPORT_SCREENSHOT_CHECK_GUIDE.md`。
+- [ ] 截图检查操作参考 `REPORT_SCREENSHOT_CHECK_PLAYBOOK.md`。
 - [ ] 检查 P23/P24 拆页后的最终视觉效果。
 - [ ] 删除或归档临时截图检查文件：
   - `docs/temp/CATR_PAGE_PREVIEW.png`
@@ -442,6 +442,6 @@
 - `docs/CATR_CHAMBER_CALIBRATION_TEST_PLAN.html`
 - `docs/CATR_CHAMBER_CALIBRATION_TEST_PLAN.md`
 - `docs/CATR暗室校准测试方案BACKUP USER.html`
-- `docs/CATR_CHAMBER_OPERATION_SUMMARY.md`
-- `docs/HTML_REPORT_SCREENSHOT_CHECK_GUIDE.md`
+- `CATR_CHAMBER_OPERATION_PLAYBOOK.md`
+- `REPORT_SCREENSHOT_CHECK_PLAYBOOK.md`
 - `resource/LCD74000F.md`

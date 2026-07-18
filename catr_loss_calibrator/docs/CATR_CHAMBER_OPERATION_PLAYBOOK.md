@@ -1,8 +1,12 @@
 # CATR 暗室校准与测试操作汇总
 
-更新时间：2026-07-17
+Status: Active  
+Domain: CATR  
+Canonical: `catr_loss_calibrator/docs/CATR_CHAMBER_OPERATION_PLAYBOOK.md`  
+Related: `catr_loss_calibrator/docs/CATR_CHAMBER_CALIBRATION_TEST_PLAN.html`, `catr_loss_calibrator/docs/CATR_CHAMBER_CALIBRATION_TEST_PLAN_TODO.md`  
+Last updated: 2026-07-18
 
-本文用于从当前方案文档中抽取“可执行操作口径”，便于后续继续标注测试项、校准项和自动化流程。完整报告见 `docs/CATR_CHAMBER_CALIBRATION_TEST_PLAN.md` / `.html`。
+本文用于从当前方案文档中抽取“可执行操作口径”，便于后续继续标注测试项、校准项和自动化流程。完整报告见 `CATR_CHAMBER_CALIBRATION_TEST_PLAN.md` / `.html`。
 
 ## 1. 总体约定
 

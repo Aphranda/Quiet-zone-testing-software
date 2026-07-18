@@ -1,6 +1,10 @@
 # HTML 报告截图检查操作指南
 
-更新时间：2026-07-17
+Status: Active  
+Domain: REPORT  
+Canonical: `catr_loss_calibrator/docs/REPORT_SCREENSHOT_CHECK_PLAYBOOK.md`  
+Related: `catr_loss_calibrator/docs/CATR_CHAMBER_CALIBRATION_TEST_PLAN.html`  
+Last updated: 2026-07-18
 
 本文总结本项目生成 HTML 报告时的截图检查经验，可复用于 `1120 × 630` PPT 型报告、A4 报告和其他固定画布 HTML 报告。
 
