@@ -24,3 +24,18 @@ def test_link_cal_004_contains_sa_hv_commands() -> None:
     commands = tuple(command for step in item.steps for command in step.link_commands)
     assert "CONFigure:LINK H/V, SA" in commands
     assert "CONFigure:LINK H/V, AMP2, SA" in commands
+
+
+def test_link_cal_003_is_only_dut_to_sa_outputs() -> None:
+    item = default_calibration_catalog().get("LINK-CAL-003")
+    assert item.name == "DUT 到 SA 校准"
+    outputs = tuple(output for step in item.steps for output in step.final_outputs)
+    assert outputs == ("L_AUX_E", "L_DUT_SA", "L_DUT_SA_AMP1")
+    assert all("T_VNA1_SA" not in output for step in item.steps for output in step.raw_outputs)
+
+
+def test_link_cal_005_amp2_output_matches_hv_to_sg_name() -> None:
+    item = default_calibration_catalog().get("LINK-CAL-005")
+    outputs = tuple(output for step in item.steps for output in step.final_outputs)
+    assert "L_HV_SG_H/V_AMP2" in outputs
+    assert "L_SG_DUT_H/V_AMP2" not in outputs

@@ -15,7 +15,10 @@ class CalibrationStep:
     id: str
     name: str
     role: MeasurementRole
+    input_port: str = ""
+    output_port: str = ""
     manual_instruction: str = ""
+    route_ids: tuple[str, ...] = ()
     link_commands: tuple[str, ...] = ()
     raw_outputs: tuple[str, ...] = ()
     final_outputs: tuple[str, ...] = ()

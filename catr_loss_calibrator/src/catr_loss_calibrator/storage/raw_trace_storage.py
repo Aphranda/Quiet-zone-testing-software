@@ -4,6 +4,7 @@ from pathlib import Path
 
 from catr_loss_calibrator.hardware.interfaces import SParameterTrace
 from catr_loss_calibrator.storage.csv_storage import save_loss_csv
+from catr_loss_calibrator.storage.models import TraceRecord
 
 
 def save_raw_trace(path: Path, trace: SParameterTrace, *, source_cal: str) -> None:
@@ -18,3 +19,12 @@ def save_raw_trace(path: Path, trace: SParameterTrace, *, source_cal: str) -> No
         source_cal=source_cal,
     )
 
+
+def trace_record_from_sparameter(trace: SParameterTrace, *, source_cal: str, source_step: str) -> TraceRecord:
+    return TraceRecord(
+        frequency_hz=trace.frequency_hz,
+        value_db=trace.value_db,
+        parameter=trace.parameter,
+        source_cal=source_cal,
+        source_step=source_step,
+    )

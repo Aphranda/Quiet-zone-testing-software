@@ -46,9 +46,9 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_SOFTWARE_DESIGN.md`, `
 - [x] P0-02 按业务域建立基础目录：`presentation`、`app`、`application`、`calibration`、`instrument_management`、`link_management`、`hardware`、`storage`、`project`、`diagnostics`。
 - [x] P0-03 将 UI / presentation 层提前，作为面向操作人员的交互入口。
 - [x] P0-04 定义 `LINK-CAL-001` 至 `LINK-CAL-005` 五个校准项 catalog。
-- [ ] P0-05 检查并修正 catalog 中所有校准项名称、步骤编号、输出参数，使其与 `CATR_CHAMBER_CALIBRATION_TEST_PLAN.html` 完全一致。
-- [ ] P0-06 检查公式实现，确保不引入 `AUX_CORR`，不把 `L_AUX_*` 改成正损耗口径。
-- [ ] P0-07 建立项目级 import 边界测试，确认新软件不 import `quiet_zone_tester.*`。
+- [x] P0-05 检查并修正 catalog 中所有校准项名称、步骤编号、输出参数，使其与 `CATR_CHAMBER_CALIBRATION_TEST_PLAN.html` 完全一致。
+- [x] P0-06 检查公式实现，确保不引入 `AUX_CORR`，不把 `L_AUX_*` 改成正损耗口径。
+- [x] P0-07 建立项目级 import 边界测试，确认新软件不 import `quiet_zone_tester.*`。
 
 ### P0 验收
 
@@ -61,8 +61,8 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_SOFTWARE_DESIGN.md`, `
 
 - [x] P1-01 建立链路端口枚举与 `CONFigure:LINK ...` 命令生成器。
 - [x] P1-02 建立 LCD74000F profile 基础端口校验。
-- [ ] P1-03 将 `resource/LCD74000F.md` 中的链路命令整理为软件内 profile 数据。
-- [ ] P1-04 为每个 `LINK-CAL` 步骤定义明确的输入端口、输出端口、人工接线说明、链路箱指令。
+- [x] P1-03 将 `resource/LCD74000F.md` 中的链路命令整理为软件内 profile 数据。
+- [x] P1-04 为每个 `LINK-CAL` 步骤定义明确的输入端口、输出端口、人工接线说明、链路箱指令。
 - [ ] P1-05 区分正式输出参数、原始 `S21_*`、临时追溯参数 `T_*`。
 - [ ] P1-06 为链路模板增加单元测试，覆盖直通、AMP1、AMP2、SG、SA、VNA1/VNA2 工况。
 
@@ -74,8 +74,8 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_SOFTWARE_DESIGN.md`, `
 
 ## P2 - 数据与公式闭环
 
-- [ ] P2-01 建立统一 trace 数据模型，保存频率、幅度、相位、参数名、来源步骤。
-- [ ] P2-02 建立原始 S21 保存策略，区分 raw trace 与最终路损文件。
+- [x] P2-01 建立统一 trace 数据模型，保存频率、幅度、相位、参数名、来源步骤。
+- [x] P2-02 建立原始 S21 保存策略，区分 raw trace 与最终路损文件。
 - [ ] P2-03 建立 metadata 保存策略，记录项目配置、仪表信息、链路命令、人工确认、输入文件 hash、输出文件 hash。
 - [ ] P2-04 将 5 个校准项的最终输出公式逐项落到 `calibration/formulas.py`。
 - [ ] P2-05 为每个最终输出参数建立单元测试，验证带符号 dB 计算。
