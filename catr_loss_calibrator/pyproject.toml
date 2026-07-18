@@ -22,3 +22,6 @@ catr-loss-calibrator = "catr_loss_calibrator.app.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+catr_loss_calibrator = ["calibration/configs/*.json"]

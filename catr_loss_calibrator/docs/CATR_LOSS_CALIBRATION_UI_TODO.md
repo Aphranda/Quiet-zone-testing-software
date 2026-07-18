@@ -35,7 +35,7 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_DESIGN.md`, `catr_l
 - [x] UI-05 UI 启动时能展示项目、版本和当前连接状态摘要。
 - [x] UI-06 主窗口接入 ViewModel、校准目录和 mock 设备状态。
 - [ ] UI-07 启动失败时给出可读错误页，而不是直接崩溃。
-- [ ] UI-69 将窗口标题、顶部标题和 CLI 标题由“CATR 路损校准操作台”改为“通用路损校准控制台”；当前 CATR 只作为已加载配置名称显示。
+- [x] UI-69 将窗口标题、顶部标题和 CLI 标题由“CATR 路损校准操作台”改为“通用路损校准控制台”；当前 CATR 只作为已加载配置名称显示。
 
 ### P0 验收
 

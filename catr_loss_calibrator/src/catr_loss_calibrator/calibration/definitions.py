@@ -7,9 +7,14 @@ from catr_loss_calibrator.calibration.models import (
     CalibrationSubStep,
     MeasurementRole,
 )
+from catr_loss_calibrator.calibration.config_loader import default_calibration_catalog_from_json
 
 
 def default_calibration_catalog() -> CalibrationCatalog:
+    return default_calibration_catalog_from_json()
+
+
+def legacy_python_calibration_catalog() -> CalibrationCatalog:
     return CalibrationCatalog(
         items=(
             _link_cal_001(),

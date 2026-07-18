@@ -65,12 +65,13 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_SOFTWARE_DESIGN.md`, `
 - [x] P1-04 为每个 `LINK-CAL` 步骤定义明确的输入端口、输出端口、人工接线说明、链路箱指令。
 - [ ] P1-05 区分正式输出参数、原始 `S21_*`、临时追溯参数 `T_*`。
 - [ ] P1-06 为链路模板增加单元测试，覆盖直通、AMP1、AMP2、SG、SA、VNA1/VNA2 工况。
-- [ ] P1-07 将“路损校准操作台”定位为通用路损校准控制台，代码和 UI 文案中避免把 CATR 写死为软件名称。
-- [ ] P1-08 根据 `CATR_CHAMBER_CALIBRATION_TEST_PLAN.html` 生成内置 CATR 链路配置 JSON，覆盖当前 `LINK-CAL-001` 至 `LINK-CAL-005` 的校准项、大步骤、细分步骤、命令、结果参数和接线路径节点图。
-- [ ] P1-09 实现链路配置 JSON loader，将 `CATR_LOSS_CALIBRATION_LINK_CONFIG_JSON.md` 定义的 JSON 转换为 `CalibrationCatalog` / `CalibrationItem` / `CalibrationStep` / `CalibrationSubStep`。
-- [ ] P1-10 将 `default_calibration_catalog()` 改为默认加载内置 CATR JSON，保留 Python 硬编码 catalog 作为迁移期测试基准或 fallback。
-- [ ] P1-11 为 JSON 导入增加单元测试，验证导入后的 5 个校准项、步骤数、细分步骤顺序、链路命令、raw/final/required 参数与现有 catalog 一致。
+- [x] P1-07 将“路损校准操作台”定位为通用路损校准控制台，代码和 UI 文案中避免把 CATR 写死为软件名称。
+- [x] P1-08 根据 `CATR_CHAMBER_CALIBRATION_TEST_PLAN.html` 生成内置 CATR 链路配置 JSON，覆盖当前 `LINK-CAL-001` 至 `LINK-CAL-005` 的校准项、大步骤、细分步骤、命令和结果参数。
+- [x] P1-09 实现链路配置 JSON loader，将 `CATR_LOSS_CALIBRATION_LINK_CONFIG_JSON.md` 定义的 JSON 转换为 `CalibrationCatalog` / `CalibrationItem` / `CalibrationStep` / `CalibrationSubStep`。
+- [x] P1-10 将 `default_calibration_catalog()` 改为默认加载内置 CATR JSON，保留 Python 硬编码 catalog 作为迁移期测试基准或 fallback。
+- [x] P1-11 为 JSON 导入增加单元测试，验证导入后的 5 个校准项、步骤数、细分步骤顺序、链路命令、raw/final/required 参数与现有 catalog 一致。
 - [ ] P1-12 将接线路径节点图从 presentation 硬编码模板迁移到 JSON 的 `node_catalog` / `path_templates` / `path` 字段。
+- [ ] P1-13 为内置 CATR JSON 补齐 `node_catalog`、`path_templates` 和步骤/细分步骤 `path_template` 引用，覆盖 HTML 中的节点图。
 
 ### P1 验收
 

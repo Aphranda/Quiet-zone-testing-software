@@ -44,6 +44,8 @@ class StepViewData:
     confirm_phase: str = ""
     item_total_substeps: int = 0
     item_completed_substeps: int = 0
+    path_template: str = ""
+    path: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -79,6 +81,8 @@ class SubStepViewData:
     final_output: str
     required_inputs: tuple[str, ...]
     notes: str
+    path_template: str = ""
+    path: dict[str, Any] | None = None
 
 
 class CalibrationRunWorker(QThread):
@@ -132,6 +136,8 @@ class CalibrationRunWorker(QThread):
             confirm_phase=phase,
             item_total_substeps=item_total_substeps,
             item_completed_substeps=item_completed_substeps,
+            path_template=substep.path_template or step.path_template,
+            path=substep.path or step.path,
         )
         self._active_prompt = prompt
         self.prompt_ready.emit(prompt)
@@ -839,6 +845,8 @@ class CalibrationViewModel(QObject):
             substep_total=len(substeps),
             item_total_substeps=item_total_substeps,
             item_completed_substeps=item_completed_substeps,
+            path_template=step.path_template,
+            path=step.path,
         )
 
     def substep_view_data(self, step: CalibrationStep) -> list[SubStepViewData]:
@@ -855,6 +863,8 @@ class CalibrationViewModel(QObject):
                 final_output=substep.final_output,
                 required_inputs=substep.required_inputs,
                 notes=substep.notes,
+                path_template=substep.path_template or step.path_template,
+                path=substep.path or step.path,
             )
             for substep in self._substeps_for_step(step)
         ]
@@ -885,6 +895,8 @@ class CalibrationViewModel(QObject):
                     final_output=final_output,
                     required_inputs=step.required_inputs,
                     notes=step.notes,
+                    path_template=step.path_template,
+                    path=step.path,
                 )
             )
         return tuple(substeps)

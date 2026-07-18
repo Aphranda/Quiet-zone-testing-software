@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any
 
 
 class MeasurementRole(str, Enum):
@@ -24,6 +25,8 @@ class CalibrationSubStep:
     required_inputs: tuple[str, ...] = ()
     notes: str = ""
     parameter: str = "S21"
+    path_template: str = ""
+    path: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -41,6 +44,8 @@ class CalibrationStep:
     required_inputs: tuple[str, ...] = ()
     notes: str = ""
     substeps: tuple[CalibrationSubStep, ...] = ()
+    path_template: str = ""
+    path: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -54,6 +59,13 @@ class CalibrationItem:
 @dataclass(frozen=True)
 class CalibrationCatalog:
     items: tuple[CalibrationItem, ...] = field(default_factory=tuple)
+    schema_version: str = ""
+    name: str = ""
+    display_name: str = ""
+    description: str = ""
+    source_path: str = ""
+    node_catalog: dict[str, Any] = field(default_factory=dict)
+    path_templates: dict[str, Any] = field(default_factory=dict)
 
     def get(self, item_id: str) -> CalibrationItem:
         normalized = item_id.strip().upper()

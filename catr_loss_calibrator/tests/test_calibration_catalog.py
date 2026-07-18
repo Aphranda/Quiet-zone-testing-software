@@ -1,4 +1,5 @@
-from catr_loss_calibrator.calibration.definitions import default_calibration_catalog
+from catr_loss_calibrator.calibration.definitions import default_calibration_catalog, legacy_python_calibration_catalog
+from catr_loss_calibrator.calibration.config_loader import DEFAULT_CONFIG_PATH, load_calibration_catalog
 
 
 def test_default_catalog_contains_five_calibration_items() -> None:
@@ -10,6 +11,27 @@ def test_default_catalog_contains_five_calibration_items() -> None:
         "LINK-CAL-004",
         "LINK-CAL-005",
     ]
+    assert catalog.schema_version == "catr-link-config.v1"
+    assert catalog.source_path.endswith("catr_chamber_loss_calibration.json")
+
+
+def test_builtin_json_catalog_matches_legacy_python_catalog() -> None:
+    imported = load_calibration_catalog(DEFAULT_CONFIG_PATH)
+    legacy = legacy_python_calibration_catalog()
+
+    assert [item.id for item in imported.items] == [item.id for item in legacy.items]
+    for imported_item, legacy_item in zip(imported.items, legacy.items):
+        assert imported_item.name == legacy_item.name
+        assert [step.id for step in imported_item.steps] == [step.id for step in legacy_item.steps]
+        for imported_step, legacy_step in zip(imported_item.steps, legacy_item.steps):
+            assert imported_step.role == legacy_step.role
+            assert imported_step.link_commands == legacy_step.link_commands
+            assert imported_step.raw_outputs == legacy_step.raw_outputs
+            assert imported_step.final_outputs == legacy_step.final_outputs
+            assert imported_step.required_inputs == legacy_step.required_inputs
+            assert [substep.id for substep in imported_step.substeps] == [
+                substep.id for substep in legacy_step.substeps
+            ]
 
 
 def test_link_cal_005_contains_sg_commands() -> None:

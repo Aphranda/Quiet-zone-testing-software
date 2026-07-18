@@ -212,6 +212,8 @@ class MockCalibrationRunner:
                     final_output=final_output,
                     required_inputs=step.required_inputs,
                     notes=step.notes,
+                    path_template=step.path_template,
+                    path=step.path,
                 )
             )
         return tuple(substeps)

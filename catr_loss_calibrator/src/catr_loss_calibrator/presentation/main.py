@@ -26,7 +26,7 @@ def run() -> int:
 
 def run_cli() -> int:
     catalog = default_calibration_catalog()
-    print("CATR 路损校准操作台")
+    print("通用路损校准控制台")
     print("Available calibration items:")
     for item in catalog.items:
         print(f"- {item.id}: {item.name} ({len(item.steps)} steps)")
@@ -46,7 +46,7 @@ def run_cli() -> int:
 
 def run_interactive() -> int:
     catalog = default_calibration_catalog()
-    print("CATR 路损校准操作台 - Interactive")
+    print("通用路损校准控制台 - Interactive")
     for index, item in enumerate(catalog.items, start=1):
         print(f"{index}. {item.id}: {item.name}")
     selection = input("Select calibration item number: ").strip()
@@ -817,7 +817,7 @@ def run_gui() -> int:
     class MainWindow(QMainWindow):
         def __init__(self) -> None:
             super().__init__()
-            self.setWindowTitle("CATR 路损校准操作台")
+            self.setWindowTitle("通用路损校准控制台")
             self.resize(1180, 780)
             self._last_confirmation_prompt_key = ""
 
@@ -840,7 +840,7 @@ def run_gui() -> int:
                     view_box=(4600, 6750, 3100, 3400),
                 )
             )
-            self.logo_title = QLabel("CATR 路损校准操作台")
+            self.logo_title = QLabel("通用路损校准控制台")
             self.logo_title.setObjectName("appTitle")
             self.logo_title.setStyleSheet("font-size: 20px; font-weight: 700; color: #23405c;")
 
@@ -1008,7 +1008,8 @@ def run_gui() -> int:
             left.addLayout(title_row)
             layout.addLayout(left, 1)
             meta = QVBoxLayout()
-            self.project_label = QLabel("项目：CATR 路损校准")
+            config_name = vm.catalog.display_name or vm.catalog.name or "未命名链路配置"
+            self.project_label = QLabel(f"当前配置：{config_name}")
             self.version_label = QLabel("版本：0.1.0")
             self.connection_hint = QLabel("状态区会显示连接、步骤和运行摘要。")
             meta.addWidget(self.project_label)

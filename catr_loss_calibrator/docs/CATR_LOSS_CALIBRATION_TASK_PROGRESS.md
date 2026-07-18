@@ -49,6 +49,41 @@ Last updated: 2026-07-18
 
 ## 任务记录
 
+### CATR-CAL-TASK-20260718-014 - 通用控制台与 JSON catalog 导入基础
+
+- 状态：完成
+- 日期：2026-07-18
+- 任务目标：
+  - 将 UI/CLI 名称从“CATR 路损校准操作台”调整为“通用路损校准控制台”。
+  - 生成当前 CATR 五个 `LINK-CAL` 校准项的内置 JSON 配置。
+  - 建立链路配置 JSON loader，并让默认 catalog 从内置 JSON 加载。
+- 完成内容：
+  - 新增 `calibration/configs/catr_chamber_loss_calibration.json`，包含 `LINK-CAL-001` 至 `LINK-CAL-005` 的校准项、大步骤、细分步骤、链路命令和输出/依赖参数。
+  - 新增 `calibration/config_loader.py`，支持校验 schema 版本、加载 JSON 并转换为 `CalibrationCatalog`。
+  - 扩展 `CalibrationCatalog`、`CalibrationStep`、`CalibrationSubStep`，为后续 JSON 驱动节点图预留 `node_catalog`、`path_templates`、`path_template` 和 `path` 字段。
+  - `default_calibration_catalog()` 已改为加载内置 JSON，原 Python catalog 保留为 `legacy_python_calibration_catalog()` 供迁移期测试对照。
+  - UI/CLI 标题改为“通用路损校准控制台”，当前 CATR 作为已加载配置显示。
+  - 更新开发 TODO 与 UI TODO，标记已完成阶段并保留 JSON 节点图迁移任务。
+- 验证结果：
+  - `py_compile` 通过：`models.py`、`config_loader.py`、`definitions.py`、`presentation/main.py`。
+  - 通过测试：`test_calibration_catalog.py`、`test_mock_runner.py`、`test_link_management.py`、`test_presentation_viewmodels.py`，共 25 项。
+  - 仅完成 Mock/导入验证，未做真实硬件验证。
+- 还需完成：
+  - 为内置 CATR JSON 补齐 `node_catalog`、`path_templates` 和每个步骤/细分步骤的 `path_template` 引用。
+  - 将 UI 接线路径节点图从 presentation 层硬编码模板迁移到 JSON 配置。
+  - 增加用户可选文件的“导入链路配置”入口和错误提示。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/config_loader.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/configs/catr_chamber_loss_calibration.json`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/models.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/definitions.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`
+  - `catr_loss_calibrator/tests/test_calibration_catalog.py`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_DEVELOPMENT_TODO.md`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_TODO.md`
+- 下一步：
+  - 执行 P1-13 / P1-12 / UI-71，先把 HTML 节点图落入 JSON，再让 UI 使用 JSON 路径绘制。
+
 ### CATR-CAL-TASK-20260718-013 - P5 追溯与导出基础
 
 - 状态：完成
