@@ -71,6 +71,25 @@ QLabel[statusValue="true"] {
     font-weight: 600;
     color: #5a88b2;
 }
+QFrame#brandPanel {
+    border: 1px solid #d8e2ea;
+    border-radius: 8px;
+    background: #fbfcfd;
+}
+QFrame#inlineConfirmPanel {
+    border: 1px solid #d8e2ea;
+    border-radius: 8px;
+    background: #fbfcfd;
+}
+QFrame#inlineConfirmPanel[confirmState="active"] {
+    border: 1px solid #c8d7e4;
+    background: #f7fafc;
+}
+QFrame#inlineConfirmPanel QLabel {
+    color: #465a69;
+    font-size: 13px;
+    font-weight: 500;
+}
 
 QLineEdit, QTextEdit {
     border: 1px solid #c7d1d8;

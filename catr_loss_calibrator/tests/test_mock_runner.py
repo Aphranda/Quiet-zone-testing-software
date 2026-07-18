@@ -49,6 +49,37 @@ def test_mock_runner_overview_reports_status_and_connections() -> None:
     assert overview["vna_connected"] is False
 
 
+def test_mock_runner_uses_instrument_page_vna_settings() -> None:
+    item = default_calibration_catalog().get("LINK-CAL-001")
+    vna = MockVna()
+    runner = MockCalibrationRunner(
+        item,
+        vna,
+        MockLinkBox(),
+        Path("unused"),
+        vna_settings={
+            "start_ghz": 12.0,
+            "stop_ghz": 12.2,
+            "points": 21,
+            "vna_power_dbm": -7.5,
+            "if_bandwidth_hz": 2000.0,
+            "parameter": "S21",
+            "continuous_sweep": False,
+        },
+    )
+    runner.link_box.connect()
+    runner.vna.connect()
+    runner.state_machine.transition(CalibrationState.WAIT_MANUAL_CONFIRM)
+
+    runner._run_substep(item.steps[0], runner._substeps_for(item.steps[0])[0])
+
+    assert vna._start_hz == 12e9
+    assert vna._stop_hz == 12.2e9
+    assert vna._points == 21
+    assert vna._power_dbm == -7.5
+    assert vna._if_bandwidth_hz == 2000.0
+
+
 def test_mock_runner_can_skip_and_cancel_steps() -> None:
     item = default_calibration_catalog().get("LINK-CAL-001")
     actions = iter(["skip", "cancel"])

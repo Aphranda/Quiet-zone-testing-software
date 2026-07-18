@@ -49,6 +49,159 @@ Last updated: 2026-07-18
 
 ## 任务记录
 
+### CATR-CAL-TASK-20260718-020 - 小步骤确认内嵌到步骤执行页
+
+- 状态：完成
+- 日期：2026-07-18
+- 任务目标：
+  - 避免小步骤确认弹窗遮挡步骤执行内容。
+  - 将确认动作改为页面内嵌状态组件，而不是弹窗式去重逻辑。
+- 完成内容：
+  - 在“开始校准”按钮右侧新增内嵌确认条，显示当前 STEP 的接线确认或保存确认。
+  - 保留“上一步 / 确认 / 下一步 / 取消”动作，其中开始确认阶段隐藏“上一步”，保存确认阶段显示“上一步”。
+  - 移除小步骤确认的 `_last_confirmation_prompt_key` 和 `_show_prompt_action_dialog` 弹窗式逻辑。
+  - 当前 runner prompt 通过 `StepViewData.confirm_phase` 直接同步到页面确认条；无确认阶段时自动隐藏。
+- 验证结果：
+  - `py_compile` 通过：`presentation/main.py`。
+  - 通过测试：`test_calibration_catalog.py`、`test_mock_runner.py`、`test_link_management.py`、`test_presentation_viewmodels.py`，共 33 项。
+  - 仅完成 Mock/导入验证，未做真实硬件验证。
+- 还需完成：
+  - 后续可补 GUI 自动化截图验证确认条在不同阶段的按钮状态。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/style/style_bule.qss`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_TODO.md`
+- 下一步：
+  - 继续按实际操作体验优化确认条文案和按钮布局。
+
+### CATR-CAL-TASK-20260718-019 - runner 使用仪表配置页网分参数
+
+- 状态：完成
+- 日期：2026-07-18
+- 任务目标：
+  - 校准执行时使用仪表配置页中的网分扫频参数，而不是 runner 固定默认参数。
+- 完成内容：
+  - `MockCalibrationRunner` 增加 `vna_settings`，每个小步骤按传入的起频、止频、点数、功率、IFBW、S 参数和连续扫描设置配置网分。
+  - GUI 开始校准确认时读取网分卡片当前配置，并传入 `CalibrationViewModel.start_selected()`。
+  - 开始确认弹窗显示本次使用的网分扫频范围、点数和步进。
+- 验证结果：
+  - `py_compile` 通过：`calibration/mock_runner.py`、`presentation/viewmodels.py`、`presentation/main.py`。
+  - 通过测试：`test_calibration_catalog.py`、`test_mock_runner.py`、`test_link_management.py`、`test_presentation_viewmodels.py`，共 33 项。
+  - 仅完成 Mock/导入验证，未做真实硬件验证。
+- 还需完成：
+  - 后续接真实网分时验证 SCPI 配置、触发、读数与实际仪器状态一致。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/mock_runner.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/viewmodels.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`
+  - `catr_loss_calibrator/tests/test_mock_runner.py`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_TODO.md`
+- 下一步：
+  - 继续推进真实硬件验证与采集数据计算闭环。
+
+### CATR-CAL-TASK-20260718-018 - STEP 级细分步骤说明
+
+- 状态：完成
+- 日期：2026-07-18
+- 任务目标：
+  - 将小步骤说明从宽泛的大步骤话术改为具体 STEP 操作说明。
+- 完成内容：
+  - 内置 CATR JSON 中所有显式细分步骤 `manual_instruction` 均以 `STEPn` 开头。
+  - 每条 STEP 说明包含当前接线路径、极化人工确认要求、链路箱命令和 raw/final 保存输出。
+  - 确认弹窗和“命令 / 说明”区域显示当前 `STEPn`，与左侧细分步骤列表保持一致。
+- 验证结果：
+  - 检查内置 JSON 中细分步骤说明均包含 STEP，且无 `??` 乱码。
+  - `py_compile` 通过：`presentation/main.py`、`presentation/viewmodels.py`。
+  - 通过测试：`test_calibration_catalog.py`、`test_mock_runner.py`、`test_link_management.py`、`test_presentation_viewmodels.py`，共 31 项。
+  - 仅完成 Mock/导入验证，未做真实硬件验证。
+- 还需完成：
+  - 后续根据现场操作口径继续优化每个 STEP 的文字粒度。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/configs/catr_chamber_loss_calibration.json`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_TODO.md`
+- 下一步：
+  - 继续检查实际操作流程中是否还有大步骤话术残留。
+
+### CATR-CAL-TASK-20260718-017 - 启动空配置与默认配置导入按钮
+
+- 状态：完成
+- 日期：2026-07-18
+- 任务目标：
+  - GUI 启动时不自动加载默认 CATR 配置，校准项列表保持空。
+  - 在导入链路配置入口右侧增加“导入默认配置”按钮，由用户手动加载内置配置。
+- 完成内容：
+  - `CalibrationViewModel` 启动时使用空 catalog，并在 LOG 中提示未加载链路配置。
+  - 新增 `load_default_catalog()`，点击“导入默认配置”后加载内置 `catr_chamber_loss_calibration.json`。
+  - GUI 空状态下保护校准项列表、步骤列表、overview 和“开始校准”动作，避免未加载配置时误启动 runner。
+  - 链路配置文本框显示“未加载链路配置”，导入默认或外部配置后同步更新路径。
+- 验证结果：
+  - `py_compile` 通过：`presentation/viewmodels.py`、`presentation/main.py`。
+  - 通过测试：`test_calibration_catalog.py`、`test_mock_runner.py`、`test_link_management.py`、`test_presentation_viewmodels.py`，共 31 项。
+  - 仅完成 Mock/导入验证，未做真实硬件验证。
+- 还需完成：
+  - 后续可补充 GUI 自动化验证按钮点击后的列表刷新。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/viewmodels.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`
+  - `catr_loss_calibrator/tests/test_presentation_viewmodels.py`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_TODO.md`
+- 下一步：
+  - 继续完善配置导入后的执行参数、硬件连接和数据计算闭环。
+
+### CATR-CAL-TASK-20260718-016 - 外部链路配置导入入口
+
+- 状态：完成
+- 日期：2026-07-18
+- 任务目标：
+  - 完成 UI-68 / UI-70 / UI-72，支持在 GUI 中导入链路配置 JSON，并显示当前配置来源。
+- 完成内容：
+  - `CalibrationViewModel.load_catalog()` 支持加载外部 JSON、替换当前 catalog、清空旧运行状态并刷新 overview。
+  - GUI header 区分“通用路损校准控制台”和“当前配置”，显示配置名称、schema 版本和来源文件路径。
+  - 在“校准执行”页的“频段配置”上方新增“导入链路配置”入口，支持选择 JSON 文件；导入成功后刷新校准项、步骤、细分步骤、接线路径和链路箱命令预设。
+  - 导入失败时弹窗显示文件路径和 loader 返回的字段/错误原因。
+- 验证结果：
+  - `py_compile` 通过：`presentation/viewmodels.py`、`presentation/main.py`。
+  - 通过测试：`test_calibration_catalog.py`、`test_mock_runner.py`、`test_link_management.py`、`test_presentation_viewmodels.py`，共 30 项。
+  - 仅完成 Mock/导入验证，未做真实硬件验证。
+- 还需完成：
+  - 后续可补充 GUI 自动化冒烟，直接验证文件选择后的界面刷新。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/viewmodels.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`
+  - `catr_loss_calibrator/tests/test_presentation_viewmodels.py`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_TODO.md`
+- 下一步：
+  - 继续按 TODO 推进真实硬件、数据计算或 GUI 自动化验证项。
+
+### CATR-CAL-TASK-20260718-015 - JSON 驱动接线路径与细分步骤详情
+
+- 状态：完成
+- 日期：2026-07-18
+- 任务目标：
+  - 将接线路径节点图从 UI 层硬编码迁移到内置 CATR JSON 配置。
+  - 让步骤执行页的接线路径、命令和说明随细分步骤切换而变化。
+- 完成内容：
+  - 为内置 `catr_chamber_loss_calibration.json` 补齐 `node_catalog`、`path_templates` 和步骤/细分步骤 `path_template` 引用。
+  - `StepViewData`、`SubStepViewData` 和 Mock runner 自动生成的小步骤均携带 `path_template` / `path`。
+  - UI 接线路径优先读取 JSON `path` / `path_templates`，节点标签和样式角色从 `node_catalog` 获取。
+  - 步骤执行页点击细分步骤时，同步刷新接线路径、命令说明和步骤详情；运行中的确认提示仍自动聚焦当前小步骤。
+- 验证结果：
+  - `py_compile` 通过：`config_loader.py`、`models.py`、`mock_runner.py`、`presentation/viewmodels.py`、`presentation/main.py`。
+  - 通过测试：`test_calibration_catalog.py`、`test_mock_runner.py`、`test_link_management.py`、`test_presentation_viewmodels.py`，共 28 项。
+  - 仅完成 Mock/导入验证，未做真实硬件验证。
+- 还需完成：
+  - 增加用户可选文件的“导入链路配置”入口和错误提示。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/configs/catr_chamber_loss_calibration.json`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/mock_runner.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/viewmodels.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`
+  - `catr_loss_calibrator/tests/test_calibration_catalog.py`
+  - `catr_loss_calibrator/tests/test_presentation_viewmodels.py`
+- 下一步：
+  - 执行 UI-68 / UI-72，增加外部 JSON 配置导入入口，并在导入失败时显示字段路径和错误原因。
+
 ### CATR-CAL-TASK-20260718-014 - 通用控制台与 JSON catalog 导入基础
 
 - 状态：完成

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 from catr_loss_calibrator.calibration.models import CalibrationItem, CalibrationStep, CalibrationSubStep, MeasurementRole
 from catr_loss_calibrator.calibration.state_machine import CalibrationState, CalibrationStateMachine
@@ -20,6 +20,7 @@ class MockCalibrationRunner:
     link_box: LinkBox
     output_root: Path
     confirm_step: Callable[[CalibrationStep, CalibrationSubStep, str, int, int, int, int], str] | None = None
+    vna_settings: dict[str, Any] = field(default_factory=dict)
     state_machine: CalibrationStateMachine = field(default_factory=CalibrationStateMachine)
     events: list[str] = field(default_factory=list)
 
@@ -145,15 +146,22 @@ class MockCalibrationRunner:
             self.events.append(f"link:{step.id}:{substep.id}:{command}")
 
         self.state_machine.transition(CalibrationState.CONFIGURE_VNA)
-        self.vna.configure_sweep(10e9, 15e9, 51)
-        self.vna.configure_power(-10.0)
-        self.vna.configure_if_bandwidth(1000.0)
+        settings = self._normalized_vna_settings()
+        self.vna.configure_sweep(settings["start_hz"], settings["stop_hz"], settings["points"])
+        self.vna.configure_power(settings["power_dbm"])
+        self.vna.configure_if_bandwidth(settings["if_bandwidth_hz"])
+        configure_parameter = getattr(self.vna, "configure_measurement_parameter", None)
+        if callable(configure_parameter):
+            configure_parameter(settings["parameter"])
+        configure_continuous = getattr(self.vna, "configure_continuous_sweep", None)
+        if callable(configure_continuous):
+            configure_continuous(settings["continuous_sweep"])
 
         self.state_machine.transition(CalibrationState.TRIGGER_SWEEP)
-        self.vna.trigger_sweep(substep.parameter)
+        self.vna.trigger_sweep(settings["parameter"])
 
         self.state_machine.transition(CalibrationState.READ_TRACE)
-        trace = self.vna.read_s_parameter(substep.parameter)
+        trace = self.vna.read_s_parameter(settings["parameter"])
 
         self.state_machine.transition(CalibrationState.SAVE_RAW)
         source_step = f"{step.id}_{self._safe_token(substep.id)}"
@@ -166,6 +174,27 @@ class MockCalibrationRunner:
         self.state_machine.transition(CalibrationState.COMPUTE_OUTPUT)
         self.state_machine.transition(CalibrationState.SAVE_OUTPUT)
         self._save_metadata(step, substep, trace)
+
+    def _normalized_vna_settings(self) -> dict[str, Any]:
+        settings = dict(self.vna_settings or {})
+        parameter = str(settings.get("parameter") or "S21").strip().upper()
+        if "start_hz" in settings:
+            start_hz = float(settings["start_hz"])
+        else:
+            start_hz = float(settings.get("start_ghz", 10.0)) * 1e9
+        if "stop_hz" in settings:
+            stop_hz = float(settings["stop_hz"])
+        else:
+            stop_hz = float(settings.get("stop_ghz", 15.0)) * 1e9
+        return {
+            "start_hz": start_hz,
+            "stop_hz": stop_hz,
+            "points": int(settings.get("points", 51)),
+            "power_dbm": float(settings.get("vna_power_dbm", settings.get("power_dbm", -10.0))),
+            "if_bandwidth_hz": float(settings.get("if_bandwidth_hz", 1000.0)),
+            "parameter": parameter,
+            "continuous_sweep": bool(settings.get("continuous_sweep", False)),
+        }
 
     def _save_metadata(self, step: CalibrationStep, substep: CalibrationSubStep, trace: SParameterTrace) -> None:
         source_step = f"{step.id}_{self._safe_token(substep.id)}"

@@ -79,7 +79,7 @@ def run_interactive() -> int:
 
 
 def run_gui() -> int:
-    from catr_loss_calibrator.presentation.viewmodels import CalibrationViewModel
+    from catr_loss_calibrator.presentation.viewmodels import CalibrationViewModel, StepViewData
     from catr_loss_calibrator.project.config import ProjectConfig
     from catr_loss_calibrator.storage.loss_file_policy import FEED_HORN_BANDS
 
@@ -591,6 +591,17 @@ def run_gui() -> int:
             text = self.preset_combo.currentText().strip()
             return self.presets.get(text, text)
 
+        def set_presets(self, presets: dict[str, str]) -> None:
+            current = self.preset_combo.currentText().strip()
+            self.presets = dict(presets)
+            self.preset_combo.blockSignals(True)
+            self.preset_combo.clear()
+            self.preset_combo.addItems(list(self.presets.keys()))
+            if current in self.presets:
+                self.preset_combo.setCurrentText(current)
+            self.preset_combo.blockSignals(False)
+            self._sync_current_command_label(self.preset_combo.currentText())
+
         def command_text(self) -> str:
             return self.command_input.text()
 
@@ -749,8 +760,8 @@ def run_gui() -> int:
             super().__init__()
             self.setWindowTitle("通用路损校准控制台")
             self.resize(1180, 780)
-            self._last_confirmation_prompt_key = ""
             self._current_step_view: StepViewData | None = None
+            self._active_prompt_view: StepViewData | None = None
 
             self.item_list = QListWidget()
             self.item_list.setMinimumWidth(220)
@@ -870,11 +881,26 @@ def run_gui() -> int:
             self.btn_connect = QPushButton("连接全部设备")
             self.btn_disconnect = QPushButton("断开全部设备")
             self.btn_start = QPushButton("开始校准")
+            self.btn_start.setFixedWidth(120)
+            self.btn_import_config = QPushButton("导入链路配置")
+            self.btn_import_default_config = QPushButton("导入默认配置")
+            self.inline_confirm_panel: QFrame | None = None
+            self.inline_confirm_label: QLabel | None = None
+            self.btn_inline_retry: QPushButton | None = None
+            self.btn_inline_continue: QPushButton | None = None
+            self.btn_inline_skip: QPushButton | None = None
+            self.btn_inline_cancel: QPushButton | None = None
+            self.config_path_input = QLineEdit()
+            self.config_path_input.setReadOnly(True)
+            self.config_path_input.setPlaceholderText("当前配置路径")
+            self.config_path_input.setMinimumWidth(320)
 
             self.btn_refresh = QPushButton("刷新结果")
             _style_button(self.btn_connect, role="success")
             _style_button(self.btn_disconnect, role="danger")
             _style_button(self.btn_start, role="primary", state="idle")
+            _style_button(self.btn_import_config, role="secondary")
+            _style_button(self.btn_import_default_config, role="secondary")
             _style_button(self.btn_refresh, role="secondary")
 
             self.tabs = QTabWidget()
@@ -906,6 +932,7 @@ def run_gui() -> int:
             self._sync_horn_options(project_config.feed, project_config.horn)
             self._refresh_item_list()
             self._sync_device_connection_panels()
+            self._sync_catalog_path_field()
             self.item_list.setCurrentRow(0)
             vm.refresh_overview()
             self._sync_overview()
@@ -931,22 +958,17 @@ def run_gui() -> int:
             box.setObjectName("appHeader")
             box.setMinimumHeight(72)
             layout = QHBoxLayout(box)
-            left = QVBoxLayout()
-            title_row = QHBoxLayout()
-            title_row.addWidget(self.logo_badge)
-            title_row.addWidget(self.logo_title)
-            title_row.addStretch(1)
-            left.addLayout(title_row)
-            layout.addLayout(left, 1)
-            meta = QVBoxLayout()
-            config_name = vm.catalog.display_name or vm.catalog.name or "未命名链路配置"
-            self.project_label = QLabel(f"当前配置：{config_name}")
-            self.version_label = QLabel("版本：0.1.0")
-            self.connection_hint = QLabel("状态区会显示连接、步骤和运行摘要。")
-            meta.addWidget(self.project_label)
-            meta.addWidget(self.version_label)
-            meta.addWidget(self.connection_hint)
-            layout.addLayout(meta)
+            brand_panel = QFrame()
+            brand_panel.setObjectName("brandPanel")
+            brand_panel.setMinimumWidth(360)
+            brand_layout = QHBoxLayout(brand_panel)
+            brand_layout.setContentsMargins(14, 10, 16, 10)
+            brand_layout.setSpacing(12)
+            brand_layout.addWidget(self.logo_badge)
+            brand_layout.addWidget(self.logo_title)
+            brand_layout.addStretch(1)
+            layout.addWidget(brand_panel, 0)
+            layout.addStretch(1)
             return box
 
         def _build_calibration_page(self) -> QWidget:
@@ -965,6 +987,14 @@ def run_gui() -> int:
             center_stack = QWidget()
             center_stack_layout = QVBoxLayout(center_stack)
             center_stack_layout.setContentsMargins(0, 0, 0, 0)
+            config_row = QGroupBox("链路配置")
+            config_row_layout = QHBoxLayout(config_row)
+            config_row_layout.setContentsMargins(12, 8, 12, 8)
+            config_row_layout.setSpacing(8)
+            config_row_layout.addWidget(self.config_path_input, 1)
+            config_row_layout.addWidget(self.btn_import_config)
+            config_row_layout.addWidget(self.btn_import_default_config)
+            center_stack_layout.addWidget(config_row)
             center_stack_layout.addWidget(self._build_band_config_group())
 
             center = QGroupBox("步骤执行")
@@ -998,6 +1028,7 @@ def run_gui() -> int:
             execution_body.setStretchFactor(0, 1)
             execution_body.setStretchFactor(1, 3)
             center_layout.addWidget(execution_body, 1)
+            center_layout.addWidget(self._build_inline_confirmation_panel())
 
             button_row = QHBoxLayout()
             button_row.addWidget(self.btn_start)
@@ -1013,6 +1044,47 @@ def run_gui() -> int:
             layout.addWidget(page_splitter)
             return page
 
+        def _build_inline_confirmation_panel(self) -> QFrame:
+            panel = QFrame()
+            panel.setObjectName("inlineConfirmPanel")
+            panel.setMinimumWidth(0)
+            panel.setMinimumHeight(62)
+            panel.setMaximumHeight(78)
+            panel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            layout = QHBoxLayout(panel)
+            layout.setContentsMargins(12, 8, 12, 8)
+            layout.setSpacing(8)
+            self.inline_confirm_panel = panel
+
+            self.inline_confirm_label = QLabel("等待校准确认")
+            self.inline_confirm_label.setWordWrap(True)
+            layout.addWidget(self.inline_confirm_label, 1)
+
+            self.btn_inline_retry = QPushButton("上一步")
+            self.btn_inline_continue = QPushButton("确认")
+            self.btn_inline_skip = QPushButton("下一步")
+            self.btn_inline_cancel = QPushButton("取消")
+            self.btn_inline_retry.setToolTip("重复当前小步骤")
+            self.btn_inline_continue.setToolTip("确认当前小步骤并继续执行")
+            self.btn_inline_skip.setToolTip("跳过当前小步骤，进入下一个小步骤")
+            self.btn_inline_cancel.setToolTip("取消本次校准")
+            _style_button(self.btn_inline_retry, role="warning")
+            _style_button(self.btn_inline_continue, role="success")
+            _style_button(self.btn_inline_skip, role="primary")
+            _style_button(self.btn_inline_cancel, role="danger")
+
+            self.btn_inline_retry.clicked.connect(lambda _checked=False: self._submit_inline_prompt_action("retry"))
+            self.btn_inline_continue.clicked.connect(lambda _checked=False: self._submit_inline_prompt_action("continue"))
+            self.btn_inline_skip.clicked.connect(lambda _checked=False: self._submit_inline_prompt_action("skip"))
+            self.btn_inline_cancel.clicked.connect(lambda _checked=False: self._submit_inline_prompt_action("cancel"))
+
+            layout.addWidget(self.btn_inline_retry)
+            layout.addWidget(self.btn_inline_continue)
+            layout.addWidget(self.btn_inline_skip)
+            layout.addWidget(self.btn_inline_cancel)
+            self._set_inline_confirmation_idle(panel)
+            return panel
+
         def _build_band_config_group(self) -> QGroupBox:
             group = QGroupBox("频段配置")
             form = QFormLayout(group)
@@ -1027,7 +1099,7 @@ def run_gui() -> int:
             band_row.addWidget(QLabel("喇叭增益文件"))
             band_row.addWidget(self.horn_gain_file_input, 3)
             band_row.addWidget(self.btn_browse_horn_gain)
-            form.addRow("配置", band_row)
+            form.addRow(band_row)
             return group
 
         def _build_command_page(self) -> QWidget:
@@ -1071,6 +1143,8 @@ def run_gui() -> int:
             self.btn_connect.clicked.connect(self._connect_devices)
             self.btn_disconnect.clicked.connect(self._disconnect_devices)
             self.btn_start.clicked.connect(self._confirm_start_calibration)
+            self.btn_import_config.clicked.connect(self._import_link_config)
+            self.btn_import_default_config.clicked.connect(self._import_default_link_config)
             self.btn_refresh.clicked.connect(self._sync_overview)
             self.feed_combo.currentTextChanged.connect(self._sync_horn_options)
             self.btn_browse_horn_gain.clicked.connect(self._browse_horn_gain_file)
@@ -1098,6 +1172,7 @@ def run_gui() -> int:
 
             vm.selected_item_changed.connect(self._sync_item_detail)
             vm.selected_step_changed.connect(self._sync_step_list_colored)
+            vm.catalog_changed.connect(self._sync_after_catalog_changed)
             vm.step_view_changed.connect(self._sync_step_view)
             vm.step_view_changed.connect(self._sync_step_list_colored)
             self.substep_list.currentRowChanged.connect(self._on_substep_selected)
@@ -1112,6 +1187,74 @@ def run_gui() -> int:
         def _refresh_item_list(self) -> None:
             self._sync_item_list()
             self._sync_item_detail()
+
+        def _sync_after_catalog_changed(self) -> None:
+            self._sync_catalog_path_field()
+            self._sync_command_presets()
+            self._refresh_item_list()
+            self._sync_device_connection_panels()
+
+        def _sync_catalog_path_field(self) -> None:
+            source_path = vm.catalog.source_path or "未加载链路配置"
+            self.config_path_input.setText(source_path)
+            self.config_path_input.setToolTip(source_path)
+
+        def _sync_command_presets(self) -> None:
+            command_presets = vm.device_command_presets()
+            for panel in self.command_panels:
+                panel.set_presets(command_presets[panel.device_key])
+
+        def _import_link_config(self) -> None:
+            path, _selected_filter = QFileDialog.getOpenFileName(
+                self,
+                "导入链路配置",
+                "",
+                "Link Config JSON (*.json);;All Files (*)",
+            )
+            if not path:
+                return
+            try:
+                vm.load_catalog(path)
+            except Exception as exc:
+                self._show_modal_dialog(
+                    title="导入链路配置失败",
+                    message=f"无法导入所选 JSON。\n\n文件：{path}\n错误：{exc}",
+                    buttons=(("确认", "ok", "center"),),
+                    default_action="ok",
+                    width=620,
+                    height=260,
+                )
+                return
+            self._show_modal_dialog(
+                title="导入链路配置完成",
+                message=f"已加载链路配置。\n\n文件：{path}",
+                buttons=(("确认", "ok", "center"),),
+                default_action="ok",
+                width=560,
+                height=220,
+            )
+
+        def _import_default_link_config(self) -> None:
+            try:
+                vm.load_default_catalog()
+            except Exception as exc:
+                self._show_modal_dialog(
+                    title="导入默认配置失败",
+                    message=f"无法导入默认链路配置。\n\n错误：{exc}",
+                    buttons=(("确认", "ok", "center"),),
+                    default_action="ok",
+                    width=560,
+                    height=240,
+                )
+                return
+            self._show_modal_dialog(
+                title="导入默认配置完成",
+                message="已加载默认链路配置。",
+                buttons=(("确认", "ok", "center"),),
+                default_action="ok",
+                width=520,
+                height=200,
+            )
 
         @staticmethod
         def _list_status_text(status: str) -> str:
@@ -1158,6 +1301,19 @@ def run_gui() -> int:
 
         def _sync_item_detail(self) -> None:
             item = vm.selected_item
+            if item is None:
+                self.item_summary.setText("未加载链路配置。\n请先导入链路配置或导入默认配置。")
+                self._active_prompt_view = None
+                self.step_list.clear()
+                self.substep_list.clear()
+                self.step_title.setText("未加载链路配置")
+                self.step_status.setText("状态：IDLE")
+                self.step_progress.setValue(0)
+                self.path_view.clear()
+                self.command_view.setPlainText("未加载链路配置")
+                self.detail_view.setPlainText("请先导入链路配置或导入默认配置。")
+                self._sync_overview()
+                return
             self.item_summary.setText(
                 f"ID: {item.id}\n"
                 f"名称: {_friendly_text(item.name)}\n"
@@ -1169,6 +1325,11 @@ def run_gui() -> int:
 
         def _sync_step_list_colored(self) -> None:
             item = vm.selected_item
+            if item is None:
+                self.step_list.clear()
+                self.substep_list.clear()
+                self.step_hint.setText("请先导入链路配置或导入默认配置。")
+                return
             self.step_list.blockSignals(True)
             self.step_list.clear()
             for index, step in enumerate(item.steps, start=1):
@@ -1183,9 +1344,16 @@ def run_gui() -> int:
             self.step_list.blockSignals(False)
             current_step = vm.selected_step
             if current_step:
-                self._sync_step_view(
-                    vm._step_view_data(current_step, vm.selected_step_index + 1, len(item.steps))
+                active_step = self._active_prompt_view
+                view_step = (
+                    active_step
+                    if active_step
+                    and active_step.item_id == item.id
+                    and active_step.step_id == current_step.id
+                    and active_step.confirm_phase in {"start", "saved"}
+                    else vm._step_view_data(current_step, vm.selected_step_index + 1, len(item.steps))
                 )
+                self._sync_step_view(view_step)
                 self._sync_substep_list()
                 self.step_hint.setText(f"当前步骤：{current_step.id} · {_friendly_text(current_step.name)}")
             else:
@@ -1194,6 +1362,8 @@ def run_gui() -> int:
 
         def _sync_step_view(self, step: StepViewData) -> None:
             self._current_step_view = step
+            if step.confirm_phase in {"start", "saved"}:
+                self._active_prompt_view = step
             substep_text = ""
             if step.substep_id:
                 substep_text = f" | 小步骤 {step.substep_index}/{step.substep_total}: {_friendly_text(step.substep_name)}"
@@ -1207,14 +1377,24 @@ def run_gui() -> int:
             if not step.substep_id:
                 detail_step = self._step_view_for_substep_row(self.substep_list.currentRow(), step) or step
             self._sync_step_detail_views(detail_step)
-            self._show_substep_confirmation(step)
+            inline_step = (
+                step
+                if step.confirm_phase in {"start", "saved"}
+                else self._active_prompt_view
+                if self._active_prompt_view
+                and self._active_prompt_view.item_id == step.item_id
+                and self._active_prompt_view.step_id == step.step_id
+                else step
+            )
+            self._sync_inline_confirmation(inline_step)
 
         def _sync_step_detail_views(self, step: StepViewData) -> None:
             self.path_view.setHtml(_format_path_html(step))
             command_lines = list(step.link_commands)
             command_text = "\n".join(f"{index}. {command}" for index, command in enumerate(command_lines, start=1))
             if step.manual_instruction:
-                command_text = (command_text + "\n\n" if command_text else "") + f"说明:\n{step.manual_instruction}"
+                step_label = f"STEP{step.substep_index}" if step.substep_index else "当前步骤"
+                command_text = (command_text + "\n\n" if command_text else "") + f"{step_label} 操作说明:\n{step.manual_instruction}"
             self.command_view.setPlainText(command_text or "无链路命令")
             phase_text = ""
             if step.confirm_phase == "start":
@@ -1223,7 +1403,6 @@ def run_gui() -> int:
                 phase_text = "确认阶段: 数据保存完成确认\n"
             self.detail_view.setPlainText(
                 phase_text
-                + (f"小步骤: {step.substep_id} {_friendly_text(step.substep_name)}\n" if step.substep_id else "")
                 + f"输入端口: {_friendly_node_text(step.input_port)}\n"
                 f"输出端口: {_friendly_node_text(step.output_port)}\n"
                 f"原始输出: {_plain_join(step.raw_outputs)}\n"
@@ -1244,7 +1423,7 @@ def run_gui() -> int:
             base = base_step or self._current_step_view or vm._step_view_data(
                 source_step,
                 vm.selected_step_index + 1,
-                len(vm.selected_item.steps),
+                len(vm.selected_item.steps) if vm.selected_item is not None else 0,
             )
             return StepViewData(
                 item_id=base.item_id,
@@ -1295,7 +1474,11 @@ def run_gui() -> int:
             if step is None:
                 self.substep_list.blockSignals(False)
                 return
-            item_id = vm.selected_item.id
+            item = vm.selected_item
+            if item is None:
+                self.substep_list.blockSignals(False)
+                return
+            item_id = item.id
             active_id = active_step.substep_id if active_step and active_step.step_id == step.id else ""
             phase = active_step.confirm_phase if active_step and active_id else ""
             current_row = -1
@@ -1349,6 +1532,9 @@ def run_gui() -> int:
         def _on_state_changed(self, state: str) -> None:
             self.step_status.setText(f"状态：{state}")
             self._sync_start_button_state(state)
+            if str(state).strip().upper() in {"DONE", "CANCELLED", "FAILED"} or str(state).upper().startswith("ERROR"):
+                self._active_prompt_view = None
+                self._hide_inline_confirmation()
 
         def _sync_command_response(self, response: str) -> None:
             self.status_label.setText(f"命令响应: {response}")
@@ -1376,75 +1562,86 @@ def run_gui() -> int:
             if path:
                 self.horn_gain_file_input.setText(path)
 
-        def _show_substep_confirmation(self, step: StepViewData) -> None:
+        def _sync_inline_confirmation(self, step: StepViewData) -> None:
             if not step.substep_id or step.confirm_phase not in {"start", "saved"}:
+                self._hide_inline_confirmation()
                 return
-            prompt_key = f"{step.step_id}:{step.substep_id}:{step.confirm_phase}:{step.substep_index}"
-            if prompt_key == self._last_confirmation_prompt_key:
-                return
-            self._last_confirmation_prompt_key = prompt_key
 
+            step_label = f"STEP{step.substep_index}" if step.substep_index else "当前小步骤"
             if step.confirm_phase == "start":
-                message = (
-                    f"请确认小步骤接线已完成。\n\n"
-                    f"大步骤: {step.step_id} - {_friendly_text(step.step_name)}\n"
-                    f"小步骤: {step.substep_index}/{step.substep_total} {step.substep_id} - {_friendly_text(step.substep_name)}\n"
-                    f"输入端口: {_friendly_node_text(step.input_port or '无')}\n"
-                    f"输出端口: {_friendly_node_text(step.output_port or '无')}\n\n"
-                    f"{step.manual_instruction or '无接线说明'}"
-                )
-                self._show_prompt_action_dialog(
-                    title="确认接线完成",
-                    message=message,
-                    actions=(
-                        ("确认接线完成", "continue"),
-                        ("下一步", "skip"),
-                        ("取消校准", "cancel"),
+                self._set_inline_confirmation(
+                    message=(
+                        f"{step_label} 接线确认：{_friendly_text(step.substep_name)}。"
+                        "请按上方步骤执行区的接线路径和命令说明确认。"
                     ),
-                    default_action="continue",
+                    continue_label="确认接线完成",
+                    allow_retry=False,
                 )
                 return
 
-            message = (
-                f"请确认小步骤数据已保存。\n\n"
-                f"大步骤: {step.step_id} - {_friendly_text(step.step_name)}\n"
-                f"小步骤: {step.substep_index}/{step.substep_total} {step.substep_id} - {_friendly_text(step.substep_name)}\n"
-                f"原始输出: {_plain_join(step.raw_outputs)}\n"
-                f"最终输出: {_plain_join(step.final_outputs)}"
-            )
-            self._show_prompt_action_dialog(
-                title="确认数据保存完成",
-                message=message,
-                actions=(
-                    ("完成并继续", "continue"),
-                    ("上一步", "retry"),
-                    ("下一步", "skip"),
-                    ("取消校准", "cancel"),
+            self._set_inline_confirmation(
+                message=(
+                    f"{step_label} 保存确认：原始输出 {_plain_join(step.raw_outputs)}，"
+                    f"最终输出 {_plain_join(step.final_outputs)}。请确认数据已保存。"
                 ),
-                default_action="continue",
+                continue_label="完成并继续",
+                allow_retry=True,
             )
 
-        def _show_prompt_action_dialog(
-            self,
-            *,
-            title: str,
-            message: str,
-            actions: tuple[tuple[str, str], ...],
-            default_action: str,
-        ) -> None:
-            action = self._show_modal_dialog(
-                title=title,
-                message=message,
-                buttons=(
-                    *tuple(("上一步", action, "left") for label, action in actions if action == "retry"),
-                    *tuple((label, action, "center") for label, action in actions if action not in {"retry", "skip"}),
-                    *tuple(("下一步", action, "right") for label, action in actions if action == "skip"),
-                ),
-                default_action=default_action,
-                width=620,
-                height=320,
-            )
-            vm.submit_action(action or "cancel")
+        def _set_inline_confirmation(self, *, message: str, continue_label: str, allow_retry: bool) -> None:
+            assert self.inline_confirm_panel is not None
+            assert self.inline_confirm_label is not None
+            assert self.btn_inline_retry is not None
+            assert self.btn_inline_continue is not None
+            assert self.btn_inline_skip is not None
+            assert self.btn_inline_cancel is not None
+            self.inline_confirm_label.setText(message)
+            self.btn_inline_continue.setText(continue_label)
+            self.btn_inline_retry.setVisible(allow_retry)
+            self.btn_inline_continue.setVisible(True)
+            self.btn_inline_skip.setVisible(True)
+            self.btn_inline_cancel.setVisible(True)
+            self.inline_confirm_panel.setProperty("confirmState", "active")
+            self.inline_confirm_panel.style().unpolish(self.inline_confirm_panel)
+            self.inline_confirm_panel.style().polish(self.inline_confirm_panel)
+            self._set_confirmation_blocked(True)
+            self.inline_confirm_panel.setVisible(True)
+
+        def _hide_inline_confirmation(self) -> None:
+            if self.inline_confirm_panel is not None:
+                self._set_inline_confirmation_idle(self.inline_confirm_panel)
+
+        def _set_inline_confirmation_idle(self, panel: QFrame) -> None:
+            if self.inline_confirm_label is not None:
+                self.inline_confirm_label.setText("等待当前 STEP 确认")
+            for button in (
+                self.btn_inline_retry,
+                self.btn_inline_continue,
+                self.btn_inline_skip,
+                self.btn_inline_cancel,
+            ):
+                if button is not None:
+                    button.setVisible(False)
+            panel.setProperty("confirmState", "idle")
+            panel.style().unpolish(panel)
+            panel.style().polish(panel)
+            self._set_confirmation_blocked(False)
+            panel.setVisible(True)
+
+        def _set_confirmation_blocked(self, blocked: bool) -> None:
+            for widget in (
+                self.item_list,
+                self.step_list,
+                self.substep_list,
+                self.btn_import_config,
+                self.btn_import_default_config,
+            ):
+                widget.setEnabled(not blocked)
+
+        def _submit_inline_prompt_action(self, action: str) -> None:
+            self._active_prompt_view = None
+            self._hide_inline_confirmation()
+            vm.submit_action(action)
 
         def _show_modal_dialog(
             self,
@@ -1524,10 +1721,23 @@ def run_gui() -> int:
 
         def _confirm_start_calibration(self) -> None:
             item = vm.selected_item
+            if item is None:
+                self._show_modal_dialog(
+                    title="无法开始校准",
+                    message="当前未加载链路配置。\n\n请先导入链路配置或导入默认配置。",
+                    buttons=(("确认", "ok", "center"),),
+                    default_action="ok",
+                    width=460,
+                    height=200,
+                )
+                return
+            vna_settings = self._vna_run_settings()
             action = self._show_modal_dialog(
                 title="开始校准确认",
                 message=(
                     f"确认开始执行 {item.id} - {_friendly_text(item.name)}？\n\n"
+                    f"网分扫频: {vna_settings['start_ghz']:.3f} GHz 到 {vna_settings['stop_ghz']:.3f} GHz，"
+                    f"{vna_settings['points']} 点，步进 {vna_settings['frequency_step_mhz']:.3f} MHz。\n"
                     "步骤列表显示校准项，步骤执行区会逐个小步骤等待确认。"
                 ),
                 buttons=(("开始校准", "yes", "center"), ("取消", "cancel", "center")),
@@ -1536,11 +1746,19 @@ def run_gui() -> int:
                 height=240,
             )
             if action == "yes":
-                vm.start_selected()
+                vm.start_selected(vna_settings)
+
+        def _vna_run_settings(self) -> dict[str, Any]:
+            for panel in self.command_panels:
+                if panel.device_key == "vna":
+                    return panel.vna_settings()
+            return {}
 
         def _confirm_run_finished(self, summary: object) -> None:
             data = dict(summary) if isinstance(summary, dict) else {}
             self._sync_start_button_state("DONE")
+            self._active_prompt_view = None
+            self._hide_inline_confirmation()
             self._show_modal_dialog(
                 title="校准完成确认",
                 message=(
@@ -1567,6 +1785,7 @@ def run_gui() -> int:
             else:
                 button_state = "running"
             _style_button(self.btn_start, role="primary", state=button_state)
+            self.btn_start.setEnabled(button_state in {"idle", "done", "error"})
 
         def _clear_log_filters(self, panel: LogPanel) -> None:
             panel.clear_filters()

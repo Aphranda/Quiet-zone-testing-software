@@ -8,8 +8,9 @@ from typing import Any, Callable
 
 from PySide6.QtCore import QObject, QThread, Signal
 
+from catr_loss_calibrator.calibration.config_loader import load_calibration_catalog
 from catr_loss_calibrator.calibration.definitions import default_calibration_catalog
-from catr_loss_calibrator.calibration.models import CalibrationStep, CalibrationSubStep
+from catr_loss_calibrator.calibration.models import CalibrationCatalog, CalibrationStep, CalibrationSubStep
 from catr_loss_calibrator.calibration.mock_runner import MockCalibrationRunner
 from catr_loss_calibrator.hardware.mock import MockLinkBox, MockScpiInstrument, MockVna
 from catr_loss_calibrator.hardware.link_box.lcd74000f import Lcd74000fLinkBox
@@ -184,7 +185,7 @@ class CalibrationViewModel(QObject):
 
     def __init__(self) -> None:
         super().__init__()
-        self.catalog = default_calibration_catalog()
+        self.catalog = CalibrationCatalog(display_name="未加载链路配置")
         self._selected_index = 0
         self._selected_step_index = 0
         self._logs: list[LogEntry] = []
@@ -206,14 +207,25 @@ class CalibrationViewModel(QObject):
         self._mock_link_box = self._create_device("link_box")
         self._mock_spectrum_analyzer = self._create_device("spectrum_analyzer")
         self._command_history: list[str] = []
+        self._append_log(
+            "INFO",
+            "config",
+            "链路配置",
+            "未加载链路配置，请导入链路配置或导入默认配置。",
+        )
 
     @property
     def selected_item(self):
+        if not self.catalog.items:
+            return None
         return self.catalog.items[self._selected_index]
 
     @property
     def selected_step(self):
-        steps = self.selected_item.steps
+        item = self.selected_item
+        if item is None:
+            return None
+        steps = item.steps
         if not steps:
             return None
         index = max(0, min(self._selected_step_index, len(steps) - 1))
@@ -242,6 +254,43 @@ class CalibrationViewModel(QObject):
     @property
     def command_history(self) -> list[str]:
         return list(self._command_history)
+
+    def load_default_catalog(self) -> None:
+        self._replace_catalog(default_calibration_catalog(), "已导入默认链路配置")
+
+    def load_catalog(self, path: str | Path) -> None:
+        self._replace_catalog(load_calibration_catalog(path), "已导入链路配置")
+
+    def _replace_catalog(self, catalog: CalibrationCatalog, log_prefix: str) -> None:
+        if self._worker and self._worker.isRunning():
+            raise RuntimeError("校准运行中，不能导入新的链路配置。")
+        if not catalog.items:
+            raise RuntimeError("链路配置中没有 calibration_items，无法生成校准项。")
+        self.catalog = catalog
+        self._selected_index = 0
+        self._selected_step_index = 0
+        self._run_summaries_by_item.clear()
+        self._run_status_by_item.clear()
+        self._active_run_item_id = ""
+        self._status_text = "Ready"
+        self._append_log(
+            "INFO",
+            "config",
+            catalog.display_name or catalog.name,
+            self._catalog_log_message(catalog, log_prefix),
+        )
+        self.catalog_changed.emit()
+        self.status_changed.emit(self._status_text)
+        self.selected_item_changed.emit()
+        self.selected_step_changed.emit()
+        self.refresh_overview()
+
+    @staticmethod
+    def _catalog_log_message(catalog, prefix: str) -> str:
+        config_name = catalog.display_name or catalog.name or "未命名链路配置"
+        schema_version = catalog.schema_version or "未知"
+        source_path = catalog.source_path or "内置配置"
+        return f"{prefix}: {config_name}; schema={schema_version}; source={source_path}"
 
     def run_summary_for_item(self, item_id: str) -> dict[str, object]:
         return dict(self._run_summaries_by_item.get(item_id, {}))
@@ -311,6 +360,13 @@ class CalibrationViewModel(QObject):
         return "pending"
 
     def select_item(self, index: int) -> None:
+        if not self.catalog.items:
+            self._selected_index = 0
+            self._selected_step_index = 0
+            self.refresh_overview()
+            self.selected_item_changed.emit()
+            self.selected_step_changed.emit()
+            return
         if 0 <= index < len(self.catalog.items):
             self._selected_index = index
             self.refresh_overview()
@@ -318,7 +374,12 @@ class CalibrationViewModel(QObject):
             self.select_step(0)
 
     def select_step(self, index: int) -> None:
-        steps = self.selected_item.steps
+        item = self.selected_item
+        if item is None:
+            self._selected_step_index = 0
+            self.selected_step_changed.emit()
+            return
+        steps = item.steps
         if not steps:
             self._selected_step_index = 0
             self.selected_step_changed.emit()
@@ -326,7 +387,7 @@ class CalibrationViewModel(QObject):
         if 0 <= index < len(steps):
             self._selected_step_index = index
             self.selected_step_changed.emit()
-            self._append_log("INFO", "ui", self.selected_item.name, f"切换到步骤 {steps[index].id}")
+            self._append_log("INFO", "ui", item.name, f"切换到步骤 {steps[index].id}")
             self.step_view_changed.emit(self._step_view_data(steps[index], index + 1, len(steps)))
 
     def connect_mock_devices(self) -> None:
@@ -432,11 +493,13 @@ class CalibrationViewModel(QObject):
         except Exception as exc:
             raise RuntimeError(f"搜索 VISA 资源失败: {exc}") from exc
 
-    def start_selected(self) -> None:
+    def start_selected(self, vna_settings: dict[str, Any] | None = None) -> None:
         if self._worker and self._worker.isRunning():
             self._append_log("runner already running")
             return
         item = self.selected_item
+        if item is None:
+            raise RuntimeError("请先导入链路配置或导入默认配置。")
         self._run_summaries_by_item.pop(item.id, None)
         self._run_status_by_item[item.id] = f"Running {item.id}"
         self._active_run_item_id = item.id
@@ -445,6 +508,7 @@ class CalibrationViewModel(QObject):
             vna=self._mock_vna,
             link_box=self._mock_link_box,
             output_root=Path("catr_loss_calibrator_output"),
+            vna_settings=dict(vna_settings or {}),
         )
         worker = CalibrationRunWorker(runner)
         worker.prompt_ready.connect(self._on_prompt_ready)
@@ -462,11 +526,12 @@ class CalibrationViewModel(QObject):
         worker.start()
 
     def submit_action(self, action: str) -> None:
+        item_name = self.selected_item.name if self.selected_item is not None else "未加载链路配置"
         if self._worker and self._worker.isRunning():
-            self._append_log("INFO", "ui", self.selected_item.name, f"用户操作: {action}")
+            self._append_log("INFO", "ui", item_name, f"用户操作: {action}")
             self._worker.submit_action(action)
         else:
-            self._append_log("WARNING", "ui", self.selected_item.name, f"忽略操作: {action}")
+            self._append_log("WARNING", "ui", item_name, f"忽略操作: {action}")
 
     def send_command(self, command: str) -> str:
         return self.send_device_command("link_box", command)
@@ -649,6 +714,21 @@ class CalibrationViewModel(QObject):
 
     def refresh_overview(self) -> None:
         item = self.selected_item
+        if item is None:
+            self._overview = {
+                "item_id": "",
+                "item_name": "未加载链路配置",
+                "purpose": "请先导入链路配置或导入默认配置。",
+                "steps": 0,
+                "selected_step_id": "",
+                "link_box_connected": self._mock_link_box.is_connected,
+                "vna_connected": self._mock_vna.is_connected,
+                "signal_generator_connected": self._mock_signal_generator.is_connected,
+                "spectrum_analyzer_connected": self._mock_spectrum_analyzer.is_connected,
+                "status": "Ready",
+            }
+            self.overview_changed.emit(self._overview)
+            return
         run_summary = self._run_summaries_by_item.get(item.id, {})
         self._overview = {
             "item_id": item.id,
@@ -738,30 +818,30 @@ class CalibrationViewModel(QObject):
 
     def _update_run_progress(self, prompt: StepViewData) -> None:
         item = self.catalog.get(prompt.item_id)
-        completed_steps = item.steps[: max(prompt.step_index - 1, 0)]
-        completed_step_ids = tuple(step.id for step in completed_steps)
-        current_step_completed = max(
-            0,
-            prompt.item_completed_substeps - sum(len(self._substeps_for_step(step)) for step in completed_steps),
-        )
-        completed_substep_ids = [
-            f"{step.id}:{substep.id}"
-            for step in completed_steps
-            for substep in self._substeps_for_step(step)
-        ]
-        if 0 <= prompt.step_index - 1 < len(item.steps):
-            current_step = item.steps[prompt.step_index - 1]
-            completed_substep_ids.extend(
-                f"{current_step.id}:{substep.id}"
-                for substep in self._substeps_for_step(current_step)[:current_step_completed]
-            )
+        completed_total = prompt.item_completed_substeps
+        if completed_total <= 0 and prompt.step_index > 0:
+            completed_total = sum(len(self._substeps_for_step(step)) for step in item.steps[: max(prompt.step_index - 1, 0)])
+            if prompt.confirm_phase == "saved":
+                completed_total += prompt.substep_index
+            else:
+                completed_total += max(0, prompt.substep_index - 1)
+        completed_substep_ids: list[str] = []
+        completed_step_ids: list[str] = []
+        remaining_completed = max(0, completed_total)
+        for item_step in item.steps:
+            substeps = self._substeps_for_step(item_step)
+            completed_count = min(len(substeps), remaining_completed)
+            completed_substep_ids.extend(f"{item_step.id}:{substep.id}" for substep in substeps[:completed_count])
+            if substeps and completed_count >= len(substeps):
+                completed_step_ids.append(item_step.id)
+            remaining_completed = max(0, remaining_completed - len(substeps))
         self._run_summaries_by_item[prompt.item_id] = {
             "item_id": prompt.item_id,
             "item_name": prompt.item_name,
             "state": prompt.status,
             "total_steps": prompt.step_total,
             "completed_big_steps": len(completed_step_ids),
-            "completed_step_ids": completed_step_ids,
+            "completed_step_ids": tuple(completed_step_ids),
             "completed_steps": len(completed_substep_ids),
             "completed_substep_ids": tuple(completed_substep_ids),
             "active_step_id": prompt.step_id,
@@ -771,8 +851,9 @@ class CalibrationViewModel(QObject):
 
     def _on_finished_summary(self, summary: object) -> None:
         run_summary = dict(summary)
-        item_id = str(run_summary.get("item_id") or self._active_run_item_id or self.selected_item.id)
-        item_name = str(run_summary.get("item_name") or self.selected_item.name)
+        selected_item = self.selected_item
+        item_id = str(run_summary.get("item_id") or self._active_run_item_id or (selected_item.id if selected_item else ""))
+        item_name = str(run_summary.get("item_name") or (selected_item.name if selected_item else "未加载链路配置"))
         self._run_summaries_by_item[item_id] = run_summary
         self._run_status_by_item[item_id] = "Calibration completed"
         self.status_text_update("Calibration completed")
@@ -781,9 +862,10 @@ class CalibrationViewModel(QObject):
         self.run_finished.emit(run_summary)
 
     def _on_worker_error(self, message: str) -> None:
-        item_id = self._active_run_item_id or self.selected_item.id
+        selected_item = self.selected_item
+        item_id = self._active_run_item_id or (selected_item.id if selected_item else "")
         self._run_status_by_item[item_id] = f"Error: {message}"
-        self._append_log("ERROR", "runner", self.selected_item.name, message)
+        self._append_log("ERROR", "runner", selected_item.name if selected_item else "未加载链路配置", message)
         self.status_text_update(f"Error: {message}")
         self.refresh_overview()
 
@@ -821,18 +903,21 @@ class CalibrationViewModel(QObject):
         return records
 
     def _step_view_data(self, step, index: int, total: int) -> StepViewData:
+        item = self.selected_item
+        if item is None:
+            raise RuntimeError("请先导入链路配置或导入默认配置。")
         substeps = self.substep_view_data(step)
-        item_total_substeps = sum(len(self._substeps_for_step(item_step)) for item_step in self.selected_item.steps)
-        run_summary = self._run_summaries_by_item.get(self.selected_item.id, {})
+        item_total_substeps = sum(len(self._substeps_for_step(item_step)) for item_step in item.steps)
+        run_summary = self._run_summaries_by_item.get(item.id, {})
         item_completed_substeps = len({str(step_id) for step_id in run_summary.get("completed_substep_ids", ())})
         return StepViewData(
-            item_id=self.selected_item.id,
-            item_name=self.selected_item.name,
+            item_id=item.id,
+            item_name=item.name,
             step_id=step.id,
             step_name=step.name,
             step_index=index,
             step_total=total,
-            status=self._overview_status_for(self.selected_item.id),
+            status=self._overview_status_for(item.id),
             manual_instruction=step.manual_instruction,
             route_ids=step.route_ids,
             link_commands=step.link_commands,

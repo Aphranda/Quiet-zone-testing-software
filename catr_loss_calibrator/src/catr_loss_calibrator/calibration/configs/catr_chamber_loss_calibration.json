@@ -464,6 +464,39 @@
         }
       ]
     },
+    "CAL003-DUT-SA:DUT-SA": {
+      "title": "DUT 到 SA 直通测量",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "AUX-E",
+            "TD",
+            "CP-DUT",
+            "LB-SA",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL003-DUT-SA:DUT-AMP1-SA": {
+      "title": "DUT 经 AMP1 到 SA 测量",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "AUX-E",
+            "TD",
+            "CP-DUT",
+            "AMP1",
+            "LB-SA",
+            "PORT2"
+          ]
+        }
+      ]
+    },
     "CAL004-AUX-F": {
       "title": "AUX-F 辅助线独立测试",
       "routes": [
@@ -825,7 +858,7 @@
               "name": "测量 AUX-A 辅助线",
               "input_port": "P1",
               "output_port": "P2",
-              "manual_instruction": "将 AUX-A 直连 VNA PORT1/PORT2，确认连接完成后开始测量。",
+              "manual_instruction": "STEP1：按接线路径连接：网分 PORT1 -> AUX-A 辅助线 -> 网分 PORT2。确认当前 STEP 对应接线、端口方向和转接状态正确后开始测量。链路箱不切换。保存：S21_AUX_A / L_AUX_A。",
               "raw_output": "S21_AUX_A",
               "final_output": "L_AUX_A",
               "path_template": "CAL001-AUX:AUX-A"
@@ -835,7 +868,7 @@
               "name": "测量 AUX-B 辅助线",
               "input_port": "P1",
               "output_port": "P2",
-              "manual_instruction": "将 AUX-B 直连 VNA PORT1/PORT2，确认连接完成后开始测量。",
+              "manual_instruction": "STEP2：按接线路径连接：网分 PORT1 -> AUX-B 辅助线 -> 网分 PORT2。确认当前 STEP 对应接线、端口方向和转接状态正确后开始测量。链路箱不切换。保存：S21_AUX_B / L_AUX_B。",
               "raw_output": "S21_AUX_B",
               "final_output": "L_AUX_B",
               "path_template": "CAL001-AUX:AUX-B"
@@ -845,7 +878,7 @@
               "name": "测量 AUX-C 辅助线",
               "input_port": "P1",
               "output_port": "P2",
-              "manual_instruction": "将 AUX-C 直连 VNA PORT1/PORT2，确认连接完成后开始测量。",
+              "manual_instruction": "STEP3：按接线路径连接：网分 PORT1 -> AUX-C 辅助线 -> 网分 PORT2。确认当前 STEP 对应接线、端口方向和转接状态正确后开始测量。链路箱不切换。保存：S21_AUX_C / L_AUX_C。",
               "raw_output": "S21_AUX_C",
               "final_output": "L_AUX_C",
               "path_template": "CAL001-AUX:AUX-C"
@@ -1028,7 +1061,7 @@
               "name": "H 极化 VNA 主链路直通",
               "input_port": "LB-VNA1",
               "output_port": "LB-VNA2",
-              "manual_instruction": "标准增益喇叭替代 DUT；确认 VNA 主链路直通工况。；链路箱将自动切到 H 极化，请确认标准增益喇叭/馈源极化已手动切到 H。",
+              "manual_instruction": "STEP4：按接线路径连接：网分 PORT1 -> 链路箱 网分1 -> 链路箱 H -> 暗室接口板 H -> 馈源 H -> 反射面 -> 标准增益喇叭 -> 暗室接口板 DUT -> 链路箱 网分2 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 H 极化，再开始测量。链路箱命令：CONFigure:LINK DUT, VNA2; CONFigure:LINK H, VNA1。保存：L_VNA_H / L_VNA_FEED_H。",
               "route_ids": [
                 "DUT_VNA2",
                 "H_VNA1"
@@ -1050,7 +1083,7 @@
               "name": "V 极化 VNA 主链路直通",
               "input_port": "LB-VNA1",
               "output_port": "LB-VNA2",
-              "manual_instruction": "标准增益喇叭替代 DUT；确认 VNA 主链路直通工况。；链路箱将自动切到 V 极化，请确认标准增益喇叭/馈源极化已手动切到 V。",
+              "manual_instruction": "STEP1：按接线路径连接：网分 PORT1 -> 链路箱 网分1 -> 链路箱 V -> 暗室接口板 V -> 馈源 V -> 反射面 -> 标准增益喇叭 -> 暗室接口板 DUT -> 链路箱 网分2 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 V 极化，再开始测量。链路箱命令：CONFigure:LINK DUT, VNA2; CONFigure:LINK V, VNA1。保存：L_VNA_V / L_VNA_FEED_V。",
               "route_ids": [
                 "DUT_VNA2",
                 "V_VNA1"
@@ -1072,7 +1105,7 @@
               "name": "H 极化 DUT 侧 AMP1 回传",
               "input_port": "LB-VNA1",
               "output_port": "LB-VNA2",
-              "manual_instruction": "标准增益喇叭替代 DUT；确认 DUT 回传侧经 AMP1 工况。；链路箱将自动切到 H 极化，请确认标准增益喇叭/馈源极化已手动切到 H。",
+              "manual_instruction": "STEP5：按接线路径连接：网分 PORT1 -> 链路箱 网分1 -> 链路箱 H -> 暗室接口板 H -> 馈源 H -> 反射面 -> 标准增益喇叭 -> 暗室接口板 DUT -> 放大器1 -> 链路箱 网分2 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 H 极化，再开始测量。链路箱命令：CONFigure:LINK DUT, AMP1, VNA2; CONFigure:LINK H, VNA1。保存：L_VNA_H_AMP1 / L_VNA_FEED_H_AMP1。",
               "route_ids": [
                 "DUT_AMP1_VNA2",
                 "H_VNA1"
@@ -1094,7 +1127,7 @@
               "name": "V 极化 DUT 侧 AMP1 回传",
               "input_port": "LB-VNA1",
               "output_port": "LB-VNA2",
-              "manual_instruction": "标准增益喇叭替代 DUT；确认 DUT 回传侧经 AMP1 工况。；链路箱将自动切到 V 极化，请确认标准增益喇叭/馈源极化已手动切到 V。",
+              "manual_instruction": "STEP2：按接线路径连接：网分 PORT1 -> 链路箱 网分1 -> 链路箱 V -> 暗室接口板 V -> 馈源 V -> 反射面 -> 标准增益喇叭 -> 暗室接口板 DUT -> 放大器1 -> 链路箱 网分2 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 V 极化，再开始测量。链路箱命令：CONFigure:LINK DUT, AMP1, VNA2; CONFigure:LINK V, VNA1。保存：L_VNA_V_AMP1 / L_VNA_FEED_V_AMP1。",
               "route_ids": [
                 "DUT_AMP1_VNA2",
                 "V_VNA1"
@@ -1116,7 +1149,7 @@
               "name": "H 极化馈源侧 AMP2",
               "input_port": "LB-VNA1",
               "output_port": "LB-VNA2",
-              "manual_instruction": "标准增益喇叭替代 DUT；确认馈源侧经 AMP2 工况。；链路箱将自动切到 H 极化，请确认标准增益喇叭/馈源极化已手动切到 H。",
+              "manual_instruction": "STEP6：按接线路径连接：网分 PORT1 -> 链路箱 网分2 -> 暗室接口板 DUT -> 标准增益喇叭 -> 反射面 -> 馈源 H -> 暗室接口板 H -> 链路箱 H -> 放大器2 -> 链路箱 网分1 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 H 极化，再开始测量。链路箱命令：CONFigure:LINK DUT, VNA2; CONFigure:LINK H, AMP2, VNA1。保存：L_VNA_H_AMP2 / L_VNA_FEED_H_AMP2。",
               "route_ids": [
                 "DUT_VNA2",
                 "H_AMP2_VNA1"
@@ -1138,7 +1171,7 @@
               "name": "V 极化馈源侧 AMP2",
               "input_port": "LB-VNA1",
               "output_port": "LB-VNA2",
-              "manual_instruction": "标准增益喇叭替代 DUT；确认馈源侧经 AMP2 工况。；链路箱将自动切到 V 极化，请确认标准增益喇叭/馈源极化已手动切到 V。",
+              "manual_instruction": "STEP3：按接线路径连接：网分 PORT1 -> 链路箱 网分2 -> 暗室接口板 DUT -> 标准增益喇叭 -> 反射面 -> 馈源 V -> 暗室接口板 V -> 链路箱 V -> 放大器2 -> 链路箱 网分1 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 V 极化，再开始测量。链路箱命令：CONFigure:LINK DUT, VNA2; CONFigure:LINK V, AMP2, VNA1。保存：L_VNA_V_AMP2 / L_VNA_FEED_V_AMP2。",
               "route_ids": [
                 "DUT_VNA2",
                 "V_AMP2_VNA1"
@@ -1205,7 +1238,47 @@
           "required_inputs": [
             "L_AUX_E"
           ],
-          "path_template": "CAL003-DUT-SA"
+          "path_template": "CAL003-DUT-SA",
+          "substeps": [
+            {
+              "id": "DUT-SA",
+              "name": "DUT 到 SA 直通测量",
+              "input_port": "DUT_REF",
+              "output_port": "LB-SA",
+              "manual_instruction": "STEP1：按接线路径连接：网分 PORT1 -> AUX-E 辅助线 -> 转台 DUT 接口 -> 暗室接口板 DUT -> 链路箱 频谱仪 -> 网分 PORT2。确认当前 STEP 对应接线、端口方向和转接状态正确后开始测量。链路箱命令：CONFigure:LINK DUT, SA。保存：T_AUXE_DUT_SA / L_DUT_SA。",
+              "route_ids": [
+                "DUT_SA"
+              ],
+              "link_commands": [
+                "CONFigure:LINK DUT, SA"
+              ],
+              "raw_output": "T_AUXE_DUT_SA",
+              "final_output": "L_DUT_SA",
+              "required_inputs": [
+                "L_AUX_E"
+              ],
+              "path_template": "CAL003-DUT-SA:DUT-SA"
+            },
+            {
+              "id": "DUT-AMP1-SA",
+              "name": "DUT 经 AMP1 到 SA 测量",
+              "input_port": "DUT_REF",
+              "output_port": "LB-SA",
+              "manual_instruction": "STEP2：按接线路径连接：网分 PORT1 -> AUX-E 辅助线 -> 转台 DUT 接口 -> 暗室接口板 DUT -> 放大器1 -> 链路箱 频谱仪 -> 网分 PORT2。确认当前 STEP 对应接线、端口方向和转接状态正确后开始测量。链路箱命令：CONFigure:LINK DUT, AMP1, SA。保存：T_AUXE_DUT_SA_AMP1 / L_DUT_SA_AMP1。",
+              "route_ids": [
+                "DUT_AMP1_SA"
+              ],
+              "link_commands": [
+                "CONFigure:LINK DUT, AMP1, SA"
+              ],
+              "raw_output": "T_AUXE_DUT_SA_AMP1",
+              "final_output": "L_DUT_SA_AMP1",
+              "required_inputs": [
+                "L_AUX_E"
+              ],
+              "path_template": "CAL003-DUT-SA:DUT-AMP1-SA"
+            }
+          ]
         }
       ]
     },
@@ -1288,7 +1361,7 @@
               "name": "H 极化到 SA 直通接收",
               "input_port": "LB-SA",
               "output_port": "LB-VNA2",
-              "manual_instruction": "标准增益喇叭替代 DUT；PORT1 接 SA，PORT2 接 VNA2，确认直通接收工况。；链路箱将自动切到 H 极化，请确认标准增益喇叭/馈源极化已手动切到 H。",
+              "manual_instruction": "STEP2：按接线路径连接：网分 PORT1 -> 链路箱 频谱仪 -> 链路箱 H -> 暗室接口板 H -> 馈源 H -> 反射面 -> 标准增益喇叭 -> 暗室接口板 DUT -> 链路箱 网分2 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 H 极化，再开始测量。链路箱命令：CONFigure:LINK H, SA; CONFigure:LINK DUT, VNA2。保存：T_SYS_TX_SA_H / L_SYS_TX_SA_H。",
               "route_ids": [
                 "H_SA",
                 "DUT_VNA2"
@@ -1310,7 +1383,7 @@
               "name": "V 极化到 SA 直通接收",
               "input_port": "LB-SA",
               "output_port": "LB-VNA2",
-              "manual_instruction": "标准增益喇叭替代 DUT；PORT1 接 SA，PORT2 接 VNA2，确认直通接收工况。；链路箱将自动切到 V 极化，请确认标准增益喇叭/馈源极化已手动切到 V。",
+              "manual_instruction": "STEP1：按接线路径连接：网分 PORT1 -> 链路箱 频谱仪 -> 链路箱 V -> 暗室接口板 V -> 馈源 V -> 反射面 -> 标准增益喇叭 -> 暗室接口板 DUT -> 链路箱 网分2 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 V 极化，再开始测量。链路箱命令：CONFigure:LINK V, SA; CONFigure:LINK DUT, VNA2。保存：T_SYS_TX_SA_V / L_SYS_TX_SA_V。",
               "route_ids": [
                 "V_SA",
                 "DUT_VNA2"
@@ -1360,7 +1433,7 @@
               "name": "H 极化经 AMP2 到 SA",
               "input_port": "LB-VNA2",
               "output_port": "LB-SA",
-              "manual_instruction": "标准增益喇叭替代 DUT；PORT1 接 VNA2，PORT2 接 SA，确认 S21 沿 H→AMP2→SA 方向。；链路箱将自动切到 H 极化，请确认标准增益喇叭/馈源极化已手动切到 H。",
+              "manual_instruction": "STEP2：按接线路径连接：网分 PORT1 -> 链路箱 网分2 -> 暗室接口板 DUT -> 标准增益喇叭 -> 反射面 -> 馈源 H -> 暗室接口板 H -> 链路箱 H -> 放大器2 -> 链路箱 频谱仪 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 H 极化，再开始测量。链路箱命令：CONFigure:LINK H, AMP2, SA; CONFigure:LINK DUT, VNA2。保存：T_SYS_TX_SA_H_AMP2 / L_SYS_TX_SA_H_AMP2。",
               "route_ids": [
                 "H_AMP2_SA",
                 "DUT_VNA2"
@@ -1382,7 +1455,7 @@
               "name": "V 极化经 AMP2 到 SA",
               "input_port": "LB-VNA2",
               "output_port": "LB-SA",
-              "manual_instruction": "标准增益喇叭替代 DUT；PORT1 接 VNA2，PORT2 接 SA，确认 S21 沿 V→AMP2→SA 方向。；链路箱将自动切到 V 极化，请确认标准增益喇叭/馈源极化已手动切到 V。",
+              "manual_instruction": "STEP1：按接线路径连接：网分 PORT1 -> 链路箱 网分2 -> 暗室接口板 DUT -> 标准增益喇叭 -> 反射面 -> 馈源 V -> 暗室接口板 V -> 链路箱 V -> 放大器2 -> 链路箱 频谱仪 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 V 极化，再开始测量。链路箱命令：CONFigure:LINK V, AMP2, SA; CONFigure:LINK DUT, VNA2。保存：T_SYS_TX_SA_V_AMP2 / L_SYS_TX_SA_V_AMP2。",
               "route_ids": [
                 "V_AMP2_SA",
                 "DUT_VNA2"
@@ -1429,7 +1502,7 @@
               "name": "H 极化 DUT 侧 AMP1 一致性校验",
               "input_port": "LB-SA",
               "output_port": "LB-VNA2",
-              "manual_instruction": "标准增益喇叭替代 DUT；PORT1 接 SA，PORT2 接 VNA2，确认 DUT 侧 AMP1 校验工况。；链路箱将自动切到 H 极化，请确认标准增益喇叭/馈源极化已手动切到 H。",
+              "manual_instruction": "STEP2：按接线路径连接：网分 PORT1 -> 链路箱 频谱仪 -> 链路箱 H -> 暗室接口板 H -> 馈源 H -> 反射面 -> 标准增益喇叭 -> 暗室接口板 DUT -> 放大器1 -> 链路箱 网分2 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 H 极化，再开始测量。链路箱命令：CONFigure:LINK H, SA; CONFigure:LINK DUT, AMP1, VNA2。保存：T_SYS_TX_SA_H_DUTAMP1。",
               "route_ids": [
                 "H_SA",
                 "DUT_AMP1_VNA2"
@@ -1451,7 +1524,7 @@
               "name": "V 极化 DUT 侧 AMP1 一致性校验",
               "input_port": "LB-SA",
               "output_port": "LB-VNA2",
-              "manual_instruction": "标准增益喇叭替代 DUT；PORT1 接 SA，PORT2 接 VNA2，确认 DUT 侧 AMP1 校验工况。；链路箱将自动切到 V 极化，请确认标准增益喇叭/馈源极化已手动切到 V。",
+              "manual_instruction": "STEP1：按接线路径连接：网分 PORT1 -> 链路箱 频谱仪 -> 链路箱 V -> 暗室接口板 V -> 馈源 V -> 反射面 -> 标准增益喇叭 -> 暗室接口板 DUT -> 放大器1 -> 链路箱 网分2 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 V 极化，再开始测量。链路箱命令：CONFigure:LINK V, SA; CONFigure:LINK DUT, AMP1, VNA2。保存：T_SYS_TX_SA_V_DUTAMP1。",
               "route_ids": [
                 "V_SA",
                 "DUT_AMP1_VNA2"
@@ -1562,7 +1635,7 @@
               "name": "H 极化 SG 到 DUT 直通",
               "input_port": "LB-SG",
               "output_port": "LB-VNA2",
-              "manual_instruction": "直通工况：PORT1 接 SG、PORT2 接 VNA2，确认 SG 到 DUT。；链路箱将自动切到 H 极化，请确认标准增益喇叭/馈源极化已手动切到 H。",
+              "manual_instruction": "STEP4：按接线路径连接：网分 PORT1 -> 链路箱 信号源 -> 链路箱 H -> 暗室接口板 H -> 馈源 H -> 反射面 -> 标准增益喇叭 -> 暗室接口板 DUT -> 链路箱 网分2 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 H 极化，再开始测量。链路箱命令：CONFigure:LINK H, SG; CONFigure:LINK DUT, VNA2。保存：T_SG_H / L_SG_DUT_H。",
               "route_ids": [
                 "H_SG",
                 "DUT_VNA2"
@@ -1584,7 +1657,7 @@
               "name": "V 极化 SG 到 DUT 直通",
               "input_port": "LB-SG",
               "output_port": "LB-VNA2",
-              "manual_instruction": "直通工况：PORT1 接 SG、PORT2 接 VNA2，确认 SG 到 DUT。；链路箱将自动切到 V 极化，请确认标准增益喇叭/馈源极化已手动切到 V。",
+              "manual_instruction": "STEP1：按接线路径连接：网分 PORT1 -> 链路箱 信号源 -> 链路箱 V -> 暗室接口板 V -> 馈源 V -> 反射面 -> 标准增益喇叭 -> 暗室接口板 DUT -> 链路箱 网分2 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 V 极化，再开始测量。链路箱命令：CONFigure:LINK V, SG; CONFigure:LINK DUT, VNA2。保存：T_SG_V / L_SG_DUT_V。",
               "route_ids": [
                 "V_SG",
                 "DUT_VNA2"
@@ -1606,7 +1679,7 @@
               "name": "H 极化 SG 到 DUT，DUT 侧 AMP1",
               "input_port": "LB-SG",
               "output_port": "LB-VNA2",
-              "manual_instruction": "AMP1 工况：PORT1 接 SG、PORT2 接 VNA2，确认 DUT 回传侧经 AMP1。；链路箱将自动切到 H 极化，请确认标准增益喇叭/馈源极化已手动切到 H。",
+              "manual_instruction": "STEP5：按接线路径连接：网分 PORT1 -> 链路箱 信号源 -> 链路箱 H -> 暗室接口板 H -> 馈源 H -> 反射面 -> 标准增益喇叭 -> 暗室接口板 DUT -> 放大器1 -> 链路箱 网分2 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 H 极化，再开始测量。链路箱命令：CONFigure:LINK H, SG; CONFigure:LINK DUT, AMP1, VNA2。保存：T_SG_H_AMP1 / L_SG_DUT_H_AMP1。",
               "route_ids": [
                 "H_SG",
                 "DUT_AMP1_VNA2"
@@ -1628,7 +1701,7 @@
               "name": "V 极化 SG 到 DUT，DUT 侧 AMP1",
               "input_port": "LB-SG",
               "output_port": "LB-VNA2",
-              "manual_instruction": "AMP1 工况：PORT1 接 SG、PORT2 接 VNA2，确认 DUT 回传侧经 AMP1。；链路箱将自动切到 V 极化，请确认标准增益喇叭/馈源极化已手动切到 V。",
+              "manual_instruction": "STEP2：按接线路径连接：网分 PORT1 -> 链路箱 信号源 -> 链路箱 V -> 暗室接口板 V -> 馈源 V -> 反射面 -> 标准增益喇叭 -> 暗室接口板 DUT -> 放大器1 -> 链路箱 网分2 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 V 极化，再开始测量。链路箱命令：CONFigure:LINK V, SG; CONFigure:LINK DUT, AMP1, VNA2。保存：T_SG_V_AMP1 / L_SG_DUT_V_AMP1。",
               "route_ids": [
                 "V_SG",
                 "DUT_AMP1_VNA2"
@@ -1650,7 +1723,7 @@
               "name": "H 极化经 AMP2 到 SG",
               "input_port": "LB-VNA2",
               "output_port": "LB-SG",
-              "manual_instruction": "AMP2 工况：PORT1 接 VNA2、PORT2 接 SG，确认 H→AMP2→SG 方向。；链路箱将自动切到 H 极化，请确认标准增益喇叭/馈源极化已手动切到 H。",
+              "manual_instruction": "STEP6：按接线路径连接：网分 PORT1 -> 链路箱 网分2 -> 暗室接口板 DUT -> 标准增益喇叭 -> 反射面 -> 馈源 H -> 暗室接口板 H -> 链路箱 H -> 放大器2 -> 链路箱 信号源 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 H 极化，再开始测量。链路箱命令：CONFigure:LINK H, AMP2, SG; CONFigure:LINK DUT, VNA2。保存：T_SG_H_AMP2 / L_HV_SG_H_AMP2。",
               "route_ids": [
                 "H_AMP2_SG",
                 "DUT_VNA2"
@@ -1672,7 +1745,7 @@
               "name": "V 极化经 AMP2 到 SG",
               "input_port": "LB-VNA2",
               "output_port": "LB-SG",
-              "manual_instruction": "AMP2 工况：PORT1 接 VNA2、PORT2 接 SG，确认 V→AMP2→SG 方向。；链路箱将自动切到 V 极化，请确认标准增益喇叭/馈源极化已手动切到 V。",
+              "manual_instruction": "STEP3：按接线路径连接：网分 PORT1 -> 链路箱 网分2 -> 暗室接口板 DUT -> 标准增益喇叭 -> 反射面 -> 馈源 V -> 暗室接口板 V -> 链路箱 V -> 放大器2 -> 链路箱 信号源 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 V 极化，再开始测量。链路箱命令：CONFigure:LINK V, AMP2, SG; CONFigure:LINK DUT, VNA2。保存：T_SG_V_AMP2 / L_HV_SG_V_AMP2。",
               "route_ids": [
                 "V_AMP2_SG",
                 "DUT_VNA2"

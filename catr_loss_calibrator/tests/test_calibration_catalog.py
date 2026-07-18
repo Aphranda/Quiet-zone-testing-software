@@ -110,6 +110,21 @@ def test_link_cal_003_is_only_dut_to_sa_outputs() -> None:
     assert all("T_VNA1_SA" not in output for step in item.steps for output in step.raw_outputs)
 
 
+def test_link_cal_003_dut_sa_is_split_into_substeps() -> None:
+    item = default_calibration_catalog().get("LINK-CAL-003")
+    step = next(step for step in item.steps if step.id == "CAL003-DUT-SA")
+
+    assert [substep.id for substep in step.substeps] == ["DUT-SA", "DUT-AMP1-SA"]
+    assert [substep.link_commands for substep in step.substeps] == [
+        ("CONFigure:LINK DUT, SA",),
+        ("CONFigure:LINK DUT, AMP1, SA",),
+    ]
+    assert [substep.path_template for substep in step.substeps] == [
+        "CAL003-DUT-SA:DUT-SA",
+        "CAL003-DUT-SA:DUT-AMP1-SA",
+    ]
+
+
 def test_link_cal_005_amp2_output_matches_hv_to_sg_name() -> None:
     item = default_calibration_catalog().get("LINK-CAL-005")
     outputs = tuple(output for step in item.steps for output in step.final_outputs)
