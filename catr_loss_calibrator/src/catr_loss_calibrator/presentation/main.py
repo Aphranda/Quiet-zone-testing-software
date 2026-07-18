@@ -98,6 +98,7 @@ def run_gui() -> int:
         QMessageBox,
         QPushButton,
         QProgressBar,
+        QSizePolicy,
         QSplitter,
         QSpinBox,
         QTabWidget,
@@ -180,7 +181,7 @@ def run_gui() -> int:
 
             self.search_edit = QLineEdit()
             self.search_edit.setPlaceholderText("搜索...")
-            self.search_edit.setMaximumWidth(220)
+            self.search_edit.setMaximumWidth(140)
             self.toolbar.addWidget(self.search_edit)
 
             self.clear_filter_action = QAction("清空筛选", self)
@@ -239,6 +240,8 @@ def run_gui() -> int:
             super().__init__(title, parent)
             self.device_key = device_key
             self.presets = presets
+            self.setMinimumWidth(0)
+            self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
             layout = QVBoxLayout(self)
             self.mock_check = QCheckBox("Mock")
@@ -251,14 +254,23 @@ def run_gui() -> int:
             self.resource_input = QComboBox()
             self.resource_input.setEditable(True)
             self.resource_input.addItems(list(resource_options))
+            self.resource_input.setMinimumWidth(0)
+            self.resource_input.setMinimumContentsLength(8)
+            self.resource_input.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+            self.resource_input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             self.model_input = QComboBox()
             self.model_input.setEditable(True)
             self.model_input.addItems(list(model_options))
+            self.model_input.setMinimumWidth(0)
+            self.model_input.setMinimumContentsLength(8)
+            self.model_input.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+            self.model_input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             self.timeout_input = QSpinBox()
             self.timeout_input.setRange(1, 120_000)
             self.timeout_input.setValue(10_000)
             self.timeout_input.setSuffix(" ms")
-            self.btn_search_visa = QPushButton("搜索 VISA")
+            self.btn_search_visa = QPushButton("搜索")
+            self.btn_search_visa.setToolTip("搜索 VISA 资源")
             self.btn_connect = QPushButton("连接")
             self.btn_disconnect = QPushButton("断开")
             self.connection_state = QLabel("未连接")
@@ -266,6 +278,9 @@ def run_gui() -> int:
             self.preset_combo = QComboBox()
             self.preset_combo.setEditable(device_key == "link_box")
             self.preset_combo.addItems(list(presets.keys()))
+            self.preset_combo.setMinimumContentsLength(8)
+            self.preset_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+            self.preset_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             self.current_command_label = QLabel()
             self.current_command_label.setWordWrap(True)
             self.preset_combo.currentTextChanged.connect(self._sync_current_command_label)
@@ -273,7 +288,7 @@ def run_gui() -> int:
             self.command_input.setPlaceholderText("输入 SCPI / 控制命令")
             self.response_view = QPlainTextEdit()
             self.response_view.setReadOnly(True)
-            self.response_view.setMaximumHeight(120)
+            self.response_view.setMaximumHeight(88)
             self.response_view.setPlaceholderText("响应")
             self.btn_preset = QPushButton("填充预设")
             self.btn_send = QPushButton("发送命令")
@@ -294,31 +309,33 @@ def run_gui() -> int:
             mode_row.addWidget(self.mock_check)
             mode_row.addWidget(self.real_check)
             mode_row.addStretch(1)
-            layout.addWidget(QLabel("连接模式"))
-            layout.addLayout(mode_row)
-            layout.addWidget(QLabel("资源地址"))
-            layout.addLayout(resource_row)
-            layout.addWidget(QLabel("型号"))
-            layout.addWidget(self.model_input)
-            layout.addWidget(QLabel("超时"))
-            layout.addWidget(self.timeout_input)
             button_row = QHBoxLayout()
             button_row.addWidget(self.btn_connect)
             button_row.addWidget(self.btn_disconnect)
-            layout.addLayout(button_row)
-            layout.addWidget(self.connection_state)
+
+            connection_form = QFormLayout()
+            connection_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+            connection_form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
+            connection_form.addRow("连接模式", mode_row)
+            connection_form.addRow("资源地址", resource_row)
+            connection_form.addRow("型号", self.model_input)
+            connection_form.addRow("超时", self.timeout_input)
+            connection_form.addRow("操作", button_row)
+            connection_form.addRow("状态", self.connection_state)
+            layout.addLayout(connection_form)
             if device_key == "vna":
                 layout.addWidget(self._build_vna_settings_group())
 
-            layout.addWidget(QLabel("预设"))
-            layout.addWidget(self.preset_combo)
+            command_form = QFormLayout()
+            command_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+            command_form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
+            command_form.addRow("预设", self.preset_combo)
             if device_key == "link_box":
-                layout.addWidget(self.current_command_label)
-            layout.addWidget(QLabel("命令"))
-            layout.addWidget(self.command_input)
-            layout.addLayout(buttons)
-            layout.addWidget(QLabel("当前响应"))
-            layout.addWidget(self.response_view)
+                command_form.addRow("当前命令", self.current_command_label)
+            command_form.addRow("命令", self.command_input)
+            command_form.addRow("操作", buttons)
+            command_form.addRow("当前响应", self.response_view)
+            layout.addLayout(command_form)
             self._sync_current_command_label(self.preset_combo.currentText())
 
         def selected_command(self) -> str:
@@ -413,7 +430,8 @@ def run_gui() -> int:
         def _build_vna_settings_group(self) -> QGroupBox:
             self.vna_start_ghz = self._double_spin(10.0, 0.001, 110.0, 0.1, 3, " GHz")
             self.vna_stop_ghz = self._double_spin(17.0, 0.001, 110.0, 0.1, 3, " GHz")
-            self.vna_step_mhz = self._double_spin(100.0, 0.001, 1_000_000.0, 1.0, 3, " MHz")
+            self.vna_step_mhz = self._double_spin(10.0, 0.001, 1_000_000.0, 1.0, 3, " MHz")
+            self.vna_step_mhz.setMaximumWidth(150)
             self.vna_points_label = QLabel()
             self.vna_power_dbm = self._double_spin(-10.0, -90.0, 30.0, 1.0, 1, " dBm")
             self.vna_ifbw_hz = self._double_spin(1000.0, 1.0, 10_000_000.0, 100.0, 0, " Hz")
@@ -430,28 +448,24 @@ def run_gui() -> int:
             for spinbox in (self.vna_start_ghz, self.vna_stop_ghz, self.vna_step_mhz):
                 spinbox.valueChanged.connect(lambda _value: self._refresh_vna_points_label())
 
-            range_field = QWidget()
-            range_layout = QHBoxLayout(range_field)
-            range_layout.setContentsMargins(0, 0, 0, 0)
-            range_layout.addWidget(self.vna_start_ghz)
-            range_layout.addWidget(QLabel("到"))
-            range_layout.addWidget(self.vna_stop_ghz)
-
-            step_field = QWidget()
-            step_layout = QHBoxLayout(step_field)
-            step_layout.setContentsMargins(0, 0, 0, 0)
-            step_layout.addWidget(self.vna_step_mhz)
-            step_layout.addWidget(self.vna_points_label)
-
             button_row = QHBoxLayout()
             button_row.addWidget(self.btn_vna_configure)
             button_row.addWidget(self.btn_vna_trigger)
             button_row.addWidget(self.btn_vna_sample)
 
+            step_field = QWidget()
+            step_layout = QHBoxLayout(step_field)
+            step_layout.setContentsMargins(0, 0, 0, 0)
+            step_layout.setSpacing(8)
+            step_layout.addWidget(self.vna_step_mhz)
+            step_layout.addWidget(self.vna_points_label)
+            step_layout.addStretch(1)
+
             group = QGroupBox("网分扫频配置")
             form = QFormLayout(group)
-            form.addRow("起止频率", range_field)
-            form.addRow("步进/点数", step_field)
+            form.addRow("起频", self.vna_start_ghz)
+            form.addRow("止频", self.vna_stop_ghz)
+            form.addRow("步进", step_field)
             form.addRow("输出功率", self.vna_power_dbm)
             form.addRow("中频带宽", self.vna_ifbw_hz)
             form.addRow("Sweep 模式", self.vna_sweep_mode)
@@ -483,14 +497,14 @@ def run_gui() -> int:
         def __init__(self) -> None:
             super().__init__()
             self.setWindowTitle("CATR 路损校准操作台")
-            self.resize(1400, 900)
+            self.resize(1180, 780)
 
             self.item_list = QListWidget()
-            self.item_list.setMinimumWidth(260)
+            self.item_list.setMinimumWidth(220)
             for item in vm.catalog.items:
                 QListWidgetItem(f"{item.id}\n{item.name}", self.item_list)
             self.step_list = QListWidget()
-            self.step_list.setMinimumWidth(260)
+            self.step_list.setMinimumWidth(220)
 
             self.item_summary = QLabel()
             self.item_summary.setWordWrap(True)
@@ -544,12 +558,15 @@ def run_gui() -> int:
             self.result_session.setMaximumHeight(150)
             self.result_session.setPlaceholderText("会话与运行记录")
 
-            self.history_view = QPlainTextEdit()
-            self.history_view.setReadOnly(True)
-            self.history_view.setPlaceholderText("四类设备的命令历史")
-
             command_presets = vm.device_command_presets()
             self.command_panels = [
+                DeviceCommandPanel(
+                    "link_box",
+                    "链路箱",
+                    command_presets["link_box"],
+                    vm.device_mock_resource_options("link_box"),
+                    vm.device_model_options("link_box"),
+                ),
                 DeviceCommandPanel(
                     "vna",
                     "网分",
@@ -563,13 +580,6 @@ def run_gui() -> int:
                     command_presets["signal_generator"],
                     vm.device_mock_resource_options("signal_generator"),
                     vm.device_model_options("signal_generator"),
-                ),
-                DeviceCommandPanel(
-                    "link_box",
-                    "链路箱",
-                    command_presets["link_box"],
-                    vm.device_mock_resource_options("link_box"),
-                    vm.device_model_options("link_box"),
                 ),
                 DeviceCommandPanel(
                     "spectrum_analyzer",
@@ -615,6 +625,7 @@ def run_gui() -> int:
             main_splitter.addWidget(self._build_global_log())
             main_splitter.setStretchFactor(0, 4)
             main_splitter.setStretchFactor(1, 1)
+            main_splitter.setSizes([800, 380])
             main_splitter.setCollapsible(0, False)
             main_splitter.setCollapsible(1, False)
             root_layout.addWidget(main_splitter, 1)
@@ -701,19 +712,21 @@ def run_gui() -> int:
             layout = QVBoxLayout(page)
 
             device_grid = QGridLayout()
+            device_grid.setHorizontalSpacing(6)
+            device_grid.setVerticalSpacing(8)
             for column, panel in enumerate(self.command_panels):
                 device_grid.addWidget(panel, 0, column)
+                device_grid.setColumnMinimumWidth(column, 0)
+                device_grid.setColumnStretch(column, 1)
 
             layout.addLayout(device_grid)
-            layout.addWidget(QLabel("历史命令"))
-            layout.addWidget(self.history_view)
             layout.addWidget(self.btn_refresh)
             return page
 
         def _build_global_log(self) -> QWidget:
             box = QGroupBox("LOG")
-            box.setMinimumWidth(320)
-            box.setMaximumWidth(460)
+            box.setMinimumWidth(340)
+            box.setMaximumWidth(500)
             layout = QVBoxLayout(box)
             layout.addWidget(self.global_log_panel)
             return box
@@ -746,7 +759,8 @@ def run_gui() -> int:
                 panel.btn_connect.clicked.connect(lambda _checked=False, command_panel=panel: self._connect_command_device(command_panel))
                 panel.btn_disconnect.clicked.connect(lambda _checked=False, command_panel=panel: self._disconnect_command_device(command_panel))
                 panel.btn_search_visa.clicked.connect(lambda _checked=False, command_panel=panel: self._search_visa_resources(command_panel))
-                panel.use_mock_check.toggled.connect(lambda _checked=False, command_panel=panel: self._on_mock_mode_changed(command_panel))
+                panel.mock_check.toggled.connect(lambda _checked=False, command_panel=panel: self._on_mock_mode_changed(command_panel))
+                panel.real_check.toggled.connect(lambda _checked=False, command_panel=panel: self._on_mock_mode_changed(command_panel))
                 panel.command_input.returnPressed.connect(lambda command_panel=panel: self._send_command(command_panel))
                 if panel.device_key == "vna":
                     assert panel.btn_vna_configure is not None
@@ -838,7 +852,6 @@ def run_gui() -> int:
             for panel in self.log_panels:
                 records = vm.filtered_logs(level=panel.current_level(), keyword=panel.current_keyword())
                 panel.set_records(records, self._format_log_entry)
-            self.history_view.setPlainText("\n".join(vm.command_history))
 
         def _sync_overview(self, *_args: Any) -> None:
             overview = vm.overview
@@ -874,7 +887,6 @@ def run_gui() -> int:
                 QMessageBox.warning(self, "命令发送失败", str(exc))
                 return
             panel.set_response(response)
-            self.history_view.setPlainText("\n\n".join(vm.command_history))
 
         def _configure_vna(self, panel: DeviceCommandPanel) -> None:
             try:
@@ -928,7 +940,7 @@ def run_gui() -> int:
             self._sync_overview()
 
         def _search_visa_resources(self, panel: DeviceCommandPanel) -> None:
-            if panel.use_mock_check.isChecked():
+            if panel.mock_check.isChecked():
                 panel.set_resource_options(vm.device_mock_resource_options(panel.device_key))
                 return
             try:
@@ -942,7 +954,7 @@ def run_gui() -> int:
             panel.set_resource_options(resources, resources[0])
 
         def _on_mock_mode_changed(self, panel: DeviceCommandPanel) -> None:
-            if panel.use_mock_check.isChecked():
+            if panel.mock_check.isChecked():
                 resources = vm.device_mock_resource_options(panel.device_key)
                 panel.set_resource_options(resources, resources[0] if resources else "")
             else:
