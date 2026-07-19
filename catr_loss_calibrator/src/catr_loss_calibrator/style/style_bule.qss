@@ -76,7 +76,24 @@ QFrame#brandPanel {
     border-radius: 8px;
     background: #fbfcfd;
 }
+QFrame#headerContextPanel {
+    border: 1px solid #d8e2ea;
+    border-radius: 8px;
+    background: #fbfcfd;
+}
+QLabel#headerInfoLabel {
+    border: none;
+    background: transparent;
+    color: #365e82;
+    font-size: 12px;
+    font-weight: 600;
+}
 QFrame#inlineConfirmPanel {
+    border: 1px solid #d8e2ea;
+    border-radius: 8px;
+    background: #fbfcfd;
+}
+QFrame#startControlPanel {
     border: 1px solid #d8e2ea;
     border-radius: 8px;
     background: #fbfcfd;
@@ -109,6 +126,30 @@ QComboBox {
     min-height: 22px;
     font-weight: 400;
 }
+
+QTableWidget#resultFileTable {
+    gridline-color: #d8e1e8;
+    alternate-background-color: #f8fafc;
+    selection-background-color: #d8ecff;
+    selection-color: #102033;
+}
+
+QTableWidget#resultFileTable::item {
+    padding: 3px 6px;
+}
+
+QTableWidget#resultFileTable::item:selected,
+QTableWidget#resultFileTable::item:selected:active,
+QTableWidget#resultFileTable::item:selected:!active {
+    background: #d8ecff;
+    color: #102033;
+}
+
+QTableWidget#resultFileTable::item:selected:focus {
+    background: #c7e2ff;
+    color: #102033;
+}
+
 QPushButton {
     background: #eef3f7;
     color: #30424f;

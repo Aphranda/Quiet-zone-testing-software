@@ -1,0 +1,47 @@
+{
+  "session_id": "20260719_183049_LINK-CAL-002_initial_R01",
+  "project_name": "CATR Loss Calibrator",
+  "project_version": "0.1.0",
+  "calibration_item": "LINK-CAL-002",
+  "calibration_step": "CAL002-MAIN_H-AMP2",
+  "instrument_snapshot": {
+    "vna": "MockVna"
+  },
+  "link_commands": [
+    "CONFigure:LINK DUT, VNA2",
+    "CONFigure:LINK H, AMP2, VNA1"
+  ],
+  "manual_confirmation": true,
+  "input_files": [
+    "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b92384ef\\projects\\DEFAULT_PROJECT\\sessions\\20260719_183049_LINK-CAL-002_initial_R01\\raw\\LINK-CAL-002_CAL002-MAIN_H-AMP2.csv"
+  ],
+  "input_hashes": [
+    "098d80fc74e0aa771d6916bc3830b964a5db3b8de237b5caf20c8333795114fa"
+  ],
+  "input_roles": [
+    "temporary"
+  ],
+  "output_files": [
+    "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b92384ef\\projects\\DEFAULT_PROJECT\\sessions\\20260719_183049_LINK-CAL-002_initial_R01\\loss\\L_VNA_FEED_H_AMP2_10_15G_F10_17G_H10_15G.csv"
+  ],
+  "output_hashes": [
+    "89f620f2606f8956ca1df89e77a4907f98e5ed99bc2b22784387252df362ee77"
+  ],
+  "output_roles": [
+    "final"
+  ],
+  "run_uid": "dbbe2cce-1c87-4e5c-bd91-6f84e62c075e",
+  "workspace_id": "CATR_Chamber_Loss_Calibration_b92384ef",
+  "workspace_root": "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b92384ef",
+  "session_root": "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b92384ef\\projects\\DEFAULT_PROJECT\\sessions\\20260719_183049_LINK-CAL-002_initial_R01",
+  "config_hash": "b92384ef7665bfdf14efeeb80faf9970c284ec6c1d321933a264dd23469a439d",
+  "config_source_path": "D:\\OneDrive\\4.Code\\SWTEST\\TEST\\catr_loss_calibrator\\src\\catr_loss_calibrator\\calibration\\configs\\catr_chamber_loss_calibration.json",
+  "project_code": "DEFAULT_PROJECT",
+  "calibration_stage": "initial",
+  "run_label": "R01",
+  "operator": "",
+  "operator_note": "",
+  "formula_version": "v1",
+  "profile_version": "lcd74000f:v1",
+  "note": "mock-runner:H 极化馈源侧 AMP2"
+}

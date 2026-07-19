@@ -26,6 +26,7 @@ logs/
 test_results/
 *.log
 *.csv
+!catr_loss_calibrator/src/catr_loss_calibrator/resources/*.csv
 
 # Local vendor/reference packages
 resource/iCL-RS/

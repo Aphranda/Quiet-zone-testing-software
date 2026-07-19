@@ -142,8 +142,17 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_SOFTWARE_DESIGN.md`, `
 - [X] P5-09 校准界面增加项目代号、校准阶段、批次/轮次、操作员和备注字段。
 - [X] P5-10 metadata 与 session manifest 记录 config_hash、workspace_id、project_code、session_id 和批次信息。
 - [X] P5-11 结果页按当前 workspace/project/session 浏览文件，并支持 latest 成功输出索引。
-- [ ] P5-12 旧版输出目录只读兼容展示，新运行不再写入旧目录结构。
-- [ ] P5-13 建立 exe 打包后的运行时路径策略：内置默认 JSON/CSV 随程序打包，用户项目 JSON/CSV 复制到 `%APPDATA%/CATRLossCalibrator` 等外部可写目录，校准输出默认放到用户文档或用户指定 workspace，软件升级不得影响历史校准文件。
+- [X] P5-12 旧版输出目录只读兼容展示，新运行不再写入旧目录结构。
+- [X] P5-14 修复保存确认“上一步”重测后的数据一致性：当前小步骤 raw 重写后，依赖该 raw 的 final/loss 必须失效并重新计算，后续步骤不得继续使用旧 final。
+- [X] P5-15 将样式、LOGO、图标、默认配置和后续默认 CSV 统一纳入包资源/打包资源清单，源码运行、wheel 运行和 exe 运行路径一致。
+- [X] P5-13 建立 exe 打包后的运行时路径策略：内置默认 JSON/CSV 随程序打包，用户项目 JSON/CSV 复制到 `%APPDATA%/CATRLossCalibrator` 等外部可写目录，校准输出默认放到用户文档或用户指定 workspace，软件升级不得影响历史校准文件。
+- [ ] P5-16 建立历史导入与细分步骤续测状态模型：区分 `VALID_HISTORY`、`VALID_CURRENT`、`MISSING`、`STALE_CONFIG`、`BROKEN_FILE`、`NO_CURVE`、`SUSPECT_CURVE`、`REMEASURE_REQUIRED`、`SKIPPED_NOT_MEASURED`。
+- [ ] P5-17 实现从 workspace/session/latest 导入历史结果后，对每个细分步骤建立状态索引和状态原因。（已完成 raw 文件匹配、读取状态和人工判定结果索引；配置/hash 校验待接入。）
+- [ ] P5-18 支持点击任意细分步骤独立测试或重测，不必从第一个步骤顺序执行到目标步骤。（已完成“重测当前”单细分步骤执行并生成新 session 文件；后续补异步进度和真实硬件长耗时防阻塞。）
+- [ ] P5-19 实现历史数据沿用规则：只有 config、频段、馈源、喇叭、点数、hash、步骤身份校验通过且人工判定可沿用的数据才能计入正式完成。（已完成人工沿用判定记录、步骤身份匹配和复算计入；config/hash 校验待接入。）
+- [ ] P5-20 修改 session 完成判定：含 `MISSING` 或 `SKIPPED_NOT_MEASURED` 时只能为 `PARTIAL`，不得更新 latest；历史沿用加本次补测完整时标记 `RESUMED_DONE`。（已完成复算 session 的 `PARTIAL/RESUMED_DONE` 和 latest 更新规则；`SKIPPED_NOT_MEASURED` 待接入。）
+- [ ] P5-21 实现只复算模式：基于当前 session raw 与有效历史 raw 重新生成 final/loss，不重新采样。（已完成“生成/更新结果”第一版。）
+- [ ] P5-22 建立曲线读取检查与人工质量判定：软件按曲线存在性、CSV 可读性、点数/频率轴、NaN/Inf 等客观状态提示；是否沿用或重测由操作员人工判定。（已完成读取检查和 UI 人工判定控件；持久化待接入。）
 - [ ] P5-04 建立长期稳定性测试，覆盖多频段、多喇叭、多校准项循环执行。
 - [ ] P5-05 建立版本管理：公式版本、profile 版本、报告版本、软件版本。
 - [ ] P5-06 与 `CATR_CHAMBER_CALIBRATION_TEST_PLAN.html` 保持同步，文档变更后更新 catalog、公式和测试。（这是通用软件，JSON配置与文档相同）

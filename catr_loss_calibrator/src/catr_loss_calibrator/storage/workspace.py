@@ -10,11 +10,15 @@ from typing import Any
 from uuid import uuid4
 
 from catr_loss_calibrator.calibration.models import CalibrationCatalog
+from catr_loss_calibrator.runtime_resources import default_output_root
 
 
-DEFAULT_OUTPUT_ROOT = Path("catr_loss_calibrator_output")
+DEFAULT_OUTPUT_ROOT = default_output_root()
 SESSION_MANIFEST_SCHEMA_VERSION = "catr-session-manifest.v1"
 LATEST_INDEX_SCHEMA_VERSION = "catr-latest-session.v1"
+WORKSPACE_MANIFEST_SCHEMA_VERSION = "catr-workspace.v1"
+WORKSPACE_CONFIG_DIR = "config"
+WORKSPACE_CONFIG_SNAPSHOT = "link_config_snapshot.json"
 
 
 @dataclass(frozen=True)
@@ -73,6 +77,38 @@ def workspace_for_catalog(
         workspace_id=workspace_id,
         workspace_root=output_base / "workspaces" / workspace_id,
     )
+
+
+def write_workspace_manifest(workspace: WorkspaceContext, catalog: CalibrationCatalog) -> Path:
+    workspace.workspace_root.mkdir(parents=True, exist_ok=True)
+    snapshot_path = workspace_config_snapshot_path(workspace.workspace_root)
+    snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+    source_path = Path(catalog.source_path) if catalog.source_path else None
+    if source_path is not None and source_path.exists():
+        snapshot_path.write_text(source_path.read_text(encoding="utf-8"), encoding="utf-8")
+    else:
+        snapshot_path.write_text(
+            json.dumps(_catalog_to_link_config_payload(catalog), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+    payload = {
+        "schema_version": WORKSPACE_MANIFEST_SCHEMA_VERSION,
+        "workspace_id": workspace.workspace_id,
+        "workspace_root": str(workspace.workspace_root),
+        "config_name": workspace.config_name,
+        "config_display_name": workspace.config_display_name,
+        "config_hash": workspace.config_hash,
+        "config_source_path": workspace.config_source_path,
+        "config_snapshot_file": str(snapshot_path),
+        "updated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+    }
+    path = workspace.workspace_root / "workspace.json"
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
+    return path
+
+
+def workspace_config_snapshot_path(workspace_root: Path) -> Path:
+    return workspace_root / WORKSPACE_CONFIG_DIR / WORKSPACE_CONFIG_SNAPSHOT
 
 
 def config_hash_for_catalog(catalog: CalibrationCatalog) -> str:
@@ -146,6 +182,7 @@ def write_session_manifest(
     last_event: str = "",
     failure: dict[str, object] | None = None,
     finished_at: datetime | None = None,
+    extra_fields: dict[str, Any] | None = None,
 ) -> Path:
     payload: dict[str, Any] = {
         "schema_version": SESSION_MANIFEST_SCHEMA_VERSION,
@@ -170,6 +207,8 @@ def write_session_manifest(
     }
     if failure:
         payload["failure"] = failure
+    if extra_fields:
+        payload.update(extra_fields)
     path = session.session_root / "session_manifest.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
@@ -294,6 +333,121 @@ def list_session_summaries_from_project_root(
     )
 
 
+def list_session_summaries_from_workspace_root(
+    *,
+    workspace_root: Path,
+    item_id: str | None = None,
+    project_code: str | None = None,
+) -> tuple[dict[str, object], ...]:
+    projects_root = workspace_root / "projects"
+    if project_code:
+        project_roots = (projects_root / _safe_token(project_code),)
+    elif projects_root.exists():
+        project_roots = tuple(path for path in sorted(projects_root.iterdir()) if path.is_dir())
+    elif (workspace_root / "sessions").exists():
+        project_roots = (workspace_root,)
+    else:
+        project_roots = ()
+    summaries: list[dict[str, object]] = []
+    for project_root in project_roots:
+        summaries.extend(list_session_summaries_from_project_root(project_root=project_root, item_id=item_id))
+    return tuple(
+        sorted(
+            summaries,
+            key=lambda summary: (
+                str(summary.get("finished_at") or summary.get("started_at") or ""),
+                str(summary.get("session_id") or ""),
+            ),
+            reverse=True,
+        )
+    )
+
+
+def load_legacy_output_summary(root: Path, item_id: str | None = None) -> dict[str, object]:
+    legacy_root = _legacy_output_root(root)
+    metadata_root = legacy_root / "metadata"
+    raw_files: list[str] = []
+    loss_files: list[str] = []
+    metadata_files: list[str] = []
+    matched_item_id = item_id or ""
+    if metadata_root.exists():
+        for metadata_path in sorted(metadata_root.glob("*.json")):
+            try:
+                payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            if not isinstance(payload, dict):
+                continue
+            metadata_item_id = str(payload.get("calibration_item") or payload.get("item_id") or "")
+            if item_id and metadata_item_id != item_id:
+                continue
+            matched_item_id = matched_item_id or metadata_item_id
+            metadata_files.append(str(metadata_path))
+            raw_files.extend(_existing_legacy_paths(legacy_root, payload.get("input_files", ()) or ()))
+            loss_files.extend(_existing_legacy_paths(legacy_root, payload.get("output_files", ()) or ()))
+    if item_id:
+        raw_files.extend(str(path) for path in sorted((legacy_root / "raw").glob(f"{item_id}_*.csv")))
+        loss_files.extend(str(path) for path in sorted((legacy_root / "loss").glob("*.csv")))
+    summary = {
+        "item_id": matched_item_id or str(item_id or ""),
+        "item_name": matched_item_id or str(item_id or "旧版输出目录"),
+        "state": "LEGACY_READONLY",
+        "completed_steps": "",
+        "completed_big_steps": "",
+        "last_event": "legacy_readonly",
+        "output_root": str(legacy_root),
+        "raw_files": tuple(_unique_existing_paths(raw_files)),
+        "loss_files": tuple(_unique_existing_paths(loss_files)),
+        "metadata_files": tuple(_unique_existing_paths(metadata_files)),
+        "manifest_file": "",
+        "run_uid": "",
+        "session_id": "LEGACY_READONLY",
+        "session_root": str(legacy_root),
+        "workspace_id": "UNBOUND_LEGACY",
+        "workspace_root": str(legacy_root),
+        "config_hash": "UNBOUND_LEGACY",
+        "config_source_path": "",
+        "project_code": "未绑定配置",
+        "calibration_stage": "legacy_readonly",
+        "run_label": "",
+        "operator": "",
+        "operator_note": "旧版输出目录只读兼容展示",
+        "started_at": "",
+        "finished_at": "",
+        "result_view_mode": "legacy",
+    }
+    return summary if summary["raw_files"] or summary["loss_files"] or summary["metadata_files"] else {}
+
+
+def _legacy_output_root(root: Path) -> Path:
+    if root.name.lower() in {"metadata", "raw", "loss"}:
+        return root.parent
+    return root
+
+
+def _existing_legacy_paths(legacy_root: Path, paths: Any) -> list[str]:
+    result: list[str] = []
+    for raw_path in paths:
+        path = Path(str(raw_path))
+        if not path.is_absolute():
+            path = legacy_root / path.relative_to(legacy_root.name) if path.parts and path.parts[0] == legacy_root.name else legacy_root / path
+        if path.exists():
+            result.append(str(path))
+    return result
+
+
+def _unique_existing_paths(paths: list[str]) -> tuple[str, ...]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for raw_path in paths:
+        path = str(Path(raw_path))
+        key = path.lower()
+        if key not in seen and Path(path).exists():
+            seen.add(key)
+            result.append(path)
+    return tuple(result)
+
+
 def _summary_from_manifest(manifest: dict[str, Any]) -> dict[str, object]:
     raw_files = tuple(str(path) for path in manifest.get("raw_files", ()) or ())
     loss_files = tuple(str(path) for path in manifest.get("loss_files", ()) or ())
@@ -324,11 +478,74 @@ def _summary_from_manifest(manifest: dict[str, Any]) -> dict[str, object]:
         "operator_note": str(manifest.get("operator_note", "")),
         "started_at": str(manifest.get("started_at", "")),
         "finished_at": str(manifest.get("finished_at", "")),
+        "resume_source": manifest.get("resume_source", {}) if isinstance(manifest.get("resume_source", {}), dict) else {},
+        "substep_status": manifest.get("substep_status", {}) if isinstance(manifest.get("substep_status", {}), dict) else {},
+        "reused_files": tuple(str(path) for path in manifest.get("reused_files", ()) or ()),
+        "new_files": tuple(str(path) for path in manifest.get("new_files", ()) or ()),
+        "invalid_files": tuple(str(path) for path in manifest.get("invalid_files", ()) or ()),
     }
 
 
 def _source_stem(source_path: str) -> str:
     return Path(source_path).stem if source_path else ""
+
+
+def _catalog_to_link_config_payload(catalog: CalibrationCatalog) -> dict[str, Any]:
+    return {
+        "schema_version": catalog.schema_version or "catr-link-config.v1",
+        "name": catalog.name,
+        "display_name": catalog.display_name,
+        "description": catalog.description,
+        "node_catalog": catalog.node_catalog,
+        "path_templates": catalog.path_templates,
+        "band_config": catalog.band_config,
+        "calibration_items": [
+            {
+                "id": item.id,
+                "name": item.name,
+                "purpose": item.purpose,
+                "steps": [
+                    {
+                        "id": step.id,
+                        "name": step.name,
+                        "role": getattr(step.role, "value", str(step.role)),
+                        "input_port": step.input_port,
+                        "output_port": step.output_port,
+                        "manual_instruction": step.manual_instruction,
+                        "route_ids": list(step.route_ids),
+                        "link_commands": list(step.link_commands),
+                        "raw_outputs": list(step.raw_outputs),
+                        "final_outputs": list(step.final_outputs),
+                        "required_inputs": list(step.required_inputs),
+                        "notes": step.notes,
+                        "path_template": step.path_template,
+                        **({"path": step.path} if step.path else {}),
+                        "substeps": [
+                            {
+                                "id": substep.id,
+                                "name": substep.name,
+                                "input_port": substep.input_port,
+                                "output_port": substep.output_port,
+                                "manual_instruction": substep.manual_instruction,
+                                "route_ids": list(substep.route_ids),
+                                "link_commands": list(substep.link_commands),
+                                "raw_output": substep.raw_output,
+                                "final_output": substep.final_output,
+                                "required_inputs": list(substep.required_inputs),
+                                "notes": substep.notes,
+                                "parameter": substep.parameter,
+                                "path_template": substep.path_template,
+                                **({"path": substep.path} if substep.path else {}),
+                            }
+                            for substep in step.substeps
+                        ],
+                    }
+                    for step in item.steps
+                ],
+            }
+            for item in catalog.items
+        ],
+    }
 
 
 def _safe_token(value: str) -> str:

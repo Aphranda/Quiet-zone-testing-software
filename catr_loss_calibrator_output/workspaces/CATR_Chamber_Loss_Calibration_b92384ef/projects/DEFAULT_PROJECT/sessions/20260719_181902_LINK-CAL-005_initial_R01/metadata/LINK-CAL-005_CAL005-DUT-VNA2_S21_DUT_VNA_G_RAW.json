@@ -1,0 +1,46 @@
+{
+  "session_id": "20260719_181902_LINK-CAL-005_initial_R01",
+  "project_name": "CATR Loss Calibrator",
+  "project_version": "0.1.0",
+  "calibration_item": "LINK-CAL-005",
+  "calibration_step": "CAL005-DUT-VNA2_S21_DUT_VNA_G_RAW",
+  "instrument_snapshot": {
+    "vna": "MockVna"
+  },
+  "link_commands": [
+    "CONFigure:LINK DUT, VNA2"
+  ],
+  "manual_confirmation": true,
+  "input_files": [
+    "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b92384ef\\projects\\DEFAULT_PROJECT\\sessions\\20260719_181902_LINK-CAL-005_initial_R01\\raw\\LINK-CAL-005_CAL005-DUT-VNA2_S21_DUT_VNA_G_RAW.csv"
+  ],
+  "input_hashes": [
+    "76e9ed59c72437ca3581058dc3da5ee6bd5553dd48c140118c5f2cf724f70cc6"
+  ],
+  "input_roles": [
+    "raw_s21"
+  ],
+  "output_files": [
+    "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b92384ef\\projects\\DEFAULT_PROJECT\\sessions\\20260719_181902_LINK-CAL-005_initial_R01\\loss\\L_DUT_VNA_G_10_15G_F10_17G_H10_15G.csv"
+  ],
+  "output_hashes": [
+    "5a55e9b460d282737eae9601fc050c255a5161adec744f7bf565a4c42e4ba378"
+  ],
+  "output_roles": [
+    "final"
+  ],
+  "run_uid": "c82019b0-36a7-47a1-a379-815be8dc3a1f",
+  "workspace_id": "CATR_Chamber_Loss_Calibration_b92384ef",
+  "workspace_root": "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b92384ef",
+  "session_root": "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b92384ef\\projects\\DEFAULT_PROJECT\\sessions\\20260719_181902_LINK-CAL-005_initial_R01",
+  "config_hash": "b92384ef7665bfdf14efeeb80faf9970c284ec6c1d321933a264dd23469a439d",
+  "config_source_path": "D:\\OneDrive\\4.Code\\SWTEST\\TEST\\catr_loss_calibrator\\src\\catr_loss_calibrator\\calibration\\configs\\catr_chamber_loss_calibration.json",
+  "project_code": "DEFAULT_PROJECT",
+  "calibration_stage": "initial",
+  "run_label": "R01",
+  "operator": "",
+  "operator_note": "",
+  "formula_version": "v1",
+  "profile_version": "lcd74000f:v1",
+  "note": "mock-runner:S21_DUT_VNA_G_RAW"
+}

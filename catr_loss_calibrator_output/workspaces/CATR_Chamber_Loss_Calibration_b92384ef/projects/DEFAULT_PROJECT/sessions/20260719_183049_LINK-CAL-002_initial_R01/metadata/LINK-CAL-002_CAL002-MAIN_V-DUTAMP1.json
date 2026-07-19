@@ -1,0 +1,47 @@
+{
+  "session_id": "20260719_183049_LINK-CAL-002_initial_R01",
+  "project_name": "CATR Loss Calibrator",
+  "project_version": "0.1.0",
+  "calibration_item": "LINK-CAL-002",
+  "calibration_step": "CAL002-MAIN_V-DUTAMP1",
+  "instrument_snapshot": {
+    "vna": "MockVna"
+  },
+  "link_commands": [
+    "CONFigure:LINK DUT, AMP1, VNA2",
+    "CONFigure:LINK V, VNA1"
+  ],
+  "manual_confirmation": true,
+  "input_files": [
+    "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b92384ef\\projects\\DEFAULT_PROJECT\\sessions\\20260719_183049_LINK-CAL-002_initial_R01\\raw\\LINK-CAL-002_CAL002-MAIN_V-DUTAMP1.csv"
+  ],
+  "input_hashes": [
+    "0e0293723ea1e07fba0cbafd73442a3d4d3f0ccf6fd87c92efe03f243ffa9e3a"
+  ],
+  "input_roles": [
+    "temporary"
+  ],
+  "output_files": [
+    "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b92384ef\\projects\\DEFAULT_PROJECT\\sessions\\20260719_183049_LINK-CAL-002_initial_R01\\loss\\L_VNA_FEED_V_AMP1_10_15G_F10_17G_H10_15G.csv"
+  ],
+  "output_hashes": [
+    "621c039deb175eb34448e2c6456d0eb8e8deb6db99194fd6eee454edc5515718"
+  ],
+  "output_roles": [
+    "final"
+  ],
+  "run_uid": "dbbe2cce-1c87-4e5c-bd91-6f84e62c075e",
+  "workspace_id": "CATR_Chamber_Loss_Calibration_b92384ef",
+  "workspace_root": "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b92384ef",
+  "session_root": "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b92384ef\\projects\\DEFAULT_PROJECT\\sessions\\20260719_183049_LINK-CAL-002_initial_R01",
+  "config_hash": "b92384ef7665bfdf14efeeb80faf9970c284ec6c1d321933a264dd23469a439d",
+  "config_source_path": "D:\\OneDrive\\4.Code\\SWTEST\\TEST\\catr_loss_calibrator\\src\\catr_loss_calibrator\\calibration\\configs\\catr_chamber_loss_calibration.json",
+  "project_code": "DEFAULT_PROJECT",
+  "calibration_stage": "initial",
+  "run_label": "R01",
+  "operator": "",
+  "operator_note": "",
+  "formula_version": "v1",
+  "profile_version": "lcd74000f:v1",
+  "note": "mock-runner:V 极化 DUT 侧 AMP1 回传"
+}

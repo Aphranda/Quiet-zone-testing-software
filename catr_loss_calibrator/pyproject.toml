@@ -24,4 +24,12 @@ catr-loss-calibrator = "catr_loss_calibrator.app.main:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-catr_loss_calibrator = ["calibration/configs/*.json"]
+catr_loss_calibrator = [
+    "calibration/configs/*.json",
+    "resources/*.csv",
+    "style/*.css",
+    "style/*.png",
+    "style/*.qss",
+    "style/*.svg",
+    "style/icons/*.png",
+]

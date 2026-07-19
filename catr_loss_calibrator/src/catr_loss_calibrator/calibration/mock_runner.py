@@ -222,6 +222,8 @@ class MockCalibrationRunner:
             source_step=source_step,
             output_role=classify_output_parameter(raw_parameter, declared_as=OutputRole.RAW_S21).value,
         )
+        if raw_record.parameter in self._records:
+            self._invalidate_computed_outputs()
         self._records[raw_record.parameter] = raw_record
         raw_path = self.output_root / "raw" / f"{self.item.id}_{source_step}.csv"
         raw_path.parent.mkdir(parents=True, exist_ok=True)
@@ -298,6 +300,10 @@ class MockCalibrationRunner:
                 saved_paths.append(path)
                 changed = True
         return tuple(saved_paths)
+
+    def _invalidate_computed_outputs(self) -> None:
+        self._saved_outputs.clear()
+        self._output_paths.clear()
 
     def _calculate_output(self, param: str, frequency_hz: np.ndarray) -> np.ndarray | None:
         def require(*names: str) -> tuple[np.ndarray, ...] | None:

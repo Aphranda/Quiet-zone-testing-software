@@ -10,6 +10,7 @@ QCoreApplication = QtCore.QCoreApplication
 
 from catr_loss_calibrator.calibration.mock_runner import MockCalibrationRunner
 from catr_loss_calibrator.calibration.config_loader import DEFAULT_CONFIG_PATH
+from catr_loss_calibrator.calibration.state_machine import CalibrationState
 from catr_loss_calibrator.hardware.mock import MockLinkBox, MockVna
 from catr_loss_calibrator.presentation.viewmodels import CalibrationRunWorker, CalibrationViewModel, StepViewData
 
@@ -113,6 +114,101 @@ def test_worker_counts_progress_by_substep_not_big_step() -> None:
 
     assert worker._item_completed_substeps(2, 1, "start") == first_step_substeps
     assert worker._item_completed_substeps(2, 1, "saved") == first_step_substeps + 1
+
+
+def test_worker_saved_prompt_exposes_saved_csv_files(tmp_path: Path) -> None:
+    item = default_loaded_viewmodel().selected_item
+    step = item.steps[0]
+    runner = MockCalibrationRunner(item, MockVna(), MockLinkBox(), tmp_path, vna_settings={"points": 3})
+    runner.link_box.connect()
+    runner.vna.connect()
+    substep = runner._substeps_for(step)[0]
+
+    runner.state_machine.transition(CalibrationState.WAIT_MANUAL_CONFIRM)
+    runner._run_substep(step, substep)
+    worker = CalibrationRunWorker(runner)
+    saved_files = worker._saved_files_for_prompt(step, substep, "saved")
+
+    assert len(saved_files) >= 2
+    assert all(Path(path).exists() for path in saved_files)
+    assert Path(saved_files[0]).parent.name == "loss"
+    assert Path(saved_files[-1]).parent.name == "raw"
+
+
+def test_viewmodel_can_retest_single_substep(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _app = QCoreApplication.instance() or QCoreApplication([])
+    monkeypatch.setattr(
+        "catr_loss_calibrator.presentation.viewmodels.DEFAULT_OUTPUT_ROOT",
+        tmp_path,
+    )
+    vm = default_loaded_viewmodel()
+    vm.connect_mock_devices()
+    step = vm.selected_item.steps[0]
+    substep = vm._substeps_for_step(step)[0]
+
+    summary = vm.run_single_substep(step.id, substep.id, {"points": 3, "project_code": "UNIT", "run_label": "R01"})
+
+    assert summary["item_id"] == vm.selected_item.id
+    assert f"{step.id}:{substep.id}" in summary["completed_substep_ids"]
+    assert summary["raw_files"]
+    assert summary["metadata_files"]
+    assert all(Path(path).exists() for path in summary["raw_files"])
+
+
+def test_viewmodel_generates_resumed_done_from_accepted_history(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _app = QCoreApplication.instance() or QCoreApplication([])
+    monkeypatch.setattr(
+        "catr_loss_calibrator.presentation.viewmodels.DEFAULT_OUTPUT_ROOT",
+        tmp_path,
+    )
+    vm = default_loaded_viewmodel()
+    item = vm.selected_item
+    historical_runner = MockCalibrationRunner(item, MockVna(), MockLinkBox(), tmp_path / "history", vna_settings={"points": 3})
+    historical_runner.link_box.connect()
+    historical_runner.vna.connect()
+    historical_runner.run()
+    history_summary = historical_runner.overview()
+    judgments = {
+        f"{step.id}:{substep.id}": "accept"
+        for step in item.steps
+        for substep in vm._substeps_for_step(step)
+    }
+
+    summary = vm.generate_resume_results(history_summary, judgments, {"points": 3, "project_code": "UNIT", "run_label": "R01"})
+
+    assert summary["state"] == "RESUMED_DONE"
+    assert summary["latest_index_file"]
+    assert Path(summary["latest_index_file"]).exists()
+    assert summary["loss_files"]
+    manifest = json.loads(Path(summary["manifest_file"]).read_text(encoding="utf-8"))
+    assert manifest["state"] == "RESUMED_DONE"
+    assert manifest["resume_source"]["item_id"] == item.id
+    assert manifest["reused_files"]
+    assert manifest["substep_status"]
+    assert {record["status"] for record in manifest["substep_status"].values()} == {"VALID_HISTORY"}
+
+
+def test_viewmodel_generates_partial_when_history_not_accepted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _app = QCoreApplication.instance() or QCoreApplication([])
+    monkeypatch.setattr(
+        "catr_loss_calibrator.presentation.viewmodels.DEFAULT_OUTPUT_ROOT",
+        tmp_path,
+    )
+    vm = default_loaded_viewmodel()
+    item = vm.selected_item
+    historical_runner = MockCalibrationRunner(item, MockVna(), MockLinkBox(), tmp_path / "history", vna_settings={"points": 3})
+    historical_runner.link_box.connect()
+    historical_runner.vna.connect()
+    historical_runner.run()
+
+    summary = vm.generate_resume_results(historical_runner.overview(), {}, {"points": 3, "project_code": "UNIT", "run_label": "R01"})
+
+    assert summary["state"] == "PARTIAL"
+    assert summary["latest_index_file"] == ""
+    assert summary["completed_substep_ids"] == ()
+    manifest = json.loads(Path(summary["manifest_file"]).read_text(encoding="utf-8"))
+    assert manifest["state"] == "PARTIAL"
+    assert manifest["reused_files"] == []
 
 
 def test_worker_formats_link_events_for_log_panel() -> None:
@@ -331,8 +427,6 @@ def test_viewmodel_configures_spectrum_analyzer_with_structured_settings() -> No
             "vbw_hz": 30000.0,
             "reference_level_dbm": -5.0,
             "attenuation_db": 6.0,
-            "preamp_enabled": True,
-            "continuous": False,
         }
     )
 
@@ -347,12 +441,10 @@ def test_viewmodel_configures_spectrum_analyzer_with_structured_settings() -> No
         "BANDwidth:VIDeo 30000",
         "DISPlay:WINDow:TRACe:Y:RLEVel -5",
         "POWer:ATTenuation 6",
-        "POWer:GAIN:STATe ON",
-        "INITiate:CONTinuous OFF",
     ]
     messages = [record.message for record in vm.logs if record.source == "spectrum_analyzer"]
     assert "发送命令: FREQuency:CENTer 21700000000" in messages
-    assert "发送命令: INITiate:CONTinuous OFF" in messages
+    assert "发送命令: POWer:ATTenuation 6" in messages
 
 
 def test_viewmodel_signal_generator_accepts_manual_scpi_commands() -> None:
@@ -397,12 +489,9 @@ def test_viewmodel_spectrum_analyzer_accepts_manual_scpi_commands() -> None:
             "vbw_hz": 100000.0,
             "reference_level_dbm": 0.0,
             "attenuation_db": 10.0,
-            "preamp_enabled": False,
-            "continuous": True,
         }
     )
 
-    assert vm.send_device_command("spectrum_analyzer", "INITiate:CONTinuous OFF") == "OK"
     assert vm.send_device_command("spectrum_analyzer", "INITiate:IMMediate") == "OK"
     assert vm.send_device_command("spectrum_analyzer", "*OPC?") == "1"
     assert vm.send_device_command("spectrum_analyzer", "CALCulate:MARKer1:MAXimum") == "OK"
@@ -438,7 +527,7 @@ def test_viewmodel_device_presets_include_target_sg_and_sa_commands() -> None:
     assert spectrum_analyzer["设置点数"] == "SWEep:POINts 1001"
     assert spectrum_analyzer["设置 RBW"] == "BANDwidth:RESolution 1MHz"
     assert spectrum_analyzer["设置 VBW"] == "BANDwidth:VIDeo 1MHz"
-    assert spectrum_analyzer["关闭连续测量"] == "INITiate:CONTinuous OFF"
+    assert "关闭连续测量" not in spectrum_analyzer
     assert spectrum_analyzer["读取频谱数据"] == "READ:SANalyzer?"
     assert spectrum_analyzer["峰值搜索"] == "CALCulate:MARKer1:MAXimum"
     assert spectrum_analyzer["读取 Marker 幅度"] == "CALCulate:MARKer1:Y?"

@@ -11,10 +11,14 @@ from catr_loss_calibrator.storage.workspace import (
     config_hash_for_catalog,
     create_session_context,
     list_session_summaries,
+    list_session_summaries_from_workspace_root,
+    load_legacy_output_summary,
     load_latest_summary,
+    workspace_config_snapshot_path,
     workspace_for_catalog,
     write_latest_index,
     write_session_manifest,
+    write_workspace_manifest,
 )
 
 
@@ -40,6 +44,23 @@ def test_config_hash_changes_when_source_file_changes(tmp_path: Path) -> None:
     second_hash = config_hash_for_catalog(replace(catalog, source_path=str(second_config)))
 
     assert first_hash != second_hash
+
+
+def test_write_workspace_manifest_stores_config_snapshot(tmp_path: Path) -> None:
+    catalog = default_calibration_catalog()
+    workspace = workspace_for_catalog(catalog, tmp_path)
+
+    manifest_path = write_workspace_manifest(workspace, catalog)
+
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    snapshot_path = workspace_config_snapshot_path(workspace.workspace_root)
+    snapshot_payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    assert manifest_path == workspace.workspace_root / "workspace.json"
+    assert payload["schema_version"] == "catr-workspace.v1"
+    assert payload["workspace_id"] == workspace.workspace_id
+    assert payload["config_snapshot_file"] == str(snapshot_path)
+    assert snapshot_payload["schema_version"] == "catr-link-config.v1"
+    assert snapshot_payload["calibration_items"]
 
 
 def test_session_context_uses_project_stage_and_run_label(tmp_path: Path) -> None:
@@ -177,3 +198,58 @@ def test_list_session_summaries_filters_item_and_sorts_newest_first(tmp_path: Pa
 
     assert [summary["session_id"] for summary in summaries] == [newer.session_id, older.session_id]
     assert summaries[0]["raw_files"] == ("raw/new.csv",)
+
+
+def test_list_session_summaries_from_workspace_root_can_scan_all_projects(tmp_path: Path) -> None:
+    workspace = workspace_for_catalog(default_calibration_catalog(), tmp_path)
+    first = create_session_context(
+        workspace=workspace,
+        run=CalibrationRunContext(project_code="PROJECT1", calibration_stage="initial", run_label="R01"),
+        item_id="LINK-CAL-001",
+        now=datetime(2026, 7, 19, 10, 0, 0, tzinfo=timezone.utc),
+    )
+    second = create_session_context(
+        workspace=workspace,
+        run=CalibrationRunContext(project_code="PROJECT2", calibration_stage="retest", run_label="R02"),
+        item_id="LINK-CAL-002",
+        now=datetime(2026, 7, 19, 11, 0, 0, tzinfo=timezone.utc),
+    )
+    for session in (first, second):
+        write_session_manifest(session, state="DONE", raw_files=(), loss_files=(), metadata_files=())
+
+    summaries = list_session_summaries_from_workspace_root(workspace_root=workspace.workspace_root)
+    filtered = list_session_summaries_from_workspace_root(workspace_root=workspace.workspace_root, item_id="LINK-CAL-001")
+
+    assert [summary["session_id"] for summary in summaries] == [second.session_id, first.session_id]
+    assert [summary["session_id"] for summary in filtered] == [first.session_id]
+
+
+def test_load_legacy_output_summary_marks_unbound_readonly_files(tmp_path: Path) -> None:
+    legacy_root = tmp_path / "catr_loss_calibrator_output"
+    raw_path = legacy_root / "raw" / "LINK-CAL-001_CAL001-AUX_AUX-A.csv"
+    loss_path = legacy_root / "loss" / "L_AUX_A_10_15G_F10_17G_H10_15G.csv"
+    metadata_path = legacy_root / "metadata" / "LINK-CAL-001_CAL001-AUX_AUX-A.json"
+    raw_path.parent.mkdir(parents=True)
+    loss_path.parent.mkdir(parents=True)
+    metadata_path.parent.mkdir(parents=True)
+    raw_path.write_text("freq_hz,raw_s21_db\n10000000000,-1\n", encoding="utf-8")
+    loss_path.write_text("freq_hz,value_db\n10000000000,-2\n", encoding="utf-8")
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "calibration_item": "LINK-CAL-001",
+                "input_files": [str(raw_path)],
+                "output_files": [str(loss_path)],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    summary = load_legacy_output_summary(legacy_root / "metadata", item_id="LINK-CAL-001")
+
+    assert summary["state"] == "LEGACY_READONLY"
+    assert summary["workspace_id"] == "UNBOUND_LEGACY"
+    assert summary["project_code"] == "未绑定配置"
+    assert summary["raw_files"] == (str(raw_path),)
+    assert summary["loss_files"] == (str(loss_path),)
+    assert summary["metadata_files"] == (str(metadata_path),)

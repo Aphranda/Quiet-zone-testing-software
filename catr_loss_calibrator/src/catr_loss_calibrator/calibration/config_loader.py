@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from catr_loss_calibrator.runtime_resources import PACKAGE_DEFAULT_CONFIG_PATH
 from catr_loss_calibrator.calibration.models import (
     CalibrationCatalog,
     CalibrationItem,
@@ -14,7 +15,7 @@ from catr_loss_calibrator.calibration.models import (
 
 
 SUPPORTED_SCHEMA_VERSION = "catr-link-config.v1"
-DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent / "configs" / "catr_chamber_loss_calibration.json"
+DEFAULT_CONFIG_PATH = PACKAGE_DEFAULT_CONFIG_PATH
 
 
 class LinkConfigError(ValueError):

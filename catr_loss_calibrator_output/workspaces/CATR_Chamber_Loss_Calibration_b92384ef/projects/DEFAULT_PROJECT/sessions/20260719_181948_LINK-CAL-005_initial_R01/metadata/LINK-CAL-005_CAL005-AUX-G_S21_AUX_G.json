@@ -1,0 +1,44 @@
+{
+  "session_id": "20260719_181948_LINK-CAL-005_initial_R01",
+  "project_name": "CATR Loss Calibrator",
+  "project_version": "0.1.0",
+  "calibration_item": "LINK-CAL-005",
+  "calibration_step": "CAL005-AUX-G_S21_AUX_G",
+  "instrument_snapshot": {
+    "vna": "MockVna"
+  },
+  "link_commands": [],
+  "manual_confirmation": true,
+  "input_files": [
+    "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b92384ef\\projects\\DEFAULT_PROJECT\\sessions\\20260719_181948_LINK-CAL-005_initial_R01\\raw\\LINK-CAL-005_CAL005-AUX-G_S21_AUX_G.csv"
+  ],
+  "input_hashes": [
+    "62820bb2cde339f264abac32f9aa36cb508d254f25b416421a965493ae951d64"
+  ],
+  "input_roles": [
+    "raw_s21"
+  ],
+  "output_files": [
+    "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b92384ef\\projects\\DEFAULT_PROJECT\\sessions\\20260719_181948_LINK-CAL-005_initial_R01\\loss\\L_AUX_G_10_15G_F10_17G_H10_15G.csv"
+  ],
+  "output_hashes": [
+    "63cd81aa57bc08770665898152227ab0e37b9fd3e54e50eac336ed8b3cc8f124"
+  ],
+  "output_roles": [
+    "final"
+  ],
+  "run_uid": "d30eecdd-6b92-418d-af72-edc5117c0ad0",
+  "workspace_id": "CATR_Chamber_Loss_Calibration_b92384ef",
+  "workspace_root": "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b92384ef",
+  "session_root": "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b92384ef\\projects\\DEFAULT_PROJECT\\sessions\\20260719_181948_LINK-CAL-005_initial_R01",
+  "config_hash": "b92384ef7665bfdf14efeeb80faf9970c284ec6c1d321933a264dd23469a439d",
+  "config_source_path": "D:\\OneDrive\\4.Code\\SWTEST\\TEST\\catr_loss_calibrator\\src\\catr_loss_calibrator\\calibration\\configs\\catr_chamber_loss_calibration.json",
+  "project_code": "DEFAULT_PROJECT",
+  "calibration_stage": "initial",
+  "run_label": "R01",
+  "operator": "",
+  "operator_note": "",
+  "formula_version": "v1",
+  "profile_version": "lcd74000f:v1",
+  "note": "mock-runner:S21_AUX_G"
+}

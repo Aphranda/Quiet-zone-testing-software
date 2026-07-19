@@ -62,7 +62,7 @@ def test_builtin_json_catalog_contains_band_config() -> None:
         "band": "10_15G",
         "start_ghz": 10.0,
         "stop_ghz": 15.0,
-        "horn_gain_file": "../../../../resources/10_15G_horn_gain_10MHz.csv",
+        "horn_gain_file": "../../resources/10_15G_horn_gain_10MHz.csv",
     }
     assert any(
         entry["horn"] == "H14P5_22G" and entry["horn_gain_file"].endswith("fabricated.csv")

@@ -49,6 +49,234 @@ Last updated: 2026-07-19
 
 ## 任务记录
 
+### CATR-CAL-TASK-20260719-050 - 历史导入续测与曲线质量方案登记
+
+- 状态：进行中
+- 日期：2026-07-19
+- 任务目标：
+  - 明确“导入测了一半的历史校准项目后，点击细分步骤独立补测/重测”的产品逻辑。
+  - 将 `skip` 拆分为“沿用历史数据”和“标记不测”，避免部分数据被误判为正式成功。
+  - 将曲线是否存在、曲线是否正常纳入是否建议重测的判断。
+- 完成内容：
+  - 新增 `CATR_LOSS_CALIBRATION_RESUME_PLAN.md`，定义历史导入、细分步骤状态、session 完成状态、导入校验、按钮语义和实施顺序。
+  - 细分步骤状态增加 `NO_CURVE`、`SUSPECT_CURVE` 等曲线质量相关状态。
+  - 曲线质量判断增加 `OK`、`NO_CURVE`、`BROKEN`、`SUSPECT`、`STALE`，用于给出“可沿用 / 建议重测 / 必须重测”。
+  - 明确 `导入历史数据` 按钮放在校准执行页“校准批次”输入栏后侧，导入后刷新细分步骤状态和数据展示页签。
+  - 开发 TODO 新增 `P5-16` 至 `P5-22`。
+  - 文件管理 TODO 新增 `FM-18` 至 `FM-24`。
+  - UI TODO 新增 `UI-92` 至 `UI-98`，其中 `UI-98` 明确细分步骤区域改为 `链路说明 / 数据展示` 页签。
+  - 文档索引增加续测方案入口。
+  - 校准执行页细分步骤列表右侧详情区域已改为 `链路说明 / 数据展示` 页签；保存确认时默认显示数据展示页，也可以手动切回链路说明。
+  - 校准批次行新增 `导入历史数据` 按钮，可导入 workspace/session/latest/旧版目录摘要。
+  - 导入历史数据后，细分步骤列表能按 raw 文件名标记历史数据状态，右侧 `数据展示` 页能预览对应历史 raw CSV 曲线。
+  - 曲线质量改为人工判定：软件只检查 CSV 是否可读、是否存在 dB 曲线列、点数和明显读取异常；操作员在数据展示页选择 `正常可沿用` 或 `异常需重测`。
+  - 数据展示页新增 `沿用历史` 和 `重测当前` 按钮；`重测当前` 支持只执行当前细分步骤并生成新的 session raw/metadata/loss 文件。
+  - 人工判定结果写入当前 workspace 的 `resume_decisions/*.json`，重新导入同一历史 session 时可恢复。
+  - 单步重测后的新 raw 会合并到当前历史索引并优先显示，不会丢失其他历史步骤。
+  - `生成/更新结果` 会基于人工判定可沿用的历史 raw 和本次重测 raw 复算 final/loss；完整时写 `RESUMED_DONE` 并更新 latest，不完整时写 `PARTIAL` 且不更新 latest。
+  - 复算 session manifest 写入 `resume_source`、`substep_status`、`reused_files`、`new_files`、`invalid_files`，便于追溯历史沿用和本次重测来源。
+- 验证结果：
+  - `D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests\test_presentation_gui_smoke.py` 通过。
+  - `D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests\test_resume.py` 通过。
+  - `D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests\test_presentation_viewmodels.py` 通过。
+  - `D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests` 通过，121 passed。
+- 还需完成：
+  - 按 TODO 实现 config/hash 校验、复算输入/输出 hash 记录。
+  - 将数据展示页继续扩展为“历史来源明细 / 标记不测”。
+- 关联文件：
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_RESUME_PLAN.md`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_DEVELOPMENT_TODO.md`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_FILE_MANAGEMENT_PLAN.md`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_TODO.md`
+  - `catr_loss_calibrator/docs/README.md`
+- 下一步：
+  - 优先实现 `P5-16/FM-19/UI-93/UI-98`，先让导入历史数据后每个细分步骤能显示状态和曲线。
+
+### CATR-CAL-TASK-20260719-049 - exe 运行时路径与用户资源目录策略
+
+- 状态：完成
+- 日期：2026-07-19
+- 任务目标：
+  - 完成 `P5-13/FM-17`，让源码、wheel 和 exe 运行时都能区分内置资源、用户配置目录、用户资源目录和校准输出目录。
+  - 默认 JSON/CSV 作为只读内置资源随包发布，首次使用时复制到用户可写目录。
+  - 新运行默认不再依赖当前工作目录下的 `catr_loss_calibrator_output`。
+- 完成内容：
+  - 扩展 `runtime_resources.py`：新增 `RuntimePaths`、PyInstaller 运行态识别、用户配置目录、用户资源目录、默认输出目录和初始化复制逻辑。
+  - 默认用户配置路径为 `%APPDATA%/CATRLossCalibrator/calibration/configs/catr_chamber_loss_calibration.json`；默认用户 CSV 路径为 `%APPDATA%/CATRLossCalibrator/resources/*.csv`。
+  - 默认校准输出路径改为用户文档目录下 `CATR Loss Calibrator/Calibrations`；可用 `CATR_LOSS_CALIBRATOR_OUTPUT` 覆盖。
+  - `CalibrationViewModel.load_default_catalog()` 现在会初始化用户配置/资源副本，并优先加载用户配置副本。
+  - CLI/interactive mock 输出改到运行时默认输出目录下的 `cli` / `interactive` 子目录。
+  - 测试环境通过 `CATR_LOSS_CALIBRATOR_HOME` 和 `CATR_LOSS_CALIBRATOR_OUTPUT` 指到临时目录，避免污染真实用户目录。
+- 验证结果：
+  - 通过针对性测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests\test_runtime_resources.py catr_loss_calibrator\tests\test_project_boundaries.py catr_loss_calibrator\tests\test_calibration_catalog.py catr_loss_calibrator\tests\test_presentation_gui_smoke.py`，共 20 项。
+  - 通过失败项回归测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests\test_mock_runner.py::test_presentation_cli_runs_demo_flow catr_loss_calibrator\tests\test_presentation_viewmodels.py`，共 21 项。
+  - 通过完整测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests`，共 114 项。
+  - 本轮未做真实硬件验证。
+- 还需完成：
+  - 后续真正打包 exe 时，需要在 PyInstaller spec 或等价打包脚本里确认 `pyproject.toml` package-data 被正确收集。
+  - 真实硬件验证仍放在最后阶段。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/runtime_resources.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/storage/workspace.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/viewmodels.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`
+  - `catr_loss_calibrator/tests/conftest.py`
+  - `catr_loss_calibrator/tests/test_runtime_resources.py`
+  - `catr_loss_calibrator/tests/test_presentation_gui_smoke.py`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_FILE_MANAGEMENT_PLAN.md`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_DEVELOPMENT_TODO.md`
+- 下一步：
+  - 继续评估 `P5-04/P5-05/P5-06` 或 UI 拆分。
+
+### CATR-CAL-TASK-20260719-048 - 重测数据一致性与打包资源清单修复
+
+- 状态：完成
+- 日期：2026-07-19
+- 任务目标：
+  - 将评审中的非实机、非异常审计项补入 TODO，并优先修复会影响现场使用的数据一致性与资源打包问题。
+  - 保存确认阶段点击“上一步”重测后，新 raw 必须让依赖它的 final/loss 输出失效，避免继续使用旧曲线。
+  - 默认 JSON、默认喇叭增益 CSV、样式、LOGO 和图标进入包资源清单，降低 wheel/exe 场景找不到资源的风险。
+- 完成内容：
+  - 完成 `P5-14`：`MockCalibrationRunner` 在重写已存在 raw 记录时清空已保存 final/loss 缓存，后续保存会用新 raw 重新计算。
+  - 完成 `P5-15`：默认喇叭增益 CSV 复制到包内 `src/catr_loss_calibrator/resources`，默认链路配置改为引用包内 CSV。
+  - 新增 `runtime_resources.resolve_data_file()`，相对路径优先按 JSON 所在目录解析，找不到时回退到包内默认 CSV，支持 workspace 配置快照预览/复用。
+  - `pyproject.toml` 补齐 package-data：默认配置、默认 CSV、QSS/CSS、SVG、PNG 和 icons。
+  - `.gitignore` 为包内默认 CSV 增加例外，避免默认喇叭增益 CSV 被运行输出规则误忽略。
+  - `UI-91` 已加入 UI TODO，仅登记主界面拆分，不在本轮大改。
+- 验证结果：
+  - 通过针对性测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests\test_mock_runner.py catr_loss_calibrator\tests\test_calibration_catalog.py catr_loss_calibrator\tests\test_project_boundaries.py`，共 40 项。
+  - 通过完整测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests`，共 112 项。
+  - 本轮未做真实硬件验证；按当前安排，真实硬件验证保持在后续最后阶段。
+- 还需完成：
+  - `P5-13/FM-17` 仍需实现 exe 打包后的用户配置目录、用户资源目录、输出目录和首次启动复制策略。
+  - 异常/拒收数据审计历史暂不处理。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/mock_runner.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/runtime_resources.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/configs/catr_chamber_loss_calibration.json`
+  - `catr_loss_calibrator/pyproject.toml`
+  - `.gitignore`
+  - `catr_loss_calibrator/tests/test_mock_runner.py`
+  - `catr_loss_calibrator/tests/test_calibration_catalog.py`
+  - `catr_loss_calibrator/tests/test_project_boundaries.py`
+- 下一步：
+  - 继续推进 `P5-13/FM-17` 或其他非实机 TODO。
+
+### CATR-CAL-TASK-20260719-047 - 保存确认阶段显示当前保存曲线
+
+- 状态：完成
+- 日期：2026-07-19
+- 任务目标：
+  - 保存数据确认时直接显示当前小步骤刚保存的曲线。
+  - 操作员发现曲线异常时，可直接点击“上一步”重测当前小步骤，避免错误数据继续流入后续步骤。
+  - 接线/开始确认阶段仍显示原来的接线路径、命令说明和步骤详情。
+- 完成内容：
+  - `StepViewData` 增加 `saved_files` 字段。
+  - `CalibrationRunWorker` 在保存确认 prompt 中带出当前小步骤生成的 final/raw CSV 文件。
+  - 步骤执行右侧详情区域改为内部切换：开始确认显示说明页，保存确认显示曲线页。
+  - 曲线页复用结果页 CSV 解析逻辑，支持 dB 列自动识别和自适应坐标。
+  - 新增测试覆盖保存确认 prompt 能暴露当前保存 CSV。
+  - 完成 `UI-90`。
+- 验证结果：
+  - 通过针对性测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests\test_presentation_viewmodels.py catr_loss_calibrator\tests\test_presentation_gui_smoke.py`，共 21 项。
+  - 通过完整测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests`，共 108 项。
+- 还需完成：
+  - 后续可考虑在保存确认曲线页增加“打开文件”或“标记异常”动作。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/viewmodels.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`
+  - `catr_loss_calibrator/tests/test_presentation_viewmodels.py`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_TODO.md`
+- 下一步：
+  - 继续处理剩余 UI TODO，或推进 exe 打包路径策略。
+
+### CATR-CAL-TASK-20260719-046 - workspace 自包含配置与独立历史预览
+
+- 状态：完成
+- 日期：2026-07-19
+- 任务目标：
+  - 解决单独加载 workspace 时结果页没有数据的问题。
+  - 新生成的 workspace 内保存链路配置快照，便于之后自动恢复配置。
+  - 结果页在没有先导入链路配置时，也能独立预览历史 session 文件和曲线。
+- 完成内容：
+  - `storage/workspace.py` 增加 `workspace.json` 与 `config/link_config_snapshot.json` 写入能力。
+  - 校准开始时写入当前链路配置快照。
+  - 结果页加载 workspace 时，若存在配置快照则自动导入。
+  - 结果页导入 workspace 后支持扫描所有项目的所有 `session_manifest.json`，不再强制依赖当前项目代号和当前校准项。
+  - 旧版目录查看在未加载链路配置时也可扫描全部 metadata。
+  - 更新历史文件查找手册，说明 workspace 配置快照和独立预览行为。
+- 验证结果：
+  - 通过针对性测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests\test_workspace_management.py catr_loss_calibrator\tests\test_presentation_gui_smoke.py`，共 10 项。
+  - 通过完整测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests`，共 107 项。
+- 还需完成：
+  - 旧 workspace 没有配置快照，只能靠 `session_manifest.json` 独立预览，不能自动恢复链路配置。
+  - `P5-13/FM-17`：exe 打包后的运行时路径策略仍未实现。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/storage/workspace.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/viewmodels.py`
+  - `catr_loss_calibrator/tests/test_workspace_management.py`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_HISTORY_PLAYBOOK.md`
+- 下一步：
+  - 继续做 exe 打包路径策略，或补一个旧 workspace 配置快照迁移工具。
+
+### CATR-CAL-TASK-20260719-045 - 历史校准文件查找用户说明
+
+- 状态：完成
+- 日期：2026-07-19
+- 任务目标：
+  - 补充现场用户可直接使用的文件管理说明。
+  - 说明项目代号、校准阶段、批次/轮次的填写口径。
+  - 说明结果页当前 session、最新成功、历史 session 和旧版目录的区别。
+  - 说明软件关闭后重新打开如何导入 workspace 并查看历史数据。
+- 完成内容：
+  - 新增 `CATR_LOSS_CALIBRATION_HISTORY_PLAYBOOK.md`，覆盖新版 workspace 目录结构、历史 session 查找、latest 查看和旧版目录只读查看。
+  - 更新 `README.md`，把历史文件查找手册加入 canonical 文档入口、软件设计文档列表和快速查找规则。
+  - 完成 `FM-16`。
+- 验证结果：
+  - 文档任务，未执行 pytest。
+  - 已检查文档索引和 TODO 引用。
+- 还需完成：
+  - `P5-13/FM-17`：exe 打包后的默认资源目录、用户配置目录、用户资源目录和校准输出目录策略仍未实现。
+- 关联文件：
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_HISTORY_PLAYBOOK.md`
+  - `catr_loss_calibrator/docs/README.md`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_FILE_MANAGEMENT_PLAN.md`
+- 下一步：
+  - 继续评估是否开始 `FM-17/P5-13`，或者优先处理非打包类 UI/配置 TODO。
+
+### CATR-CAL-TASK-20260719-044 - 旧版输出目录只读兼容展示
+
+- 状态：完成
+- 日期：2026-07-19
+- 任务目标：
+  - 支持查看旧版 `catr_loss_calibrator_output/raw`、`loss`、`metadata` 输出。
+  - 明确旧版目录没有 config/workspace/session 绑定，结果页必须标记为只读和未绑定配置。
+  - 新运行继续写入 workspace 新结构，不回写旧目录。
+- 完成内容：
+  - `storage/workspace.py` 增加 `load_legacy_output_summary()`，可从旧版输出根目录或 `metadata/raw/loss` 子目录识别旧版输出根。
+  - 旧版扫描优先读取 metadata JSON 的 `calibration_item`、`input_files`、`output_files`，并按当前校准项过滤。
+  - 结果页“结果视图”新增“旧版目录”。
+  - 结果页路径框可填写旧版 `catr_loss_calibrator_output` 或其 `metadata` 子目录，点击“加载历史”后自动切换到旧版目录视图。
+  - 旧版 summary 标记 `state=LEGACY_READONLY`、`workspace_id=UNBOUND_LEGACY`、`project_code=未绑定配置`。
+  - “打开历史目录”在旧版目录视图下打开旧版输出根目录。
+  - 完成 `FM-11`、`P5-12`，新增并完成 `UI-89`。
+- 验证结果：
+  - 通过针对性测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests\test_workspace_management.py catr_loss_calibrator\tests\test_presentation_gui_smoke.py`，共 8 项。
+  - 通过完整测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests`，共 105 项。
+- 还需完成：
+  - `FM-16`：补用户文档，说明新 workspace、历史 session、旧版目录的区别和查找路径。
+  - `P5-13/FM-17`：exe 打包后的默认资源目录、用户配置目录和输出目录策略仍未实现。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/storage/workspace.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`
+  - `catr_loss_calibrator/tests/test_workspace_management.py`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_FILE_MANAGEMENT_PLAN.md`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_DEVELOPMENT_TODO.md`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_TODO.md`
+- 下一步：
+  - 优先补 `FM-16` 用户文档，降低现场人员找不到历史数据的概率。
+
 ### CATR-CAL-TASK-20260719-043 - 结果页历史 session 与 workspace 路径导入
 
 - 状态：完成

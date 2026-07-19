@@ -1,0 +1,1808 @@
+{
+  "schema_version": "catr-link-config.v1",
+  "name": "CATR Chamber Loss Calibration",
+  "display_name": "CATR 暗室路损校准",
+  "description": "当前 CATR 暗室 LINK-CAL-001 至 LINK-CAL-005 校准项。",
+  "band_config": {
+    "default_feed": "F10_17G",
+    "default_horn": "H10_15G",
+    "feed_horn_bands": [
+      {
+        "feed": "F10_17G",
+        "horn": "H10_15G",
+        "band": "10_15G",
+        "start_ghz": 10.0,
+        "stop_ghz": 15.0,
+        "horn_gain_file": "../../../../resources/10_15G_horn_gain_10MHz.csv"
+      },
+      {
+        "feed": "F10_17G",
+        "horn": "H14P5_22G",
+        "band": "14P5_17G",
+        "start_ghz": 14.5,
+        "stop_ghz": 17.0,
+        "horn_gain_file": "../../../../resources/14P5_22G_horn_gain_10MHz_fabricated.csv"
+      },
+      {
+        "feed": "F17_31G",
+        "horn": "H14P5_22G",
+        "band": "17_22G",
+        "start_ghz": 17.0,
+        "stop_ghz": 22.0,
+        "horn_gain_file": "../../../../resources/14P5_22G_horn_gain_10MHz_fabricated.csv"
+      },
+      {
+        "feed": "F17_31G",
+        "horn": "H21P7_33G",
+        "band": "21P7_31G",
+        "start_ghz": 21.7,
+        "stop_ghz": 31.0,
+        "horn_gain_file": "../../../../resources/21P7_33G_horn_gain_10MHz.csv"
+      }
+    ]
+  },
+  "node_catalog": {
+    "PORT1": {
+      "label": "网分 PORT1",
+      "kind": "instrument",
+      "style": "vna"
+    },
+    "PORT2": {
+      "label": "网分 PORT2",
+      "kind": "instrument",
+      "style": "vna"
+    },
+    "AUX-A": {
+      "label": "AUX-A 辅助线",
+      "kind": "cable",
+      "style": "aux"
+    },
+    "AUX-B": {
+      "label": "AUX-B 辅助线",
+      "kind": "cable",
+      "style": "aux"
+    },
+    "AUX-C": {
+      "label": "AUX-C 辅助线",
+      "kind": "cable",
+      "style": "aux"
+    },
+    "AUX-D": {
+      "label": "AUX-D 辅助线",
+      "kind": "cable",
+      "style": "aux"
+    },
+    "AUX-E": {
+      "label": "AUX-E 辅助线",
+      "kind": "cable",
+      "style": "aux"
+    },
+    "AUX-F": {
+      "label": "AUX-F 辅助线",
+      "kind": "cable",
+      "style": "aux"
+    },
+    "AUX-G": {
+      "label": "AUX-G 辅助线",
+      "kind": "cable",
+      "style": "aux"
+    },
+    "AUX-ABC": {
+      "label": "3M 辅助线 A/B/C",
+      "kind": "cable",
+      "style": "aux"
+    },
+    "TD": {
+      "label": "转台 DUT 接口",
+      "kind": "fixture",
+      "style": "dut"
+    },
+    "DUT-INTERNAL": {
+      "label": "DUT 内部段",
+      "kind": "fixture",
+      "style": "dut"
+    },
+    "CP-H": {
+      "label": "暗室接口板 H",
+      "kind": "panel",
+      "style": "panel"
+    },
+    "CP-V": {
+      "label": "暗室接口板 V",
+      "kind": "panel",
+      "style": "panel"
+    },
+    "CP-DUT": {
+      "label": "暗室接口板 DUT",
+      "kind": "panel",
+      "style": "panel"
+    },
+    "FEED-H": {
+      "label": "馈源 H",
+      "kind": "feed",
+      "style": "feed"
+    },
+    "FEED-V": {
+      "label": "馈源 V",
+      "kind": "feed",
+      "style": "feed"
+    },
+    "REFLECTOR": {
+      "label": "反射面",
+      "kind": "space",
+      "style": "space"
+    },
+    "STD-HORN": {
+      "label": "标准增益喇叭",
+      "kind": "reference",
+      "style": "reference"
+    },
+    "LB-H": {
+      "label": "链路箱 H",
+      "kind": "link_box",
+      "style": "link_box"
+    },
+    "LB-V": {
+      "label": "链路箱 V",
+      "kind": "link_box",
+      "style": "link_box"
+    },
+    "LB-DUT": {
+      "label": "链路箱 DUT",
+      "kind": "link_box",
+      "style": "link_box"
+    },
+    "LB-VNA1": {
+      "label": "链路箱 网分1",
+      "kind": "link_box",
+      "style": "link_box"
+    },
+    "LB-VNA2": {
+      "label": "链路箱 网分2",
+      "kind": "link_box",
+      "style": "link_box"
+    },
+    "LB-SA": {
+      "label": "链路箱 频谱仪",
+      "kind": "link_box",
+      "style": "link_box"
+    },
+    "LB-SG": {
+      "label": "链路箱 信号源",
+      "kind": "link_box",
+      "style": "link_box"
+    },
+    "AMP1": {
+      "label": "放大器1",
+      "kind": "amplifier",
+      "style": "amp"
+    },
+    "AMP2": {
+      "label": "放大器2",
+      "kind": "amplifier",
+      "style": "amp"
+    }
+  },
+  "path_templates": {
+    "CAL001-AUX": {
+      "title": "AUX-A/B/C 辅助线独立测试",
+      "routes": [
+        {
+          "id": "aux-group",
+          "nodes": [
+            "PORT1",
+            "AUX-ABC",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL001-AUX:AUX-A": {
+      "title": "AUX-A 辅助线独立测试",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "AUX-A",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL001-AUX:AUX-B": {
+      "title": "AUX-B 辅助线独立测试",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "AUX-B",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL001-AUX:AUX-C": {
+      "title": "AUX-C 辅助线独立测试",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "AUX-C",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL001-H": {
+      "title": "DUT-H 闭合测量",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "AUX-A",
+            "CP-H",
+            "FEED-H",
+            "REFLECTOR",
+            "STD-HORN",
+            "CP-DUT",
+            "AUX-C",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL001-V": {
+      "title": "DUT-V 闭合测量",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "AUX-B",
+            "CP-V",
+            "FEED-V",
+            "REFLECTOR",
+            "STD-HORN",
+            "CP-DUT",
+            "AUX-C",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL001-DUT": {
+      "title": "转台 DUT 接口到暗室接口板 DUT",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "AUX-A",
+            "TD",
+            "DUT-INTERNAL",
+            "CP-DUT",
+            "AUX-C",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL002-AUX-D": {
+      "title": "AUX-D 辅助线独立测试",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "AUX-D",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL002-DUT-VNA2": {
+      "title": "DUT 到 VNA2 回传段",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "AUX-D",
+            "TD",
+            "CP-DUT",
+            "LB-VNA2",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL002-DUT-AMP1-VNA2": {
+      "title": "DUT 经 AMP1 到 VNA2 回传段",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "AUX-D",
+            "TD",
+            "CP-DUT",
+            "AMP1",
+            "LB-VNA2",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL002-MAIN:H-THRU": {
+      "title": "H 极化 VNA 主链路直通",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "LB-VNA1",
+            "LB-H",
+            "CP-H",
+            "FEED-H",
+            "REFLECTOR",
+            "STD-HORN",
+            "CP-DUT",
+            "LB-VNA2",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL002-MAIN:V-THRU": {
+      "title": "V 极化 VNA 主链路直通",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "LB-VNA1",
+            "LB-V",
+            "CP-V",
+            "FEED-V",
+            "REFLECTOR",
+            "STD-HORN",
+            "CP-DUT",
+            "LB-VNA2",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL002-MAIN:H-DUTAMP1": {
+      "title": "H 极化 VNA 主链路 DUT AMP1",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "LB-VNA1",
+            "LB-H",
+            "CP-H",
+            "FEED-H",
+            "REFLECTOR",
+            "STD-HORN",
+            "CP-DUT",
+            "AMP1",
+            "LB-VNA2",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL002-MAIN:V-DUTAMP1": {
+      "title": "V 极化 VNA 主链路 DUT AMP1",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "LB-VNA1",
+            "LB-V",
+            "CP-V",
+            "FEED-V",
+            "REFLECTOR",
+            "STD-HORN",
+            "CP-DUT",
+            "AMP1",
+            "LB-VNA2",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL002-MAIN:H-AMP2": {
+      "title": "H 极化 VNA 主链路 AMP2",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "LB-VNA2",
+            "CP-DUT",
+            "STD-HORN",
+            "REFLECTOR",
+            "FEED-H",
+            "CP-H",
+            "LB-H",
+            "AMP2",
+            "LB-VNA1",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL002-MAIN:V-AMP2": {
+      "title": "V 极化 VNA 主链路 AMP2",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "LB-VNA2",
+            "CP-DUT",
+            "STD-HORN",
+            "REFLECTOR",
+            "FEED-V",
+            "CP-V",
+            "LB-V",
+            "AMP2",
+            "LB-VNA1",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL003-AUX-E": {
+      "title": "AUX-E 辅助线独立测试",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "AUX-E",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL003-DUT-SA": {
+      "title": "DUT 到 SA 测量",
+      "routes": [
+        {
+          "id": "thru",
+          "nodes": [
+            "PORT1",
+            "AUX-E",
+            "TD",
+            "CP-DUT",
+            "LB-SA",
+            "PORT2"
+          ]
+        },
+        {
+          "id": "amp1",
+          "nodes": [
+            "PORT1",
+            "AUX-E",
+            "TD",
+            "CP-DUT",
+            "AMP1",
+            "LB-SA",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL003-DUT-SA:DUT-SA": {
+      "title": "DUT 到 SA 直通测量",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "AUX-E",
+            "TD",
+            "CP-DUT",
+            "LB-SA",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL003-DUT-SA:DUT-AMP1-SA": {
+      "title": "DUT 经 AMP1 到 SA 测量",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "AUX-E",
+            "TD",
+            "CP-DUT",
+            "AMP1",
+            "LB-SA",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL004-AUX-F": {
+      "title": "AUX-F 辅助线独立测试",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "AUX-F",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL004-DUT-VNA2": {
+      "title": "DUT 到 VNA2 回传段 F",
+      "routes": [
+        {
+          "id": "thru",
+          "nodes": [
+            "PORT1",
+            "AUX-F",
+            "TD",
+            "CP-DUT",
+            "LB-VNA2",
+            "PORT2"
+          ]
+        },
+        {
+          "id": "amp1",
+          "nodes": [
+            "PORT1",
+            "AUX-F",
+            "TD",
+            "CP-DUT",
+            "AMP1",
+            "LB-VNA2",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL004-SA-HV-THRU:H-SA": {
+      "title": "H 极化 SA-H/V 直通",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "LB-SA",
+            "LB-H",
+            "CP-H",
+            "FEED-H",
+            "REFLECTOR",
+            "STD-HORN",
+            "CP-DUT",
+            "LB-VNA2",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL004-SA-HV-THRU:V-SA": {
+      "title": "V 极化 SA-H/V 直通",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "LB-SA",
+            "LB-V",
+            "CP-V",
+            "FEED-V",
+            "REFLECTOR",
+            "STD-HORN",
+            "CP-DUT",
+            "LB-VNA2",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL004-SA-HV-AMP2:H-AMP2-SA": {
+      "title": "H 极化 SA-H/V AMP2",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "LB-VNA2",
+            "CP-DUT",
+            "STD-HORN",
+            "REFLECTOR",
+            "FEED-H",
+            "CP-H",
+            "LB-H",
+            "AMP2",
+            "LB-SA",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL004-SA-HV-AMP2:V-AMP2-SA": {
+      "title": "V 极化 SA-H/V AMP2",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "LB-VNA2",
+            "CP-DUT",
+            "STD-HORN",
+            "REFLECTOR",
+            "FEED-V",
+            "CP-V",
+            "LB-V",
+            "AMP2",
+            "LB-SA",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL004-SA-HV-DUTAMP1-CHECK:H-SA-DUTAMP1-CHECK": {
+      "title": "H 极化 SA-H/V DUT AMP1 校核",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "LB-SA",
+            "LB-H",
+            "CP-H",
+            "FEED-H",
+            "REFLECTOR",
+            "STD-HORN",
+            "CP-DUT",
+            "AMP1",
+            "LB-VNA2",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL004-SA-HV-DUTAMP1-CHECK:V-SA-DUTAMP1-CHECK": {
+      "title": "V 极化 SA-H/V DUT AMP1 校核",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "LB-SA",
+            "LB-V",
+            "CP-V",
+            "FEED-V",
+            "REFLECTOR",
+            "STD-HORN",
+            "CP-DUT",
+            "AMP1",
+            "LB-VNA2",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL005-AUX-G": {
+      "title": "AUX-G 辅助线独立测试",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "AUX-G",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL005-DUT-VNA2": {
+      "title": "DUT 到 VNA2 回传段 G",
+      "routes": [
+        {
+          "id": "thru",
+          "nodes": [
+            "PORT1",
+            "AUX-G",
+            "TD",
+            "CP-DUT",
+            "LB-VNA2",
+            "PORT2"
+          ]
+        },
+        {
+          "id": "amp1",
+          "nodes": [
+            "PORT1",
+            "AUX-G",
+            "TD",
+            "CP-DUT",
+            "AMP1",
+            "LB-VNA2",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL005-SG:H-SG": {
+      "title": "H 极化 SG 主链路",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "LB-SG",
+            "LB-H",
+            "CP-H",
+            "FEED-H",
+            "REFLECTOR",
+            "STD-HORN",
+            "CP-DUT",
+            "LB-VNA2",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL005-SG:V-SG": {
+      "title": "V 极化 SG 主链路",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "LB-SG",
+            "LB-V",
+            "CP-V",
+            "FEED-V",
+            "REFLECTOR",
+            "STD-HORN",
+            "CP-DUT",
+            "LB-VNA2",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL005-SG:H-SG-DUTAMP1": {
+      "title": "H 极化 SG DUT AMP1 主链路",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "LB-SG",
+            "LB-H",
+            "CP-H",
+            "FEED-H",
+            "REFLECTOR",
+            "STD-HORN",
+            "CP-DUT",
+            "AMP1",
+            "LB-VNA2",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL005-SG:V-SG-DUTAMP1": {
+      "title": "V 极化 SG DUT AMP1 主链路",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "LB-SG",
+            "LB-V",
+            "CP-V",
+            "FEED-V",
+            "REFLECTOR",
+            "STD-HORN",
+            "CP-DUT",
+            "AMP1",
+            "LB-VNA2",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL005-SG:H-AMP2-SG": {
+      "title": "H 极化 SG AMP2 主链路",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "LB-VNA2",
+            "CP-DUT",
+            "STD-HORN",
+            "REFLECTOR",
+            "FEED-H",
+            "CP-H",
+            "LB-H",
+            "AMP2",
+            "LB-SG",
+            "PORT2"
+          ]
+        }
+      ]
+    },
+    "CAL005-SG:V-AMP2-SG": {
+      "title": "V 极化 SG AMP2 主链路",
+      "routes": [
+        {
+          "id": "main",
+          "nodes": [
+            "PORT1",
+            "LB-VNA2",
+            "CP-DUT",
+            "STD-HORN",
+            "REFLECTOR",
+            "FEED-V",
+            "CP-V",
+            "LB-V",
+            "AMP2",
+            "LB-SG",
+            "PORT2"
+          ]
+        }
+      ]
+    }
+  },
+  "calibration_items": [
+    {
+      "id": "LINK-CAL-001",
+      "name": "暗室内部链路校准",
+      "purpose": "校准暗室 H/V 经馈源、反射面、标准增益喇叭到 DUT 口，以及转台 DUT 到接口板 DUT 段。",
+      "steps": [
+        {
+          "id": "CAL001-AUX",
+          "name": "AUX-A/B/C 独立测试",
+          "role": "vna_s21",
+          "input_port": "P1/P2",
+          "output_port": "P1/P2",
+          "manual_instruction": "逐根将 AUX-A、AUX-B、AUX-C 直连 VNA PORT1/PORT2。",
+          "raw_outputs": [
+            "S21_AUX_A",
+            "S21_AUX_B",
+            "S21_AUX_C"
+          ],
+          "final_outputs": [
+            "L_AUX_A",
+            "L_AUX_B",
+            "L_AUX_C"
+          ],
+          "notes": "L_AUX_* 按带符号 S21 保存，通常为负数。",
+          "substeps": [
+            {
+              "id": "AUX-A",
+              "name": "测量 AUX-A 辅助线",
+              "input_port": "P1",
+              "output_port": "P2",
+              "manual_instruction": "STEP1：按接线路径连接：网分 PORT1 -> AUX-A 辅助线 -> 网分 PORT2。确认当前 STEP 对应接线、端口方向和转接状态正确后开始测量。链路箱不切换。保存：S21_AUX_A / L_AUX_A。",
+              "raw_output": "S21_AUX_A",
+              "final_output": "L_AUX_A",
+              "path_template": "CAL001-AUX:AUX-A"
+            },
+            {
+              "id": "AUX-B",
+              "name": "测量 AUX-B 辅助线",
+              "input_port": "P1",
+              "output_port": "P2",
+              "manual_instruction": "STEP2：按接线路径连接：网分 PORT1 -> AUX-B 辅助线 -> 网分 PORT2。确认当前 STEP 对应接线、端口方向和转接状态正确后开始测量。链路箱不切换。保存：S21_AUX_B / L_AUX_B。",
+              "raw_output": "S21_AUX_B",
+              "final_output": "L_AUX_B",
+              "path_template": "CAL001-AUX:AUX-B"
+            },
+            {
+              "id": "AUX-C",
+              "name": "测量 AUX-C 辅助线",
+              "input_port": "P1",
+              "output_port": "P2",
+              "manual_instruction": "STEP3：按接线路径连接：网分 PORT1 -> AUX-C 辅助线 -> 网分 PORT2。确认当前 STEP 对应接线、端口方向和转接状态正确后开始测量。链路箱不切换。保存：S21_AUX_C / L_AUX_C。",
+              "raw_output": "S21_AUX_C",
+              "final_output": "L_AUX_C",
+              "path_template": "CAL001-AUX:AUX-C"
+            }
+          ],
+          "path_template": "CAL001-AUX"
+        },
+        {
+          "id": "CAL001-H",
+          "name": "DUT-H 闭合测量",
+          "role": "vna_s21",
+          "input_port": "P1",
+          "output_port": "P2",
+          "manual_instruction": "PORT1 -> AUX-A -> CP-H；CP-DUT -> AUX-C -> PORT2。",
+          "raw_outputs": [
+            "S21_CH_INT_H_RAW"
+          ],
+          "final_outputs": [
+            "L_CH_INT_H"
+          ],
+          "required_inputs": [
+            "L_AUX_A",
+            "L_AUX_C",
+            "G_STD_HORN_H"
+          ],
+          "path_template": "CAL001-H"
+        },
+        {
+          "id": "CAL001-V",
+          "name": "DUT-V 闭合测量",
+          "role": "vna_s21",
+          "input_port": "P1",
+          "output_port": "P2",
+          "manual_instruction": "PORT1 -> AUX-B -> CP-V；CP-DUT -> AUX-C -> PORT2。",
+          "raw_outputs": [
+            "S21_CH_INT_V_RAW"
+          ],
+          "final_outputs": [
+            "L_CH_INT_V"
+          ],
+          "required_inputs": [
+            "L_AUX_B",
+            "L_AUX_C",
+            "G_STD_HORN_V"
+          ],
+          "path_template": "CAL001-V"
+        },
+        {
+          "id": "CAL001-DUT",
+          "name": "转台 DUT 到暗室接口板 DUT",
+          "role": "vna_s21",
+          "input_port": "P1",
+          "output_port": "P2",
+          "manual_instruction": "PORT1 -> AUX-A -> 转台DUT接口；CP-DUT -> AUX-C -> PORT2。",
+          "raw_outputs": [
+            "S21_CH_INT_DUT_RAW"
+          ],
+          "final_outputs": [
+            "L_CH_INT_DUT",
+            "L_CH_INT_FEED_H",
+            "L_CH_INT_FEED_V"
+          ],
+          "required_inputs": [
+            "L_AUX_A",
+            "L_AUX_C",
+            "L_CH_INT_H",
+            "L_CH_INT_V"
+          ],
+          "path_template": "CAL001-DUT"
+        }
+      ]
+    },
+    {
+      "id": "LINK-CAL-002",
+      "name": "VNA 链路损耗校准",
+      "purpose": "校准 VNA1 经 H/V 空间链路到 VNA2 的测试链路，并校准 DUT 到 VNA2 回传段。",
+      "steps": [
+        {
+          "id": "CAL002-AUX-D",
+          "name": "AUX-D 独立测试",
+          "role": "vna_s21",
+          "input_port": "P1/P2",
+          "output_port": "P1/P2",
+          "manual_instruction": "AUX-D 直连 VNA PORT1/PORT2。",
+          "raw_outputs": [
+            "S21_AUX_D"
+          ],
+          "final_outputs": [
+            "L_AUX_D"
+          ],
+          "path_template": "CAL002-AUX-D"
+        },
+        {
+          "id": "CAL002-DUT-VNA2",
+          "name": "DUT 到 VNA2 回传段",
+          "role": "vna_s21",
+          "input_port": "TD",
+          "output_port": "LB-VNA2",
+          "manual_instruction": "PORT1 -> AUX-D -> 转台DUT接口；链路箱 DUT 到 VNA2。",
+          "route_ids": [
+            "DUT_VNA2"
+          ],
+          "link_commands": [
+            "CONFigure:LINK DUT, VNA2"
+          ],
+          "raw_outputs": [
+            "S21_DUT_VNA_RAW"
+          ],
+          "final_outputs": [
+            "L_DUT_VNA"
+          ],
+          "required_inputs": [
+            "L_AUX_D"
+          ],
+          "path_template": "CAL002-DUT-VNA2"
+        },
+        {
+          "id": "CAL002-DUT-AMP1-VNA2",
+          "name": "DUT 经 AMP1 到 VNA2 回传段",
+          "role": "vna_s21",
+          "input_port": "TD",
+          "output_port": "LB-VNA2",
+          "manual_instruction": "PORT1 -> AUX-D -> 转台DUT接口；链路箱 DUT 经 AMP1 到 VNA2。",
+          "route_ids": [
+            "DUT_AMP1_VNA2"
+          ],
+          "link_commands": [
+            "CONFigure:LINK DUT, AMP1, VNA2"
+          ],
+          "raw_outputs": [
+            "S21_DUT_VNA_AMP1_RAW"
+          ],
+          "final_outputs": [
+            "L_DUT_VNA_AMP1"
+          ],
+          "required_inputs": [
+            "L_AUX_D"
+          ],
+          "path_template": "CAL002-DUT-AMP1-VNA2"
+        },
+        {
+          "id": "CAL002-MAIN",
+          "name": "VNA 主链路三工况",
+          "role": "vna_s21",
+          "input_port": "LB-VNA1",
+          "output_port": "LB-VNA2",
+          "manual_instruction": "转台 DUT 位置换标准增益喇叭，按 H/V 与三种工况采样。",
+          "route_ids": [
+            "DUT_VNA2",
+            "DUT_AMP1_VNA2",
+            "H_AMP2_VNA1",
+            "V_AMP2_VNA1"
+          ],
+          "link_commands": [
+            "CONFigure:LINK DUT, VNA2",
+            "CONFigure:LINK H/V, VNA1",
+            "CONFigure:LINK DUT, AMP1, VNA2",
+            "CONFigure:LINK H/V, VNA1",
+            "CONFigure:LINK DUT, VNA2",
+            "CONFigure:LINK H/V, AMP2, VNA1"
+          ],
+          "raw_outputs": [
+            "L_VNA_H/V",
+            "L_VNA_H/V_AMP1",
+            "L_VNA_H/V_AMP2"
+          ],
+          "final_outputs": [
+            "L_VNA_FEED_H/V",
+            "L_VNA_FEED_H/V_AMP1",
+            "L_VNA_FEED_H/V_AMP2"
+          ],
+          "required_inputs": [
+            "G_STD_HORN_H/V",
+            "L_DUT_VNA",
+            "L_DUT_VNA_AMP1"
+          ],
+          "substeps": [
+            {
+              "id": "H-THRU",
+              "name": "H 极化 VNA 主链路直通",
+              "input_port": "LB-VNA1",
+              "output_port": "LB-VNA2",
+              "manual_instruction": "STEP4：按接线路径连接：网分 PORT1 -> 链路箱 网分1 -> 链路箱 H -> 暗室接口板 H -> 馈源 H -> 反射面 -> 标准增益喇叭 -> 暗室接口板 DUT -> 链路箱 网分2 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 H 极化，再开始测量。链路箱命令：CONFigure:LINK DUT, VNA2; CONFigure:LINK H, VNA1。保存：L_VNA_H / L_VNA_FEED_H。",
+              "route_ids": [
+                "DUT_VNA2",
+                "H_VNA1"
+              ],
+              "link_commands": [
+                "CONFigure:LINK DUT, VNA2",
+                "CONFigure:LINK H, VNA1"
+              ],
+              "raw_output": "L_VNA_H",
+              "final_output": "L_VNA_FEED_H",
+              "required_inputs": [
+                "G_STD_HORN_H",
+                "L_DUT_VNA"
+              ],
+              "path_template": "CAL002-MAIN:H-THRU"
+            },
+            {
+              "id": "V-THRU",
+              "name": "V 极化 VNA 主链路直通",
+              "input_port": "LB-VNA1",
+              "output_port": "LB-VNA2",
+              "manual_instruction": "STEP1：按接线路径连接：网分 PORT1 -> 链路箱 网分1 -> 链路箱 V -> 暗室接口板 V -> 馈源 V -> 反射面 -> 标准增益喇叭 -> 暗室接口板 DUT -> 链路箱 网分2 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 V 极化，再开始测量。链路箱命令：CONFigure:LINK DUT, VNA2; CONFigure:LINK V, VNA1。保存：L_VNA_V / L_VNA_FEED_V。",
+              "route_ids": [
+                "DUT_VNA2",
+                "V_VNA1"
+              ],
+              "link_commands": [
+                "CONFigure:LINK DUT, VNA2",
+                "CONFigure:LINK V, VNA1"
+              ],
+              "raw_output": "L_VNA_V",
+              "final_output": "L_VNA_FEED_V",
+              "required_inputs": [
+                "G_STD_HORN_V",
+                "L_DUT_VNA"
+              ],
+              "path_template": "CAL002-MAIN:V-THRU"
+            },
+            {
+              "id": "H-DUTAMP1",
+              "name": "H 极化 DUT 侧 AMP1 回传",
+              "input_port": "LB-VNA1",
+              "output_port": "LB-VNA2",
+              "manual_instruction": "STEP5：按接线路径连接：网分 PORT1 -> 链路箱 网分1 -> 链路箱 H -> 暗室接口板 H -> 馈源 H -> 反射面 -> 标准增益喇叭 -> 暗室接口板 DUT -> 放大器1 -> 链路箱 网分2 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 H 极化，再开始测量。链路箱命令：CONFigure:LINK DUT, AMP1, VNA2; CONFigure:LINK H, VNA1。保存：L_VNA_H_AMP1 / L_VNA_FEED_H_AMP1。",
+              "route_ids": [
+                "DUT_AMP1_VNA2",
+                "H_VNA1"
+              ],
+              "link_commands": [
+                "CONFigure:LINK DUT, AMP1, VNA2",
+                "CONFigure:LINK H, VNA1"
+              ],
+              "raw_output": "L_VNA_H_AMP1",
+              "final_output": "L_VNA_FEED_H_AMP1",
+              "required_inputs": [
+                "G_STD_HORN_H",
+                "L_DUT_VNA_AMP1"
+              ],
+              "path_template": "CAL002-MAIN:H-DUTAMP1"
+            },
+            {
+              "id": "V-DUTAMP1",
+              "name": "V 极化 DUT 侧 AMP1 回传",
+              "input_port": "LB-VNA1",
+              "output_port": "LB-VNA2",
+              "manual_instruction": "STEP2：按接线路径连接：网分 PORT1 -> 链路箱 网分1 -> 链路箱 V -> 暗室接口板 V -> 馈源 V -> 反射面 -> 标准增益喇叭 -> 暗室接口板 DUT -> 放大器1 -> 链路箱 网分2 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 V 极化，再开始测量。链路箱命令：CONFigure:LINK DUT, AMP1, VNA2; CONFigure:LINK V, VNA1。保存：L_VNA_V_AMP1 / L_VNA_FEED_V_AMP1。",
+              "route_ids": [
+                "DUT_AMP1_VNA2",
+                "V_VNA1"
+              ],
+              "link_commands": [
+                "CONFigure:LINK DUT, AMP1, VNA2",
+                "CONFigure:LINK V, VNA1"
+              ],
+              "raw_output": "L_VNA_V_AMP1",
+              "final_output": "L_VNA_FEED_V_AMP1",
+              "required_inputs": [
+                "G_STD_HORN_V",
+                "L_DUT_VNA_AMP1"
+              ],
+              "path_template": "CAL002-MAIN:V-DUTAMP1"
+            },
+            {
+              "id": "H-AMP2",
+              "name": "H 极化馈源侧 AMP2",
+              "input_port": "LB-VNA1",
+              "output_port": "LB-VNA2",
+              "manual_instruction": "STEP6：按接线路径连接：网分 PORT1 -> 链路箱 网分2 -> 暗室接口板 DUT -> 标准增益喇叭 -> 反射面 -> 馈源 H -> 暗室接口板 H -> 链路箱 H -> 放大器2 -> 链路箱 网分1 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 H 极化，再开始测量。链路箱命令：CONFigure:LINK DUT, VNA2; CONFigure:LINK H, AMP2, VNA1。保存：L_VNA_H_AMP2 / L_VNA_FEED_H_AMP2。",
+              "route_ids": [
+                "DUT_VNA2",
+                "H_AMP2_VNA1"
+              ],
+              "link_commands": [
+                "CONFigure:LINK DUT, VNA2",
+                "CONFigure:LINK H, AMP2, VNA1"
+              ],
+              "raw_output": "L_VNA_H_AMP2",
+              "final_output": "L_VNA_FEED_H_AMP2",
+              "required_inputs": [
+                "G_STD_HORN_H",
+                "L_DUT_VNA"
+              ],
+              "path_template": "CAL002-MAIN:H-AMP2"
+            },
+            {
+              "id": "V-AMP2",
+              "name": "V 极化馈源侧 AMP2",
+              "input_port": "LB-VNA1",
+              "output_port": "LB-VNA2",
+              "manual_instruction": "STEP3：按接线路径连接：网分 PORT1 -> 链路箱 网分2 -> 暗室接口板 DUT -> 标准增益喇叭 -> 反射面 -> 馈源 V -> 暗室接口板 V -> 链路箱 V -> 放大器2 -> 链路箱 网分1 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 V 极化，再开始测量。链路箱命令：CONFigure:LINK DUT, VNA2; CONFigure:LINK V, AMP2, VNA1。保存：L_VNA_V_AMP2 / L_VNA_FEED_V_AMP2。",
+              "route_ids": [
+                "DUT_VNA2",
+                "V_AMP2_VNA1"
+              ],
+              "link_commands": [
+                "CONFigure:LINK DUT, VNA2",
+                "CONFigure:LINK V, AMP2, VNA1"
+              ],
+              "raw_output": "L_VNA_V_AMP2",
+              "final_output": "L_VNA_FEED_V_AMP2",
+              "required_inputs": [
+                "G_STD_HORN_V",
+                "L_DUT_VNA"
+              ],
+              "path_template": "CAL002-MAIN:V-AMP2"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "LINK-CAL-003",
+      "name": "DUT 到 SA 校准",
+      "purpose": "校准 DUT 参考面到 SA 的直通/AMP1 接收链路，供 G/T 等 DUT→SA 场景使用。",
+      "steps": [
+        {
+          "id": "CAL003-AUX-E",
+          "name": "AUX-E 独立测试",
+          "role": "vna_s21",
+          "input_port": "P1/P2",
+          "output_port": "P1/P2",
+          "manual_instruction": "AUX-E 直连 VNA PORT1/PORT2。",
+          "raw_outputs": [
+            "S21_AUX_E"
+          ],
+          "final_outputs": [
+            "L_AUX_E"
+          ],
+          "path_template": "CAL003-AUX-E"
+        },
+        {
+          "id": "CAL003-DUT-SA",
+          "name": "DUT 到 SA 主输出",
+          "role": "vna_s21",
+          "input_port": "DUT_REF",
+          "output_port": "LB-SA",
+          "manual_instruction": "PORT1 -> AUX-E -> 转台DUT接口；PORT2 接链路箱 SA。",
+          "route_ids": [
+            "DUT_SA",
+            "DUT_AMP1_SA"
+          ],
+          "link_commands": [
+            "CONFigure:LINK DUT, SA",
+            "CONFigure:LINK DUT, AMP1, SA"
+          ],
+          "raw_outputs": [
+            "T_AUXE_DUT_SA",
+            "T_AUXE_DUT_SA_AMP1"
+          ],
+          "final_outputs": [
+            "L_DUT_SA",
+            "L_DUT_SA_AMP1"
+          ],
+          "required_inputs": [
+            "L_AUX_E"
+          ],
+          "path_template": "CAL003-DUT-SA",
+          "substeps": [
+            {
+              "id": "DUT-SA",
+              "name": "DUT 到 SA 直通测量",
+              "input_port": "DUT_REF",
+              "output_port": "LB-SA",
+              "manual_instruction": "STEP1：按接线路径连接：网分 PORT1 -> AUX-E 辅助线 -> 转台 DUT 接口 -> 暗室接口板 DUT -> 链路箱 频谱仪 -> 网分 PORT2。确认当前 STEP 对应接线、端口方向和转接状态正确后开始测量。链路箱命令：CONFigure:LINK DUT, SA。保存：T_AUXE_DUT_SA / L_DUT_SA。",
+              "route_ids": [
+                "DUT_SA"
+              ],
+              "link_commands": [
+                "CONFigure:LINK DUT, SA"
+              ],
+              "raw_output": "T_AUXE_DUT_SA",
+              "final_output": "L_DUT_SA",
+              "required_inputs": [
+                "L_AUX_E"
+              ],
+              "path_template": "CAL003-DUT-SA:DUT-SA"
+            },
+            {
+              "id": "DUT-AMP1-SA",
+              "name": "DUT 经 AMP1 到 SA 测量",
+              "input_port": "DUT_REF",
+              "output_port": "LB-SA",
+              "manual_instruction": "STEP2：按接线路径连接：网分 PORT1 -> AUX-E 辅助线 -> 转台 DUT 接口 -> 暗室接口板 DUT -> 放大器1 -> 链路箱 频谱仪 -> 网分 PORT2。确认当前 STEP 对应接线、端口方向和转接状态正确后开始测量。链路箱命令：CONFigure:LINK DUT, AMP1, SA。保存：T_AUXE_DUT_SA_AMP1 / L_DUT_SA_AMP1。",
+              "route_ids": [
+                "DUT_AMP1_SA"
+              ],
+              "link_commands": [
+                "CONFigure:LINK DUT, AMP1, SA"
+              ],
+              "raw_output": "T_AUXE_DUT_SA_AMP1",
+              "final_output": "L_DUT_SA_AMP1",
+              "required_inputs": [
+                "L_AUX_E"
+              ],
+              "path_template": "CAL003-DUT-SA:DUT-AMP1-SA"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "LINK-CAL-004",
+      "name": "SA-H/V 校准",
+      "purpose": "校准整机发射场景中 H/V 馈源侧到 SA 的直通/AMP2 接收链路，使用 AUX-F 独立重复测回传段。",
+      "steps": [
+        {
+          "id": "CAL004-AUX-F",
+          "name": "AUX-F 独立测试",
+          "role": "vna_s21",
+          "input_port": "P1/P2",
+          "output_port": "P1/P2",
+          "manual_instruction": "AUX-F 直连 VNA PORT1/PORT2。",
+          "raw_outputs": [
+            "S21_AUX_F"
+          ],
+          "final_outputs": [
+            "L_AUX_F"
+          ],
+          "path_template": "CAL004-AUX-F"
+        },
+        {
+          "id": "CAL004-DUT-VNA2",
+          "name": "AUX-F 回传段",
+          "role": "vna_s21",
+          "input_port": "TD",
+          "output_port": "LB-VNA2",
+          "manual_instruction": "PORT1 -> AUX-F -> 转台DUT接口；PORT2 接 VNA2。",
+          "route_ids": [
+            "DUT_VNA2",
+            "DUT_AMP1_VNA2"
+          ],
+          "link_commands": [
+            "CONFigure:LINK DUT, VNA2",
+            "CONFigure:LINK DUT, AMP1, VNA2"
+          ],
+          "raw_outputs": [
+            "S21_DUT_VNA_F_RAW",
+            "S21_DUT_VNA_F_AMP1_RAW"
+          ],
+          "final_outputs": [
+            "L_DUT_VNA_F",
+            "L_DUT_VNA_F_AMP1"
+          ],
+          "required_inputs": [
+            "L_AUX_F"
+          ],
+          "path_template": "CAL004-DUT-VNA2"
+        },
+        {
+          "id": "CAL004-SA-HV-THRU",
+          "name": "SA-H/V 直通接收链路",
+          "role": "vna_s21",
+          "input_port": "LB-SA",
+          "output_port": "LB-VNA2",
+          "manual_instruction": "标准增益喇叭替代 DUT；PORT1 接 SA，PORT2 接 VNA2。",
+          "route_ids": [
+            "H_SA",
+            "V_SA"
+          ],
+          "link_commands": [
+            "CONFigure:LINK H/V, SA",
+            "CONFigure:LINK DUT, VNA2"
+          ],
+          "raw_outputs": [
+            "T_SYS_TX_SA_H/V"
+          ],
+          "final_outputs": [
+            "L_SYS_TX_SA_H/V"
+          ],
+          "required_inputs": [
+            "G_STD_HORN_H/V",
+            "L_DUT_VNA_F"
+          ],
+          "substeps": [
+            {
+              "id": "H-SA",
+              "name": "H 极化到 SA 直通接收",
+              "input_port": "LB-SA",
+              "output_port": "LB-VNA2",
+              "manual_instruction": "STEP2：按接线路径连接：网分 PORT1 -> 链路箱 频谱仪 -> 链路箱 H -> 暗室接口板 H -> 馈源 H -> 反射面 -> 标准增益喇叭 -> 暗室接口板 DUT -> 链路箱 网分2 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 H 极化，再开始测量。链路箱命令：CONFigure:LINK H, SA; CONFigure:LINK DUT, VNA2。保存：T_SYS_TX_SA_H / L_SYS_TX_SA_H。",
+              "route_ids": [
+                "H_SA",
+                "DUT_VNA2"
+              ],
+              "link_commands": [
+                "CONFigure:LINK H, SA",
+                "CONFigure:LINK DUT, VNA2"
+              ],
+              "raw_output": "T_SYS_TX_SA_H",
+              "final_output": "L_SYS_TX_SA_H",
+              "required_inputs": [
+                "G_STD_HORN_H",
+                "L_DUT_VNA_F"
+              ],
+              "path_template": "CAL004-SA-HV-THRU:H-SA"
+            },
+            {
+              "id": "V-SA",
+              "name": "V 极化到 SA 直通接收",
+              "input_port": "LB-SA",
+              "output_port": "LB-VNA2",
+              "manual_instruction": "STEP1：按接线路径连接：网分 PORT1 -> 链路箱 频谱仪 -> 链路箱 V -> 暗室接口板 V -> 馈源 V -> 反射面 -> 标准增益喇叭 -> 暗室接口板 DUT -> 链路箱 网分2 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 V 极化，再开始测量。链路箱命令：CONFigure:LINK V, SA; CONFigure:LINK DUT, VNA2。保存：T_SYS_TX_SA_V / L_SYS_TX_SA_V。",
+              "route_ids": [
+                "V_SA",
+                "DUT_VNA2"
+              ],
+              "link_commands": [
+                "CONFigure:LINK V, SA",
+                "CONFigure:LINK DUT, VNA2"
+              ],
+              "raw_output": "T_SYS_TX_SA_V",
+              "final_output": "L_SYS_TX_SA_V",
+              "required_inputs": [
+                "G_STD_HORN_V",
+                "L_DUT_VNA_F"
+              ],
+              "path_template": "CAL004-SA-HV-THRU:V-SA"
+            }
+          ]
+        },
+        {
+          "id": "CAL004-SA-HV-AMP2",
+          "name": "SA-H/V 经 AMP2 接收链路",
+          "role": "vna_s21",
+          "input_port": "LB-VNA2",
+          "output_port": "LB-SA",
+          "manual_instruction": "标准增益喇叭替代 DUT；PORT1 接 VNA2，PORT2 接 SA，保证 S21 沿 H/V→AMP2→SA 方向。",
+          "route_ids": [
+            "H_AMP2_SA",
+            "V_AMP2_SA"
+          ],
+          "link_commands": [
+            "CONFigure:LINK H/V, AMP2, SA",
+            "CONFigure:LINK DUT, VNA2"
+          ],
+          "raw_outputs": [
+            "T_SYS_TX_SA_H/V_AMP2"
+          ],
+          "final_outputs": [
+            "L_SYS_TX_SA_H/V_AMP2"
+          ],
+          "required_inputs": [
+            "G_STD_HORN_H/V",
+            "L_DUT_VNA_F"
+          ],
+          "substeps": [
+            {
+              "id": "H-AMP2-SA",
+              "name": "H 极化经 AMP2 到 SA",
+              "input_port": "LB-VNA2",
+              "output_port": "LB-SA",
+              "manual_instruction": "STEP2：按接线路径连接：网分 PORT1 -> 链路箱 网分2 -> 暗室接口板 DUT -> 标准增益喇叭 -> 反射面 -> 馈源 H -> 暗室接口板 H -> 链路箱 H -> 放大器2 -> 链路箱 频谱仪 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 H 极化，再开始测量。链路箱命令：CONFigure:LINK H, AMP2, SA; CONFigure:LINK DUT, VNA2。保存：T_SYS_TX_SA_H_AMP2 / L_SYS_TX_SA_H_AMP2。",
+              "route_ids": [
+                "H_AMP2_SA",
+                "DUT_VNA2"
+              ],
+              "link_commands": [
+                "CONFigure:LINK H, AMP2, SA",
+                "CONFigure:LINK DUT, VNA2"
+              ],
+              "raw_output": "T_SYS_TX_SA_H_AMP2",
+              "final_output": "L_SYS_TX_SA_H_AMP2",
+              "required_inputs": [
+                "G_STD_HORN_H",
+                "L_DUT_VNA_F"
+              ],
+              "path_template": "CAL004-SA-HV-AMP2:H-AMP2-SA"
+            },
+            {
+              "id": "V-AMP2-SA",
+              "name": "V 极化经 AMP2 到 SA",
+              "input_port": "LB-VNA2",
+              "output_port": "LB-SA",
+              "manual_instruction": "STEP1：按接线路径连接：网分 PORT1 -> 链路箱 网分2 -> 暗室接口板 DUT -> 标准增益喇叭 -> 反射面 -> 馈源 V -> 暗室接口板 V -> 链路箱 V -> 放大器2 -> 链路箱 频谱仪 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 V 极化，再开始测量。链路箱命令：CONFigure:LINK V, AMP2, SA; CONFigure:LINK DUT, VNA2。保存：T_SYS_TX_SA_V_AMP2 / L_SYS_TX_SA_V_AMP2。",
+              "route_ids": [
+                "V_AMP2_SA",
+                "DUT_VNA2"
+              ],
+              "link_commands": [
+                "CONFigure:LINK V, AMP2, SA",
+                "CONFigure:LINK DUT, VNA2"
+              ],
+              "raw_output": "T_SYS_TX_SA_V_AMP2",
+              "final_output": "L_SYS_TX_SA_V_AMP2",
+              "required_inputs": [
+                "G_STD_HORN_V",
+                "L_DUT_VNA_F"
+              ],
+              "path_template": "CAL004-SA-HV-AMP2:V-AMP2-SA"
+            }
+          ]
+        },
+        {
+          "id": "CAL004-SA-HV-DUTAMP1-CHECK",
+          "name": "SA-H/V DUT 侧 AMP1 一致性校验",
+          "role": "vna_s21",
+          "input_port": "LB-SA",
+          "output_port": "LB-VNA2",
+          "manual_instruction": "标准增益喇叭替代 DUT；PORT1 接 SA，PORT2 接 VNA2。",
+          "route_ids": [
+            "DUT_AMP1_VNA2"
+          ],
+          "link_commands": [
+            "CONFigure:LINK H/V, SA",
+            "CONFigure:LINK DUT, AMP1, VNA2"
+          ],
+          "raw_outputs": [
+            "T_SYS_TX_SA_H/V_DUTAMP1"
+          ],
+          "required_inputs": [
+            "G_STD_HORN_H/V",
+            "L_DUT_VNA_F_AMP1"
+          ],
+          "notes": "该工况用于一致性校验，不作为整机发射默认正式输出。",
+          "substeps": [
+            {
+              "id": "H-SA-DUTAMP1-CHECK",
+              "name": "H 极化 DUT 侧 AMP1 一致性校验",
+              "input_port": "LB-SA",
+              "output_port": "LB-VNA2",
+              "manual_instruction": "STEP2：按接线路径连接：网分 PORT1 -> 链路箱 频谱仪 -> 链路箱 H -> 暗室接口板 H -> 馈源 H -> 反射面 -> 标准增益喇叭 -> 暗室接口板 DUT -> 放大器1 -> 链路箱 网分2 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 H 极化，再开始测量。链路箱命令：CONFigure:LINK H, SA; CONFigure:LINK DUT, AMP1, VNA2。保存：T_SYS_TX_SA_H_DUTAMP1。",
+              "route_ids": [
+                "H_SA",
+                "DUT_AMP1_VNA2"
+              ],
+              "link_commands": [
+                "CONFigure:LINK H, SA",
+                "CONFigure:LINK DUT, AMP1, VNA2"
+              ],
+              "raw_output": "T_SYS_TX_SA_H_DUTAMP1",
+              "required_inputs": [
+                "G_STD_HORN_H",
+                "L_DUT_VNA_F_AMP1"
+              ],
+              "notes": "一致性校验，不作为正式输出。",
+              "path_template": "CAL004-SA-HV-DUTAMP1-CHECK:H-SA-DUTAMP1-CHECK"
+            },
+            {
+              "id": "V-SA-DUTAMP1-CHECK",
+              "name": "V 极化 DUT 侧 AMP1 一致性校验",
+              "input_port": "LB-SA",
+              "output_port": "LB-VNA2",
+              "manual_instruction": "STEP1：按接线路径连接：网分 PORT1 -> 链路箱 频谱仪 -> 链路箱 V -> 暗室接口板 V -> 馈源 V -> 反射面 -> 标准增益喇叭 -> 暗室接口板 DUT -> 放大器1 -> 链路箱 网分2 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 V 极化，再开始测量。链路箱命令：CONFigure:LINK V, SA; CONFigure:LINK DUT, AMP1, VNA2。保存：T_SYS_TX_SA_V_DUTAMP1。",
+              "route_ids": [
+                "V_SA",
+                "DUT_AMP1_VNA2"
+              ],
+              "link_commands": [
+                "CONFigure:LINK V, SA",
+                "CONFigure:LINK DUT, AMP1, VNA2"
+              ],
+              "raw_output": "T_SYS_TX_SA_V_DUTAMP1",
+              "required_inputs": [
+                "G_STD_HORN_V",
+                "L_DUT_VNA_F_AMP1"
+              ],
+              "notes": "一致性校验，不作为正式输出。",
+              "path_template": "CAL004-SA-HV-DUTAMP1-CHECK:V-SA-DUTAMP1-CHECK"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "LINK-CAL-005",
+      "name": "SG 校准",
+      "purpose": "校准 SG 到 DUT 参考面的等效发射链路，使用 AUX-G 独立重复测回传段。",
+      "steps": [
+        {
+          "id": "CAL005-AUX-G",
+          "name": "AUX-G 独立测试",
+          "role": "vna_s21",
+          "input_port": "P1/P2",
+          "output_port": "P1/P2",
+          "manual_instruction": "AUX-G 直连 VNA PORT1/PORT2。",
+          "raw_outputs": [
+            "S21_AUX_G"
+          ],
+          "final_outputs": [
+            "L_AUX_G"
+          ],
+          "path_template": "CAL005-AUX-G"
+        },
+        {
+          "id": "CAL005-DUT-VNA2",
+          "name": "AUX-G 回传段",
+          "role": "vna_s21",
+          "input_port": "TD",
+          "output_port": "LB-VNA2",
+          "manual_instruction": "PORT1 -> AUX-G -> 转台DUT接口；PORT2 接 VNA2。",
+          "route_ids": [
+            "DUT_VNA2",
+            "DUT_AMP1_VNA2"
+          ],
+          "link_commands": [
+            "CONFigure:LINK DUT, VNA2",
+            "CONFigure:LINK DUT, AMP1, VNA2"
+          ],
+          "raw_outputs": [
+            "S21_DUT_VNA_G_RAW",
+            "S21_DUT_VNA_G_AMP1_RAW"
+          ],
+          "final_outputs": [
+            "L_DUT_VNA_G",
+            "L_DUT_VNA_G_AMP1"
+          ],
+          "required_inputs": [
+            "L_AUX_G"
+          ],
+          "path_template": "CAL005-DUT-VNA2"
+        },
+        {
+          "id": "CAL005-SG",
+          "name": "SG 三工况",
+          "role": "vna_s21",
+          "input_port": "LB-SG/LB-VNA2",
+          "output_port": "DUT_REF",
+          "manual_instruction": "直通/AMP1：PORT1 接 SG、PORT2 接 VNA2；AMP2：PORT1 接 VNA2、PORT2 接 SG，转台 DUT 位置为标准增益喇叭。",
+          "route_ids": [
+            "H_SG",
+            "V_SG",
+            "H_AMP2_SG",
+            "V_AMP2_SG"
+          ],
+          "link_commands": [
+            "CONFigure:LINK H/V, SG",
+            "CONFigure:LINK DUT, VNA2",
+            "CONFigure:LINK H/V, SG",
+            "CONFigure:LINK DUT, AMP1, VNA2",
+            "CONFigure:LINK H/V, AMP2, SG",
+            "CONFigure:LINK DUT, VNA2"
+          ],
+          "raw_outputs": [
+            "T_SG_H/V",
+            "T_SG_H/V_AMP1",
+            "T_SG_H/V_AMP2"
+          ],
+          "final_outputs": [
+            "L_SG_DUT_H/V",
+            "L_SG_DUT_H/V_AMP1",
+            "L_HV_SG_H/V_AMP2"
+          ],
+          "required_inputs": [
+            "G_STD_HORN_H/V",
+            "L_DUT_VNA_G",
+            "L_DUT_VNA_G_AMP1"
+          ],
+          "substeps": [
+            {
+              "id": "H-SG",
+              "name": "H 极化 SG 到 DUT 直通",
+              "input_port": "LB-SG",
+              "output_port": "LB-VNA2",
+              "manual_instruction": "STEP4：按接线路径连接：网分 PORT1 -> 链路箱 信号源 -> 链路箱 H -> 暗室接口板 H -> 馈源 H -> 反射面 -> 标准增益喇叭 -> 暗室接口板 DUT -> 链路箱 网分2 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 H 极化，再开始测量。链路箱命令：CONFigure:LINK H, SG; CONFigure:LINK DUT, VNA2。保存：T_SG_H / L_SG_DUT_H。",
+              "route_ids": [
+                "H_SG",
+                "DUT_VNA2"
+              ],
+              "link_commands": [
+                "CONFigure:LINK H, SG",
+                "CONFigure:LINK DUT, VNA2"
+              ],
+              "raw_output": "T_SG_H",
+              "final_output": "L_SG_DUT_H",
+              "required_inputs": [
+                "G_STD_HORN_H",
+                "L_DUT_VNA_G"
+              ],
+              "path_template": "CAL005-SG:H-SG"
+            },
+            {
+              "id": "V-SG",
+              "name": "V 极化 SG 到 DUT 直通",
+              "input_port": "LB-SG",
+              "output_port": "LB-VNA2",
+              "manual_instruction": "STEP1：按接线路径连接：网分 PORT1 -> 链路箱 信号源 -> 链路箱 V -> 暗室接口板 V -> 馈源 V -> 反射面 -> 标准增益喇叭 -> 暗室接口板 DUT -> 链路箱 网分2 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 V 极化，再开始测量。链路箱命令：CONFigure:LINK V, SG; CONFigure:LINK DUT, VNA2。保存：T_SG_V / L_SG_DUT_V。",
+              "route_ids": [
+                "V_SG",
+                "DUT_VNA2"
+              ],
+              "link_commands": [
+                "CONFigure:LINK V, SG",
+                "CONFigure:LINK DUT, VNA2"
+              ],
+              "raw_output": "T_SG_V",
+              "final_output": "L_SG_DUT_V",
+              "required_inputs": [
+                "G_STD_HORN_V",
+                "L_DUT_VNA_G"
+              ],
+              "path_template": "CAL005-SG:V-SG"
+            },
+            {
+              "id": "H-SG-DUTAMP1",
+              "name": "H 极化 SG 到 DUT，DUT 侧 AMP1",
+              "input_port": "LB-SG",
+              "output_port": "LB-VNA2",
+              "manual_instruction": "STEP5：按接线路径连接：网分 PORT1 -> 链路箱 信号源 -> 链路箱 H -> 暗室接口板 H -> 馈源 H -> 反射面 -> 标准增益喇叭 -> 暗室接口板 DUT -> 放大器1 -> 链路箱 网分2 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 H 极化，再开始测量。链路箱命令：CONFigure:LINK H, SG; CONFigure:LINK DUT, AMP1, VNA2。保存：T_SG_H_AMP1 / L_SG_DUT_H_AMP1。",
+              "route_ids": [
+                "H_SG",
+                "DUT_AMP1_VNA2"
+              ],
+              "link_commands": [
+                "CONFigure:LINK H, SG",
+                "CONFigure:LINK DUT, AMP1, VNA2"
+              ],
+              "raw_output": "T_SG_H_AMP1",
+              "final_output": "L_SG_DUT_H_AMP1",
+              "required_inputs": [
+                "G_STD_HORN_H",
+                "L_DUT_VNA_G_AMP1"
+              ],
+              "path_template": "CAL005-SG:H-SG-DUTAMP1"
+            },
+            {
+              "id": "V-SG-DUTAMP1",
+              "name": "V 极化 SG 到 DUT，DUT 侧 AMP1",
+              "input_port": "LB-SG",
+              "output_port": "LB-VNA2",
+              "manual_instruction": "STEP2：按接线路径连接：网分 PORT1 -> 链路箱 信号源 -> 链路箱 V -> 暗室接口板 V -> 馈源 V -> 反射面 -> 标准增益喇叭 -> 暗室接口板 DUT -> 放大器1 -> 链路箱 网分2 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 V 极化，再开始测量。链路箱命令：CONFigure:LINK V, SG; CONFigure:LINK DUT, AMP1, VNA2。保存：T_SG_V_AMP1 / L_SG_DUT_V_AMP1。",
+              "route_ids": [
+                "V_SG",
+                "DUT_AMP1_VNA2"
+              ],
+              "link_commands": [
+                "CONFigure:LINK V, SG",
+                "CONFigure:LINK DUT, AMP1, VNA2"
+              ],
+              "raw_output": "T_SG_V_AMP1",
+              "final_output": "L_SG_DUT_V_AMP1",
+              "required_inputs": [
+                "G_STD_HORN_V",
+                "L_DUT_VNA_G_AMP1"
+              ],
+              "path_template": "CAL005-SG:V-SG-DUTAMP1"
+            },
+            {
+              "id": "H-AMP2-SG",
+              "name": "H 极化经 AMP2 到 SG",
+              "input_port": "LB-VNA2",
+              "output_port": "LB-SG",
+              "manual_instruction": "STEP6：按接线路径连接：网分 PORT1 -> 链路箱 网分2 -> 暗室接口板 DUT -> 标准增益喇叭 -> 反射面 -> 馈源 H -> 暗室接口板 H -> 链路箱 H -> 放大器2 -> 链路箱 信号源 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 H 极化，再开始测量。链路箱命令：CONFigure:LINK H, AMP2, SG; CONFigure:LINK DUT, VNA2。保存：T_SG_H_AMP2 / L_HV_SG_H_AMP2。",
+              "route_ids": [
+                "H_AMP2_SG",
+                "DUT_VNA2"
+              ],
+              "link_commands": [
+                "CONFigure:LINK H, AMP2, SG",
+                "CONFigure:LINK DUT, VNA2"
+              ],
+              "raw_output": "T_SG_H_AMP2",
+              "final_output": "L_HV_SG_H_AMP2",
+              "required_inputs": [
+                "G_STD_HORN_H",
+                "L_DUT_VNA_G"
+              ],
+              "path_template": "CAL005-SG:H-AMP2-SG"
+            },
+            {
+              "id": "V-AMP2-SG",
+              "name": "V 极化经 AMP2 到 SG",
+              "input_port": "LB-VNA2",
+              "output_port": "LB-SG",
+              "manual_instruction": "STEP3：按接线路径连接：网分 PORT1 -> 链路箱 网分2 -> 暗室接口板 DUT -> 标准增益喇叭 -> 反射面 -> 馈源 V -> 暗室接口板 V -> 链路箱 V -> 放大器2 -> 链路箱 信号源 -> 网分 PORT2。确认标准增益喇叭和馈源已手动切到 V 极化，再开始测量。链路箱命令：CONFigure:LINK V, AMP2, SG; CONFigure:LINK DUT, VNA2。保存：T_SG_V_AMP2 / L_HV_SG_V_AMP2。",
+              "route_ids": [
+                "V_AMP2_SG",
+                "DUT_VNA2"
+              ],
+              "link_commands": [
+                "CONFigure:LINK V, AMP2, SG",
+                "CONFigure:LINK DUT, VNA2"
+              ],
+              "raw_output": "T_SG_V_AMP2",
+              "final_output": "L_HV_SG_V_AMP2",
+              "required_inputs": [
+                "G_STD_HORN_V",
+                "L_DUT_VNA_G"
+              ],
+              "path_template": "CAL005-SG:V-AMP2-SG"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

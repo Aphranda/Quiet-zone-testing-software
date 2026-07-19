@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import html
+import json
 import re
 import sys
 from datetime import datetime
@@ -11,17 +12,24 @@ from typing import Any
 
 import numpy as np
 
-from catr_loss_calibrator.calibration.definitions import default_calibration_catalog
+from catr_loss_calibrator.calibration.config_loader import load_calibration_catalog
 from catr_loss_calibrator.calibration.mock_runner import MockCalibrationRunner
 from catr_loss_calibrator.hardware.mock import MockLinkBox, MockVna
+from catr_loss_calibrator.runtime_resources import default_output_root, initialize_runtime_files, runtime_default_config_path
+from catr_loss_calibrator.storage.resume import CurveQuality, analyze_curve_csv
 from catr_loss_calibrator.storage.workspace import (
     CalibrationRunContext,
     create_session_context,
     list_session_summaries,
     list_session_summaries_from_project_root,
+    list_session_summaries_from_workspace_root,
+    load_legacy_output_summary,
     load_latest_summary,
     load_latest_summary_from_index,
+    load_session_summary_from_manifest,
+    workspace_config_snapshot_path,
     workspace_for_catalog,
+    write_workspace_manifest,
 )
 
 
@@ -41,13 +49,14 @@ def run() -> int:
 
 
 def run_cli() -> int:
-    catalog = default_calibration_catalog()
+    initialize_runtime_files()
+    catalog = load_calibration_catalog(runtime_default_config_path())
     print("通用路损校准控制台")
     print("Available calibration items:")
     for item in catalog.items:
         print(f"- {item.id}: {item.name} ({len(item.steps)} steps)")
     first_item = catalog.items[0]
-    runner = MockCalibrationRunner(first_item, MockVna(), MockLinkBox(), Path("catr_loss_calibrator_output"))
+    runner = MockCalibrationRunner(first_item, MockVna(), MockLinkBox(), default_output_root() / "cli")
     runner.link_box.connect()
     runner.vna.connect()
     print("Runner overview before run:")
@@ -61,7 +70,8 @@ def run_cli() -> int:
 
 
 def run_interactive() -> int:
-    catalog = default_calibration_catalog()
+    initialize_runtime_files()
+    catalog = load_calibration_catalog(runtime_default_config_path())
     print("通用路损校准控制台 - Interactive")
     for index, item in enumerate(catalog.items, start=1):
         print(f"{index}. {item.id}: {item.name}")
@@ -81,7 +91,7 @@ def run_interactive() -> int:
         action = input("Continue / Skip / Retry / Cancel ? [c/s/r/x]: ").strip().lower()
         return {"c": "continue", "s": "skip", "r": "retry", "x": "cancel"}.get(action, "continue")
 
-    runner = MockCalibrationRunner(item, MockVna(), MockLinkBox(), Path("catr_loss_calibrator_output"), confirm_step=confirm)
+    runner = MockCalibrationRunner(item, MockVna(), MockLinkBox(), default_output_root() / "interactive", confirm_step=confirm)
     runner.link_box.connect()
     runner.vna.connect()
     print("Runner overview before run:")
@@ -97,6 +107,7 @@ def run_interactive() -> int:
 def run_gui() -> int:
     from catr_loss_calibrator.presentation.viewmodels import CalibrationViewModel, StepViewData
     from catr_loss_calibrator.project.config import ProjectConfig
+    from catr_loss_calibrator.runtime_resources import resolve_data_file
     from catr_loss_calibrator.storage.loss_file_policy import band_entries_from_config, default_feed_horn_from_config
 
     try:
@@ -105,7 +116,7 @@ def run_gui() -> int:
         pg = None
 
     from PySide6.QtCore import QUrl, QRectF, Qt
-    from PySide6.QtGui import QAction, QBrush, QColor, QCursor, QDesktopServices, QFont, QPainter, QPixmap, QTextCursor
+    from PySide6.QtGui import QAction, QBrush, QColor, QCursor, QDesktopServices, QFont, QIcon, QPainter, QPixmap, QTextCursor
     from PySide6.QtSvg import QSvgRenderer
     from PySide6.QtWidgets import (
         QAbstractItemView,
@@ -148,6 +159,10 @@ def run_gui() -> int:
     project_config = ProjectConfig()
     base_dir = Path(__file__).resolve().parents[1]
     style_dir = base_dir / "style"
+    app_icon_path = style_dir / "icons" / "icon_calibration.png"
+    app_icon = QIcon(str(app_icon_path)) if app_icon_path.exists() else QIcon()
+    if not app_icon.isNull():
+        app.setWindowIcon(app_icon)
 
     _DISPLAY_TEXT_REPLACEMENTS: tuple[tuple[re.Pattern[str], str], ...] = (
         (re.compile(r"\bVNA1\b"), "网分1"),
@@ -773,8 +788,6 @@ def run_gui() -> int:
                 "vbw_hz": self.sa_vbw_hz.value(),
                 "reference_level_dbm": self.sa_reference_level_dbm.value(),
                 "attenuation_db": self.sa_attenuation_db.value(),
-                "preamp_enabled": self.sa_preamp_enabled.isChecked(),
-                "continuous": self.sa_continuous_enabled.isChecked(),
             }
 
         def _build_vna_settings_group(self) -> QGroupBox:
@@ -856,9 +869,6 @@ def run_gui() -> int:
             self.sa_vbw_hz = self._double_spin(1_000_000.0, 1.0, 100_000_000.0, 1000.0, 0, " Hz")
             self.sa_reference_level_dbm = self._double_spin(0.0, -150.0, 60.0, 1.0, 1, " dBm")
             self.sa_attenuation_db = self._double_spin(10.0, 0.0, 70.0, 1.0, 1, " dB")
-            self.sa_preamp_enabled = QCheckBox("前放 ON")
-            self.sa_continuous_enabled = QCheckBox("连续测量")
-            self.sa_continuous_enabled.setChecked(False)
             self.btn_sa_configure = QPushButton("配置")
             _style_button(self.btn_sa_configure, role="primary")
 
@@ -871,8 +881,6 @@ def run_gui() -> int:
             form.addRow("VBW", self.sa_vbw_hz)
             form.addRow("参考电平", self.sa_reference_level_dbm)
             form.addRow("衰减", self.sa_attenuation_db)
-            form.addRow("前置放大", self.sa_preamp_enabled)
-            form.addRow("连续测量", self.sa_continuous_enabled)
             form.addRow(self.btn_sa_configure)
             self.spectrum_analyzer_settings_group = group
             return group
@@ -901,6 +909,8 @@ def run_gui() -> int:
         def __init__(self) -> None:
             super().__init__()
             self.setWindowTitle("通用路损校准控制台")
+            if not app_icon.isNull():
+                self.setWindowIcon(app_icon)
             self._current_step_view: StepViewData | None = None
             self._active_prompt_view: StepViewData | None = None
 
@@ -967,6 +977,14 @@ def run_gui() -> int:
             self.run_label_input = QLineEdit("R01")
             self.run_label_input.setPlaceholderText("R01")
             self.run_label_input.setMinimumWidth(120)
+            self.btn_import_history_data = QPushButton("导入历史数据")
+            _style_button(self.btn_import_history_data, role="secondary")
+            self.history_data_status = QLabel("未导入历史数据")
+            self.history_data_status.setObjectName("hintLabel")
+            self.history_data_status.setStyleSheet("color: #64748B;")
+            self.history_data_status.setMinimumWidth(0)
+            self.history_data_status.setMaximumWidth(260)
+            self.history_data_status.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
             self.substep_list = QListWidget()
             self.substep_list.setMinimumWidth(220)
             self.substep_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -974,14 +992,68 @@ def run_gui() -> int:
             self.path_view = QTextEdit()
             self.path_view.setReadOnly(True)
             self.path_view.setPlaceholderText("接线路径将显示在这里")
+            self.path_view.setMinimumHeight(150)
+            self.path_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
             self.command_view = QPlainTextEdit()
             self.command_view.setReadOnly(True)
             self.command_view.setMaximumBlockCount(200)
+            self.command_view.setMinimumHeight(92)
+            self.command_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
             self.detail_view = QPlainTextEdit()
             self.detail_view.setReadOnly(True)
             self.detail_view.setMaximumBlockCount(200)
+            self.detail_view.setMinimumHeight(92)
+            self.detail_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+            self.saved_curve_status = QLabel("选择细分步骤后显示可用曲线")
+            self.saved_curve_status.setWordWrap(True)
+            self.saved_curve_column = QComboBox()
+            self.saved_curve_column.setEnabled(False)
+            self.saved_curve_column.setMinimumWidth(0)
+            self.saved_curve_column.setMaximumWidth(140)
+            self.saved_curve_column.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+            self.manual_curve_judgment_combo = QComboBox()
+            self.manual_curve_judgment_combo.addItem("未判定", "")
+            self.manual_curve_judgment_combo.addItem("人工判定：正常可沿用", "accept")
+            self.manual_curve_judgment_combo.addItem("人工判定：异常需重测", "retest")
+            self.manual_curve_judgment_combo.setEnabled(False)
+            self.manual_curve_judgment_combo.setMinimumWidth(0)
+            self.manual_curve_judgment_combo.setMaximumWidth(190)
+            self.manual_curve_judgment_combo.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+            self.btn_use_history_curve = QPushButton("沿用历史")
+            self.btn_retest_substep = QPushButton("重测当前")
+            self.btn_generate_resume_results = QPushButton("生成/更新结果")
+            self.btn_use_history_curve.setEnabled(False)
+            self.btn_retest_substep.setEnabled(False)
+            self.btn_generate_resume_results.setEnabled(False)
+            self.btn_use_history_curve.setFixedWidth(82)
+            self.btn_retest_substep.setFixedWidth(82)
+            self.btn_generate_resume_results.setFixedWidth(112)
+            _style_button(self.btn_use_history_curve, role="success")
+            _style_button(self.btn_retest_substep, role="warning")
+            _style_button(self.btn_generate_resume_results, role="primary")
+            self.btn_saved_curve_autorange = QPushButton("自适应")
+            self.btn_saved_curve_autorange.setEnabled(False)
+            self.btn_saved_curve_autorange.setFixedWidth(74)
+            _style_button(self.btn_saved_curve_autorange, role="secondary")
+            if pg is not None:
+                self.saved_curve_plot = pg.PlotWidget()
+                self.saved_curve_plot.setBackground("#ffffff")
+                self.saved_curve_plot.showGrid(x=True, y=True, alpha=0.25)
+                self.saved_curve_plot.setLabel("bottom", "频率", units="GHz")
+                self.saved_curve_plot.setLabel("left", "幅度", units="dB")
+                self.saved_curve_plot.setMinimumWidth(0)
+                self.saved_curve_plot.setMinimumHeight(320)
+                self.saved_curve_plot.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+            else:
+                self.saved_curve_plot = QPlainTextEdit()
+                self.saved_curve_plot.setReadOnly(True)
+                self.saved_curve_plot.setPlainText("未安装 pyqtgraph，无法显示曲线。")
+                self.saved_curve_plot.setMinimumWidth(0)
+                self.saved_curve_plot.setMinimumHeight(320)
+                self.saved_curve_plot.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
             self.global_log_panel = LogPanel()
             self.log_panels = [self.global_log_panel]
@@ -994,6 +1066,7 @@ def run_gui() -> int:
             self.result_view_combo.addItem("当前Session", "current")
             self.result_view_combo.addItem("最新成功", "latest")
             self.result_view_combo.addItem("历史Session", "history")
+            self.result_view_combo.addItem("旧版目录", "legacy")
             self.result_view_combo.setFixedWidth(116)
             self.result_history_combo = QComboBox()
             self.result_history_combo.setEnabled(False)
@@ -1001,12 +1074,13 @@ def run_gui() -> int:
             self.result_history_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
             self.result_history_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             self.result_workspace_input = QLineEdit()
-            self.result_workspace_input.setPlaceholderText("校准工作空间路径，留空则使用当前配置默认 workspace")
+            self.result_workspace_input.setPlaceholderText("校准工作空间或旧版输出目录路径")
             self.result_workspace_input.setMinimumWidth(320)
             self.btn_result_browse_workspace = QPushButton("浏览Workspace")
             self.btn_result_load_workspace = QPushButton("加载历史")
             self.btn_result_open_history_dir = QPushButton("打开历史目录")
             self.result_file_table = QTableWidget(0, 5)
+            self.result_file_table.setObjectName("resultFileTable")
             self.result_file_table.setHorizontalHeaderLabels(["类型", "文件名", "大小", "修改时间", "路径"])
             self.result_file_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
             self.result_file_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -1061,6 +1135,12 @@ def run_gui() -> int:
             self.result_session.setPlaceholderText("会话与运行记录")
             self._result_rows: list[dict[str, str]] = []
             self._current_curve_data: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+            self._saved_curve_data: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+            self._saved_curve_path: Path | None = None
+            self._history_data_summary: dict[str, object] = {}
+            self._curve_quality_cache: dict[str, CurveQuality] = {}
+            self._manual_curve_judgments: dict[str, str] = {}
+            self._current_curve_step_key = ""
             self._history_session_summaries: tuple[dict[str, object], ...] = ()
 
             command_presets = vm.device_command_presets()
@@ -1102,13 +1182,24 @@ def run_gui() -> int:
 
             self.status_label = QLabel("Ready")
             self.connection_label = QLabel("网分: disconnected | 信号源: disconnected | 链路箱: disconnected | 频谱仪: disconnected")
+            self.header_config_label = QLabel("配置: 未加载链路配置")
+            self.header_run_label = QLabel("项目: DEFAULT_PROJECT / 初始校准 / R01")
+            self.header_connection_label = QLabel("设备: 待连接")
+            self.header_status_label = QLabel("状态: Ready")
+            for label in (
+                self.header_config_label,
+                self.header_run_label,
+                self.header_connection_label,
+                self.header_status_label,
+            ):
+                label.setObjectName("headerInfoLabel")
+                label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
 
             self.btn_connect = QPushButton("连接全部设备")
             self.btn_disconnect = QPushButton("断开全部设备")
             self.btn_start = QPushButton("开始校准")
             self.btn_start.setFixedWidth(120)
-            self.btn_recalibrate = QPushButton("重新校准")
-            self.btn_recalibrate.setFixedWidth(120)
+            self.btn_start.setProperty("recalibrateAction", False)
             self.btn_import_config = QPushButton("导入链路配置")
             self.btn_import_default_config = QPushButton("导入默认配置")
             self.inline_confirm_panel: QFrame | None = None
@@ -1126,8 +1217,6 @@ def run_gui() -> int:
             _style_button(self.btn_connect, role="success")
             _style_button(self.btn_disconnect, role="danger")
             _style_button(self.btn_start, role="primary", state="idle")
-            _style_button(self.btn_recalibrate, role="warning", state="idle")
-            self.btn_recalibrate.setVisible(False)
             _style_button(self.btn_import_config, role="secondary")
             _style_button(self.btn_import_default_config, role="secondary")
             _style_button(self.btn_refresh, role="secondary")
@@ -1188,7 +1277,7 @@ def run_gui() -> int:
             frame_geometry.moveCenter(available_geometry.center())
             top_left = frame_geometry.topLeft()
             offset_x = 200
-            offset_y = 48
+            offset_y = 120
             self.move(
                 max(available_geometry.left(), top_left.x() - offset_x),
                 max(available_geometry.top(), top_left.y() - offset_y),
@@ -1210,7 +1299,19 @@ def run_gui() -> int:
             brand_layout.addWidget(self.logo_title)
             brand_layout.addStretch(1)
             layout.addWidget(brand_panel, 0)
-            layout.addStretch(1)
+            context_panel = QFrame()
+            context_panel.setObjectName("headerContextPanel")
+            context_layout = QGridLayout(context_panel)
+            context_layout.setContentsMargins(12, 8, 12, 8)
+            context_layout.setHorizontalSpacing(16)
+            context_layout.setVerticalSpacing(4)
+            context_layout.addWidget(self.header_config_label, 0, 0)
+            context_layout.addWidget(self.header_run_label, 0, 1)
+            context_layout.addWidget(self.header_connection_label, 1, 0)
+            context_layout.addWidget(self.header_status_label, 1, 1)
+            context_layout.setColumnStretch(0, 2)
+            context_layout.setColumnStretch(1, 1)
+            layout.addWidget(context_panel, 1)
             return box
 
         def _build_calibration_page(self) -> QWidget:
@@ -1244,32 +1345,72 @@ def run_gui() -> int:
             execution_body = QSplitter(Qt.Horizontal)
 
             substep_box = QGroupBox("细分步骤")
-            substep_box.setMinimumWidth(220)
+            substep_box.setMinimumWidth(240)
             substep_layout = QVBoxLayout(substep_box)
+            substep_layout.setContentsMargins(8, 8, 8, 8)
             substep_layout.addWidget(self.substep_list)
 
             detail_box = QWidget()
+            detail_box.setMinimumWidth(0)
             detail_layout = QVBoxLayout(detail_box)
             detail_layout.setContentsMargins(0, 0, 0, 0)
-            detail_layout.addWidget(QLabel("接线路径"))
-            detail_layout.addWidget(self.path_view)
-            detail_layout.addWidget(QLabel("命令 / 说明"))
-            detail_layout.addWidget(self.command_view)
-            detail_layout.addWidget(QLabel("步骤详情"))
-            detail_layout.addWidget(self.detail_view)
+            self.step_detail_stack = QTabWidget()
+            self.step_detail_stack.setMinimumWidth(0)
+            self.step_detail_stack.setMinimumHeight(430)
+            self.step_detail_stack.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+            instruction_page = QWidget()
+            instruction_page.setMinimumHeight(400)
+            instruction_page.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+            instruction_layout = QVBoxLayout(instruction_page)
+            instruction_layout.setContentsMargins(0, 0, 0, 0)
+            instruction_layout.addWidget(QLabel("接线路径"))
+            instruction_layout.addWidget(self.path_view, 3)
+            instruction_layout.addWidget(QLabel("命令 / 说明"))
+            instruction_layout.addWidget(self.command_view, 2)
+            instruction_layout.addWidget(QLabel("步骤详情"))
+            instruction_layout.addWidget(self.detail_view, 2)
+            saved_curve_page = QWidget()
+            saved_curve_page.setMinimumWidth(0)
+            saved_curve_page.setMinimumHeight(400)
+            saved_curve_page.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+            saved_curve_layout = QVBoxLayout(saved_curve_page)
+            saved_curve_layout.setContentsMargins(0, 0, 0, 0)
+            saved_curve_tools = QGridLayout()
+            saved_curve_tools.setContentsMargins(0, 0, 0, 0)
+            saved_curve_tools.setHorizontalSpacing(6)
+            saved_curve_tools.setVerticalSpacing(6)
+            saved_curve_tools.addWidget(QLabel("曲线"), 0, 0)
+            saved_curve_tools.addWidget(self.saved_curve_column, 0, 1)
+            saved_curve_tools.addWidget(self.btn_saved_curve_autorange, 0, 2)
+            saved_curve_tools.addWidget(QLabel("人工判断"), 1, 0)
+            saved_curve_tools.addWidget(self.manual_curve_judgment_combo, 1, 1, 1, 2)
+            action_row = QHBoxLayout()
+            action_row.setContentsMargins(0, 0, 0, 0)
+            action_row.setSpacing(6)
+            action_row.addWidget(self.btn_use_history_curve)
+            action_row.addWidget(self.btn_retest_substep)
+            action_row.addWidget(self.btn_generate_resume_results)
+            action_row.addStretch(1)
+            saved_curve_tools.addLayout(action_row, 1, 3)
+            saved_curve_tools.setColumnStretch(3, 1)
+            saved_curve_layout.addLayout(saved_curve_tools)
+            saved_curve_layout.addWidget(self.saved_curve_status)
+            saved_curve_layout.addWidget(self.saved_curve_plot, 1)
+            self.step_detail_stack.addTab(instruction_page, "链路说明")
+            self.step_detail_stack.addTab(saved_curve_page, "数据展示")
+            detail_layout.addWidget(self.step_detail_stack, 1)
 
             execution_body.addWidget(substep_box)
             execution_body.addWidget(detail_box)
             execution_body.setStretchFactor(0, 1)
             execution_body.setStretchFactor(1, 3)
             center_layout.addWidget(execution_body, 1)
-            center_layout.addWidget(self._build_inline_confirmation_panel())
-
-            button_row = QHBoxLayout()
-            button_row.addWidget(self.btn_start)
-            button_row.addWidget(self.btn_recalibrate)
-            button_row.addStretch(1)
-            center_layout.addLayout(button_row)
+            prompt_row = QHBoxLayout()
+            prompt_row.setContentsMargins(0, 0, 0, 0)
+            prompt_row.setSpacing(8)
+            prompt_row.addWidget(self._build_run_action_panel(), 0)
+            prompt_row.addWidget(self._build_inline_confirmation_panel(), 1)
+            center_layout.addLayout(prompt_row)
             center_stack_layout.addWidget(center, 1)
 
             page_splitter = QSplitter(Qt.Horizontal)
@@ -1321,6 +1462,19 @@ def run_gui() -> int:
             self._set_inline_confirmation_idle(panel)
             return panel
 
+        def _build_run_action_panel(self) -> QFrame:
+            panel = QFrame()
+            panel.setObjectName("startControlPanel")
+            panel.setMinimumHeight(62)
+            panel.setMaximumHeight(78)
+            panel.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+
+            layout = QHBoxLayout(panel)
+            layout.setContentsMargins(12, 8, 12, 8)
+            layout.setSpacing(8)
+            layout.addWidget(self.btn_start)
+            return panel
+
         def _build_link_config_group(self) -> QGroupBox:
             group = QGroupBox("链路配置")
             form = QFormLayout(group)
@@ -1356,6 +1510,9 @@ def run_gui() -> int:
             row.addWidget(self.calibration_stage_combo, 1)
             row.addWidget(QLabel("批次/轮次"))
             row.addWidget(self.run_label_input, 1)
+            row.addWidget(self.btn_import_history_data)
+            row.addWidget(self.history_data_status, 0)
+            row.addStretch(1)
             return group
 
         def _build_command_page(self) -> QWidget:
@@ -1434,13 +1591,16 @@ def run_gui() -> int:
             self.step_list.currentRowChanged.connect(vm.select_step)
             self.btn_connect.clicked.connect(self._connect_devices)
             self.btn_disconnect.clicked.connect(self._disconnect_devices)
-            self.btn_start.clicked.connect(self._confirm_start_calibration)
-            self.btn_recalibrate.clicked.connect(lambda _checked=False: self._confirm_start_calibration(recalibrate=True))
+            self.btn_start.clicked.connect(self._confirm_start_button)
             self.btn_import_config.clicked.connect(self._import_link_config)
             self.btn_import_default_config.clicked.connect(self._import_default_link_config)
             self.btn_refresh.clicked.connect(self._sync_overview)
             self.feed_combo.currentTextChanged.connect(self._sync_horn_options)
             self.horn_combo.currentTextChanged.connect(lambda _text: self._apply_band_sweep_range())
+            self.project_code_input.textChanged.connect(lambda _text: self._sync_header_context())
+            self.calibration_stage_combo.currentTextChanged.connect(lambda _text: self._sync_header_context())
+            self.run_label_input.textChanged.connect(lambda _text: self._sync_header_context())
+            self.btn_import_history_data.clicked.connect(self._import_history_data)
             self.btn_browse_horn_gain.clicked.connect(self._browse_horn_gain_file)
             self.btn_result_refresh.clicked.connect(self._sync_overview)
             self.btn_result_browse_workspace.clicked.connect(self._browse_result_workspace)
@@ -1457,6 +1617,12 @@ def run_gui() -> int:
             self.result_file_table.itemSelectionChanged.connect(self._sync_result_curve)
             self.result_curve_column.currentTextChanged.connect(self._plot_selected_result_curve)
             self.btn_result_curve_autorange.clicked.connect(self._autorange_result_curve)
+            self.saved_curve_column.currentTextChanged.connect(self._plot_saved_step_curve)
+            self.btn_saved_curve_autorange.clicked.connect(self._autorange_saved_step_curve)
+            self.manual_curve_judgment_combo.currentIndexChanged.connect(lambda _index: self._on_manual_curve_judgment_changed())
+            self.btn_use_history_curve.clicked.connect(self._use_selected_history_curve)
+            self.btn_retest_substep.clicked.connect(self._retest_selected_substep)
+            self.btn_generate_resume_results.clicked.connect(self._generate_resume_results)
             for panel in self.command_panels:
                 panel.btn_preset.clicked.connect(lambda _checked=False, command_panel=panel: self._fill_preset(command_panel))
                 panel.btn_send.clicked.connect(lambda _checked=False, command_panel=panel: self._send_command(command_panel))
@@ -1503,6 +1669,13 @@ def run_gui() -> int:
             self._sync_item_detail()
 
         def _sync_after_catalog_changed(self) -> None:
+            self._history_data_summary = {}
+            self._curve_quality_cache.clear()
+            self._manual_curve_judgments.clear()
+            self._current_curve_step_key = ""
+            self.btn_generate_resume_results.setEnabled(False)
+            self.history_data_status.setText("未导入历史数据")
+            self.history_data_status.setToolTip("")
             self._sync_catalog_path_field()
             self._sync_command_presets()
             self._sync_band_options()
@@ -1513,6 +1686,29 @@ def run_gui() -> int:
             source_path = vm.catalog.source_path or "未加载链路配置"
             self.config_path_input.setText(source_path)
             self.config_path_input.setToolTip(source_path)
+            config_name = vm.catalog.display_name or vm.catalog.name or Path(source_path).stem if source_path != "未加载链路配置" else source_path
+            self.header_config_label.setText(f"配置: {_friendly_text(config_name)}")
+            self.header_config_label.setToolTip(source_path)
+
+        def _sync_header_context(self) -> None:
+            overview = vm.overview or {}
+            stage_code = str(self.calibration_stage_combo.currentData() or self.calibration_stage_combo.currentText()).strip()
+            self.header_run_label.setText(
+                f"项目: {self.project_code_input.text().strip() or 'DEFAULT_PROJECT'} / "
+                f"{_stage_display(stage_code) or stage_code or '-'} / "
+                f"{self.run_label_input.text().strip() or 'R01'}"
+            )
+            connected_count = sum(
+                bool(overview.get(key))
+                for key in (
+                    "vna_connected",
+                    "signal_generator_connected",
+                    "link_box_connected",
+                    "spectrum_analyzer_connected",
+                )
+            )
+            self.header_connection_label.setText(f"设备: {connected_count}/4 已连接")
+            self.header_status_label.setText(f"状态: {overview.get('status', 'Ready')}")
 
         def _sync_command_presets(self) -> None:
             command_presets = vm.device_command_presets()
@@ -1577,6 +1773,8 @@ def run_gui() -> int:
                 "pending": "未开始",
                 "running": "进行中",
                 "done": "已完成",
+                "history": "已有历史",
+                "broken": "历史异常",
             }.get(status, "未开始")
 
         @staticmethod
@@ -1585,6 +1783,8 @@ def run_gui() -> int:
                 "pending": ("#6d7b86", "#f5f7f8", False),
                 "running": ("#9a6b17", "#fff4df", True),
                 "done": ("#356a45", "#edf6ef", True),
+                "history": ("#245f8d", "#eaf4fb", True),
+                "broken": ("#a33a3a", "#fff0f0", True),
             }.get(status, ("#6d7b86", "#f5f7f8", False))
 
         def _apply_status_style(self, item: QListWidgetItem, status: str) -> None:
@@ -1612,6 +1812,7 @@ def run_gui() -> int:
             current_row = 0
             for index, item in enumerate(vm.catalog.items):
                 status = vm.item_progress_state(item.id)
+                status = self._combined_item_status(item, status)
                 list_item = QListWidgetItem(
                     f"{self._list_status_text(status)}\n{item.id}\n{_friendly_text(item.name)}"
                 )
@@ -1647,6 +1848,49 @@ def run_gui() -> int:
             self._sync_step_list_colored()
             self._sync_overview()
 
+        def _combined_item_status(self, item: Any, fallback: str) -> str:
+            if fallback in {"done", "running"}:
+                return fallback
+            if not self._history_data_summary or str(self._history_data_summary.get("item_id") or "") != item.id:
+                return fallback
+            step_statuses = [self._combined_step_status(item.id, step, "pending") for step in item.steps]
+            if step_statuses and all(status == "done" for status in step_statuses):
+                return "done"
+            if any(status == "broken" for status in step_statuses):
+                return "broken"
+            if any(status == "history" for status in step_statuses):
+                return "history"
+            return fallback
+
+        def _combined_step_status(self, item_id: str, step: Any, fallback: str) -> str:
+            if fallback in {"done", "running"}:
+                return fallback
+            substep_statuses = [
+                self._history_display_status_for_ids(item_id, step.id, substep.id)
+                for substep in vm.substep_view_data(step)
+            ]
+            substep_statuses = [status for status in substep_statuses if status]
+            if not substep_statuses:
+                return fallback
+            if all(status == "done" for status in substep_statuses):
+                return "done"
+            if any(status == "broken" for status in substep_statuses):
+                return "broken"
+            if any(status in {"history", "done"} for status in substep_statuses):
+                return "history"
+            return fallback
+
+        def _history_display_status_for_ids(self, item_id: str, step_id: str, substep_id: str) -> str:
+            judgment = self._manual_curve_judgment_for_ids(item_id, step_id, substep_id)
+            if judgment == "accept":
+                return "done"
+            if judgment == "retest":
+                return "broken"
+            quality = self._history_curve_quality_for_ids(item_id, step_id, substep_id)
+            if quality is None:
+                return ""
+            return "history" if quality.state in {"OK", "SUSPECT"} else "broken"
+
         def _sync_step_list_colored(self) -> None:
             item = vm.selected_item
             if item is None:
@@ -1658,6 +1902,7 @@ def run_gui() -> int:
             self.step_list.clear()
             for index, step in enumerate(item.steps, start=1):
                 status = vm.step_progress_state(item.id, step.id)
+                status = self._combined_step_status(item.id, step, status)
                 list_item = QListWidgetItem(
                     f"{self._list_status_text(status)}\n{index}. {step.id}\n{_friendly_text(step.name)}"
                 )
@@ -1678,7 +1923,6 @@ def run_gui() -> int:
                     else vm._step_view_data(current_step, vm.selected_step_index + 1, len(item.steps))
                 )
                 self._sync_step_view(view_step)
-                self._sync_substep_list()
                 self.step_hint.setText(f"当前步骤：{current_step.id} · {_friendly_text(current_step.name)}")
             else:
                 self.substep_list.clear()
@@ -1701,6 +1945,15 @@ def run_gui() -> int:
             if not step.substep_id:
                 detail_step = self._step_view_for_substep_row(self.substep_list.currentRow(), step) or step
             self._sync_step_detail_views(detail_step)
+            if step.confirm_phase == "saved":
+                self._sync_saved_step_curve(step)
+            elif step.confirm_phase == "start":
+                self._sync_saved_step_curve(detail_step, activate=False)
+                self._show_step_instruction_detail()
+            else:
+                self._sync_saved_step_curve(detail_step, activate=False)
+                if self.step_detail_stack.currentIndex() != 1:
+                    self._show_step_instruction_detail()
             inline_step = (
                 step
                 if step.confirm_phase in {"start", "saved"}
@@ -1775,6 +2028,7 @@ def run_gui() -> int:
                 item_completed_substeps=base.item_completed_substeps,
                 path_template=substep.path_template or base.path_template,
                 path=substep.path or base.path,
+                saved_files=base.saved_files if base.substep_id == substep.id else (),
             )
 
         def _on_substep_selected(self, row: int) -> None:
@@ -1790,6 +2044,15 @@ def run_gui() -> int:
                 f"{detail_step.step_id} - {_friendly_text(detail_step.step_name)}{substep_text}"
             )
             self._sync_step_detail_views(detail_step)
+            if detail_step.confirm_phase == "saved":
+                self._sync_saved_step_curve(detail_step)
+            elif detail_step.confirm_phase == "start":
+                self._sync_saved_step_curve(detail_step, activate=False)
+                self._show_step_instruction_detail()
+            else:
+                self._sync_saved_step_curve(detail_step, activate=False)
+                if self.step_detail_stack.currentIndex() != 1:
+                    self._show_step_instruction_detail()
 
         def _sync_substep_list(self, active_step: StepViewData | None = None) -> None:
             step = vm.selected_step
@@ -1808,6 +2071,7 @@ def run_gui() -> int:
             current_row = -1
             for index, substep in enumerate(vm.substep_view_data(step), start=1):
                 status = vm.substep_progress_state(item_id, step.id, substep.id)
+                display_status = status
                 if substep.id == active_id:
                     phase_text = "开始确认" if phase == "start" else "保存确认"
                     prefix = f"当前 {phase_text}"
@@ -1817,13 +2081,26 @@ def run_gui() -> int:
                 elif status == "running":
                     prefix = "进行中"
                 else:
-                    prefix = "未开始"
+                    history_status = self._history_display_status_for_ids(item_id, step.id, substep.id)
+                    judgment = self._manual_curve_judgment_for_ids(item_id, step.id, substep.id)
+                    quality = self._history_curve_quality_for_ids(item_id, step.id, substep.id)
+                    if judgment:
+                        prefix = self._manual_curve_judgment_prefix(judgment)
+                        display_status = history_status or ("history" if judgment == "accept" else "broken")
+                    elif quality is not None:
+                        prefix = self._history_quality_prefix(quality)
+                        display_status = history_status or ("history" if quality.state in {"OK", "SUSPECT"} else "broken")
+                    else:
+                        prefix = "未开始"
                 detail = substep.raw_output or substep.final_output
                 detail_text = detail if detail else _friendly_text(substep.name)
+                quality_text = self._history_quality_detail_text(item_id, step.id, substep.id)
+                if quality_text:
+                    detail_text = f"{detail_text}\n{quality_text}"
                 list_item = QListWidgetItem(
                     f"{prefix}\nSTEP{index}. {substep.id}\n{_friendly_text(substep.name)}\n{detail_text}"
                 )
-                self._apply_status_style(list_item, status)
+                self._apply_status_style(list_item, display_status)
                 self.substep_list.addItem(list_item)
                 if substep.id == active_id:
                     current_row = index - 1
@@ -1856,6 +2133,7 @@ def run_gui() -> int:
             sa = "connected" if overview.get("spectrum_analyzer_connected") else "disconnected"
             self.connection_label.setText(f"网分: {vna} | 信号源: {sg} | 链路箱: {link_box} | 频谱仪: {sa}")
             self.status_label.setText(str(overview.get("status", "Ready")))
+            self._sync_header_context()
             self._sync_start_button_state(str(overview.get("status", "Ready")))
 
         def _result_overview_for_view(self, overview: dict[str, Any]) -> dict[str, Any]:
@@ -1875,12 +2153,30 @@ def run_gui() -> int:
                 result = dict(overview)
                 history_summary = self._selected_history_summary()
                 result["run_summary"] = history_summary
+                self._apply_summary_identity(result, history_summary)
                 result["status"] = "History session" if history_summary else "No history session"
                 result["result_view_label"] = "历史Session"
+                return result
+            if mode == "legacy":
+                result = dict(overview)
+                legacy_summary = self._legacy_summary_for_selected_item()
+                result["run_summary"] = legacy_summary
+                self._apply_summary_identity(result, legacy_summary)
+                result["status"] = "Legacy readonly" if legacy_summary else "No legacy output"
+                result["result_view_label"] = "旧版目录"
                 return result
             result = dict(overview)
             result["result_view_label"] = "当前Session"
             return result
+
+        @staticmethod
+        def _apply_summary_identity(result: dict[str, Any], summary: dict[str, object]) -> None:
+            if not summary:
+                return
+            item_id = str(summary.get("item_id") or "")
+            if item_id:
+                result["item_id"] = item_id
+                result["item_name"] = str(summary.get("item_name") or item_id)
 
         def _sync_result_history_options(self) -> None:
             mode = str(self.result_view_combo.currentData() or "current")
@@ -1915,15 +2211,14 @@ def run_gui() -> int:
 
         def _history_summaries_for_selected_item(self) -> tuple[dict[str, object], ...]:
             item = vm.selected_item
-            if item is None:
-                return ()
             imported_workspace_root = self._result_workspace_root_from_input()
             if imported_workspace_root is not None:
-                project_code = self._result_run_context().normalized().project_code
-                return list_session_summaries_from_project_root(
-                    project_root=imported_workspace_root / "projects" / project_code,
-                    item_id=item.id,
+                return list_session_summaries_from_workspace_root(
+                    workspace_root=imported_workspace_root,
+                    item_id=item.id if item is not None and vm.catalog.source_path != str(workspace_config_snapshot_path(imported_workspace_root)) else None,
                 )
+            if item is None:
+                return ()
             current_summary = vm.run_summary_for_item(item.id)
             workspace_root = str(current_summary.get("workspace_root", "")).strip()
             project_code = str(current_summary.get("project_code", "")).strip()
@@ -1971,13 +2266,160 @@ def run_gui() -> int:
                 self._sync_overview()
                 return
             self.result_curve_status.setText(f"已加载校准工作空间: {root}")
+            if self._looks_like_legacy_output_root(root):
+                self.result_view_combo.setCurrentIndex(3)
+                return
+            self._load_catalog_snapshot_from_workspace(root)
             if str(self.result_view_combo.currentData() or "") == "current":
                 self.result_view_combo.setCurrentIndex(2)
             else:
                 self._sync_overview()
 
+        def _import_history_data(self) -> None:
+            start_path = str(self._result_workspace_root_from_input() or self._default_result_workspace_root())
+            selected = QFileDialog.getExistingDirectory(self, "选择历史校准 workspace 或 session 目录", start_path)
+            if not selected:
+                return
+            root = Path(selected)
+            try:
+                summary = self._history_summary_from_path(root)
+            except Exception as exc:
+                self._history_data_summary = {}
+                self._curve_quality_cache.clear()
+                self._manual_curve_judgments.clear()
+                self.btn_generate_resume_results.setEnabled(False)
+                self.history_data_status.setText("历史导入失败")
+                self._show_modal_dialog(
+                    title="导入历史数据失败",
+                    message=str(exc),
+                    buttons=(("确定", "ok", "center"),),
+                    default_action="ok",
+                    width=560,
+                    height=220,
+                )
+                self._sync_substep_list(self._current_step_view)
+                return
+            if not summary:
+                self._history_data_summary = {}
+                self._curve_quality_cache.clear()
+                self._manual_curve_judgments.clear()
+                self.btn_generate_resume_results.setEnabled(False)
+                self.history_data_status.setText("未找到历史数据")
+                self._show_modal_dialog(
+                    title="未找到历史数据",
+                    message="所选目录中没有找到当前校准项可用的历史 session 或旧版输出文件。",
+                    buttons=(("确定", "ok", "center"),),
+                    default_action="ok",
+                    width=560,
+                    height=220,
+                )
+                self._sync_substep_list(self._current_step_view)
+                return
+            self._history_data_summary = summary
+            self._curve_quality_cache.clear()
+            self._load_manual_curve_judgments(summary)
+            self.btn_generate_resume_results.setEnabled(True)
+            self.result_workspace_input.setText(str(root))
+            status = self._format_history_import_status(summary)
+            self.history_data_status.setText(status)
+            self.history_data_status.setToolTip(self._format_history_import_tooltip(summary))
+            self._sync_item_list()
+            self._sync_step_list_colored()
+            self._sync_substep_list(self._current_step_view)
+            detail_step = self._step_view_for_substep_row(self.substep_list.currentRow())
+            if detail_step is not None:
+                self._sync_saved_step_curve(detail_step, activate=False)
+            self._show_modal_dialog(
+                title="导入历史数据完成",
+                message=f"{status}\n完整信息可在状态文本悬停查看。",
+                buttons=(("确定", "ok", "center"),),
+                default_action="ok",
+                width=560,
+                height=220,
+            )
+
+        def _history_summary_from_path(self, root: Path) -> dict[str, object]:
+            item = vm.selected_item
+            item_id = item.id if item is not None else None
+            if (root / "session_manifest.json").exists():
+                return load_session_summary_from_manifest(root / "session_manifest.json")
+            if root.name.lower() == "latest" and item_id:
+                return load_latest_summary_from_index(root / f"{item_id}.json")
+            if (root / "workspace.json").exists() or (root / "projects").exists():
+                self._load_catalog_snapshot_from_workspace(root)
+                summaries = list_session_summaries_from_workspace_root(workspace_root=root, item_id=item_id)
+                return summaries[0] if summaries else {}
+            if self._looks_like_legacy_output_root(root):
+                return load_legacy_output_summary(root, item_id=item_id)
+            summaries = list_session_summaries_from_workspace_root(workspace_root=root, item_id=item_id)
+            if summaries:
+                return summaries[0]
+            return {}
+
+        @staticmethod
+        def _format_history_import_status(summary: dict[str, object]) -> str:
+            session_id = str(summary.get("session_id") or "历史数据")
+            state = str(summary.get("state") or "-")
+            raw_count = len(summary.get("raw_files", ()) or ())
+            finished = str(summary.get("finished_at") or summary.get("started_at") or "").replace("T", " ")
+            if "+" in finished:
+                finished = finished.split("+", 1)[0]
+            time_text = finished.split(" ")[-1] if " " in finished else finished
+            compact_id = session_id[:8] if len(session_id) > 8 else session_id
+            return f"历史: {compact_id} | {state} | raw {raw_count} | {time_text}".strip()
+
+        @staticmethod
+        def _format_history_import_tooltip(summary: dict[str, object]) -> str:
+            session_id = str(summary.get("session_id") or "")
+            state = str(summary.get("state") or "-")
+            raw_count = len(summary.get("raw_files", ()) or ())
+            loss_count = len(summary.get("loss_files", ()) or ())
+            finished = str(summary.get("finished_at") or summary.get("started_at") or "")
+            manifest = str(summary.get("manifest_file") or "")
+            return (
+                f"session: {session_id}\n"
+                f"state: {state}\n"
+                f"raw: {raw_count}, loss/final: {loss_count}\n"
+                f"time: {finished}\n"
+                f"manifest: {manifest}"
+            )
+
+        def _load_catalog_snapshot_from_workspace(self, root: Path) -> None:
+            snapshot_path = workspace_config_snapshot_path(root)
+            if not snapshot_path.exists():
+                return
+            current_path = str(Path(vm.catalog.source_path)) if vm.catalog.source_path else ""
+            if current_path == str(snapshot_path):
+                return
+            try:
+                vm.load_catalog(snapshot_path)
+            except Exception as exc:
+                self.result_curve_status.setText(f"已加载 workspace，但自动导入配置快照失败: {exc}")
+                return
+            self.result_curve_status.setText(f"已加载 workspace，并自动导入配置快照: {snapshot_path}")
+
+        def _legacy_summary_for_selected_item(self) -> dict[str, object]:
+            item = vm.selected_item
+            root = self._result_workspace_root_from_input()
+            if root is None:
+                return {}
+            return load_legacy_output_summary(root, item_id=item.id if item is not None else None)
+
+        @staticmethod
+        def _looks_like_legacy_output_root(root: Path) -> bool:
+            candidate = root.parent if root.name.lower() in {"metadata", "raw", "loss"} else root
+            return (candidate / "metadata").exists() and not (candidate / "projects").exists()
+
         def _open_history_sessions_dir(self) -> None:
             root = self._result_workspace_root_from_input() or self._default_result_workspace_root()
+            if str(self.result_view_combo.currentData() or "") == "legacy":
+                path = root.parent if root.name.lower() in {"metadata", "raw", "loss"} else root
+                if not path.exists():
+                    self.result_curve_status.setText(f"旧版目录不存在: {path}")
+                    return
+                QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+                self.result_curve_status.setText(f"已打开旧版目录: {path}")
+                return
             project_code = self._result_run_context().normalized().project_code
             path = root / "projects" / project_code / "sessions"
             if not path.exists():
@@ -2168,6 +2610,360 @@ def run_gui() -> int:
                 self.result_curve_status.setText(f"导出摘要失败: {exc}")
                 return
             self.result_curve_status.setText(f"已导出摘要: {path}")
+
+        def _show_step_instruction_detail(self) -> None:
+            self.step_detail_stack.setCurrentIndex(0)
+
+        def _sync_saved_step_curve(self, step: StepViewData, *, activate: bool = True) -> None:
+            if activate:
+                self.step_detail_stack.setCurrentIndex(1)
+            self._current_curve_step_key = self._step_key(step)
+            path = self._curve_path_for_step(step)
+            self._saved_curve_path = path
+            if path is None:
+                self._clear_saved_step_curve(f"STEP{step.substep_index}. {_friendly_text(step.substep_name)} 暂无可预览曲线。")
+                return
+            try:
+                curve_data = self._load_csv_curve_data(path)
+            except Exception as exc:
+                self._clear_saved_step_curve(f"读取步骤曲线失败: {exc}")
+                return
+            self._saved_curve_data = curve_data
+            self.saved_curve_column.blockSignals(True)
+            self.saved_curve_column.clear()
+            self.saved_curve_column.addItems(tuple(curve_data.keys()))
+            self.saved_curve_column.setEnabled(bool(curve_data))
+            self.btn_saved_curve_autorange.setEnabled(bool(curve_data) and pg is not None)
+            self.saved_curve_column.blockSignals(False)
+            self._sync_manual_curve_judgment_combo(step, enabled=bool(curve_data))
+            self.btn_use_history_curve.setEnabled(bool(curve_data) and self._history_curve_path_for_step(step) is not None)
+            self.btn_retest_substep.setEnabled(bool(step.substep_id))
+            if curve_data:
+                self._plot_saved_step_curve()
+            else:
+                self._clear_saved_step_curve(f"{path.name} 没有可绘制的 dB 数据列。")
+
+        def _sync_manual_curve_judgment_combo(self, step: StepViewData, *, enabled: bool) -> None:
+            judgment = self._manual_curve_judgments.get(self._step_key(step), "")
+            self.manual_curve_judgment_combo.blockSignals(True)
+            self.manual_curve_judgment_combo.setEnabled(enabled)
+            target_index = max(0, self.manual_curve_judgment_combo.findData(judgment))
+            self.manual_curve_judgment_combo.setCurrentIndex(target_index)
+            self.manual_curve_judgment_combo.blockSignals(False)
+
+        @staticmethod
+        def _saved_curve_path_for_step(step: StepViewData) -> Path | None:
+            for raw_path in step.saved_files:
+                path = Path(raw_path)
+                if path.suffix.lower() == ".csv" and path.exists():
+                    return path
+            return None
+
+        def _curve_path_for_step(self, step: StepViewData) -> Path | None:
+            return self._saved_curve_path_for_step(step) or self._history_curve_path_for_step(step)
+
+        def _history_curve_path_for_step(self, step: StepViewData) -> Path | None:
+            return self._history_curve_path_for_ids(step.item_id, step.step_id, step.substep_id)
+
+        def _history_curve_path_for_ids(self, item_id: str, step_id: str, substep_id: str) -> Path | None:
+            if not self._history_data_summary:
+                return None
+            expected_name = f"{item_id}_{step_id}_{self._safe_measurement_token(substep_id)}.csv"
+            for raw_path in self._history_file_candidates("raw_files"):
+                if raw_path.name == expected_name:
+                    return raw_path
+            return None
+
+        def _history_curve_quality_for_ids(self, item_id: str, step_id: str, substep_id: str) -> CurveQuality | None:
+            path = self._history_curve_path_for_ids(item_id, step_id, substep_id)
+            if path is None:
+                return None
+            return self._curve_quality(path)
+
+        def _curve_quality(self, path: Path) -> CurveQuality:
+            key = str(path)
+            quality = self._curve_quality_cache.get(key)
+            if quality is None:
+                quality = analyze_curve_csv(path)
+                self._curve_quality_cache[key] = quality
+            return quality
+
+        @staticmethod
+        def _history_quality_prefix(quality: CurveQuality) -> str:
+            if quality.state == "OK":
+                return "已有历史"
+            if quality.state == "SUSPECT":
+                return "历史可疑"
+            if quality.state == "NO_CURVE":
+                return "无曲线"
+            return "曲线异常"
+
+        def _history_quality_detail_text(self, item_id: str, step_id: str, substep_id: str) -> str:
+            quality = self._history_curve_quality_for_ids(item_id, step_id, substep_id)
+            if quality is None:
+                return ""
+            judgment = self._manual_curve_judgment_for_ids(item_id, step_id, substep_id)
+            if judgment:
+                return f"{quality.label} · {self._manual_curve_judgment_text(judgment)} · {quality.point_count}点"
+            action = "待读取后人工判断" if quality.is_usable else "需重测或重新导入"
+            return f"{quality.label} · {action} · {quality.point_count}点"
+
+        def _step_key_for_ids(self, item_id: str, step_id: str, substep_id: str) -> str:
+            return f"{item_id}:{step_id}:{substep_id}"
+
+        def _step_key(self, step: StepViewData) -> str:
+            return self._step_key_for_ids(step.item_id, step.step_id, step.substep_id)
+
+        def _manual_curve_judgment_for_ids(self, item_id: str, step_id: str, substep_id: str) -> str:
+            return self._manual_curve_judgments.get(self._step_key_for_ids(item_id, step_id, substep_id), "")
+
+        @staticmethod
+        def _manual_curve_judgment_text(judgment: str) -> str:
+            return {
+                "accept": "人工判定正常，可沿用",
+                "retest": "人工判定异常，需重测",
+            }.get(judgment, "未判定")
+
+        @staticmethod
+        def _manual_curve_judgment_prefix(judgment: str) -> str:
+            return {
+                "accept": "人工正常",
+                "retest": "需重测",
+            }.get(judgment, "未判定")
+
+        def _on_manual_curve_judgment_changed(self) -> None:
+            if not self._current_curve_step_key:
+                return
+            judgment = str(self.manual_curve_judgment_combo.currentData() or "")
+            if judgment:
+                self._manual_curve_judgments[self._current_curve_step_key] = judgment
+            else:
+                self._manual_curve_judgments.pop(self._current_curve_step_key, None)
+            self._save_manual_curve_judgments()
+            self._sync_item_list()
+            self._sync_step_list_colored()
+            self._sync_substep_list(self._current_step_view)
+
+        def _resume_decision_path(self, summary: dict[str, object] | None = None) -> Path | None:
+            source = summary or self._history_data_summary
+            if not source:
+                return None
+            item_id = str(source.get("item_id") or (vm.selected_item.id if vm.selected_item is not None else "")).strip()
+            source_id = str(source.get("session_id") or source.get("latest_session_id") or "history").strip()
+            if not item_id:
+                return None
+            workspace = workspace_for_catalog(vm.catalog)
+            project_code = self._result_run_context().normalized().project_code
+            name = f"{self._safe_measurement_token(item_id)}_{self._safe_measurement_token(source_id)}.json"
+            return workspace.workspace_root / "projects" / project_code / "resume_decisions" / name
+
+        def _load_manual_curve_judgments(self, summary: dict[str, object]) -> None:
+            self._manual_curve_judgments.clear()
+            path = self._resume_decision_path(summary)
+            if path is None or not path.exists():
+                return
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except Exception:
+                return
+            judgments = payload.get("judgments", {}) if isinstance(payload, dict) else {}
+            if isinstance(judgments, dict):
+                self._manual_curve_judgments.update(
+                    {
+                        str(key): str(value)
+                        for key, value in judgments.items()
+                        if str(value) in {"accept", "retest"}
+                    }
+                )
+
+        def _save_manual_curve_judgments(self) -> None:
+            path = self._resume_decision_path()
+            if path is None:
+                return
+            path.parent.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "schema_version": "catr-resume-decisions.v1",
+                "updated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+                "source": {
+                    "workspace_root": str(self._history_data_summary.get("workspace_root") or ""),
+                    "session_id": str(self._history_data_summary.get("session_id") or ""),
+                    "manifest_file": str(self._history_data_summary.get("manifest_file") or ""),
+                    "item_id": str(self._history_data_summary.get("item_id") or ""),
+                },
+                "judgments": dict(sorted(self._manual_curve_judgments.items())),
+            }
+            path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        def _history_file_candidates(self, key: str) -> tuple[Path, ...]:
+            paths: list[Path] = []
+            session_root = Path(str(self._history_data_summary.get("session_root") or ""))
+            workspace_root = Path(str(self._history_data_summary.get("workspace_root") or ""))
+            for raw_path in self._history_data_summary.get(key, ()) or ():
+                path = Path(str(raw_path))
+                if not path.is_absolute():
+                    candidates = [path]
+                    if session_root:
+                        candidates.append(session_root / path)
+                    if workspace_root:
+                        candidates.append(workspace_root / path)
+                    path = next((candidate for candidate in candidates if candidate.exists()), candidates[0])
+                if path.suffix.lower() == ".csv" and path.exists():
+                    paths.append(path)
+            return tuple(paths)
+
+        @staticmethod
+        def _safe_measurement_token(value: str) -> str:
+            return "".join(char if char.isalnum() or char in {"-", "_"} else "_" for char in value.strip()) or "MEAS"
+
+        def _plot_saved_step_curve(self, *_args: Any) -> None:
+            column = self.saved_curve_column.currentText()
+            if not column or column not in self._saved_curve_data:
+                return
+            x_values, y_values = self._saved_curve_data[column]
+            path = self._saved_curve_path or Path("saved_curve.csv")
+            quality = self._curve_quality(path) if path.exists() else None
+            quality_text = f"读取状态: {quality.label}; {quality.reason}" if quality is not None else "读取状态: 未知"
+            judgment_text = self._manual_curve_judgment_text(self._manual_curve_judgments.get(self._current_curve_step_key, ""))
+            self.saved_curve_status.setText(
+                f"{path.name} | {column} | {len(x_values)} 点\n{quality_text}\n人工判断: {judgment_text}"
+            )
+            if pg is None:
+                self.saved_curve_plot.setPlainText(
+                    f"{path.name}\n{column}\n点数: {len(x_values)}\n"
+                    f"X(GHz): {x_values[0]:.6g} ... {x_values[-1]:.6g}\n"
+                    f"Y(dB): {np.nanmin(y_values):.3f} ... {np.nanmax(y_values):.3f}"
+                )
+                return
+            self.saved_curve_plot.clear()
+            self.saved_curve_plot.plot(x_values, y_values, pen=pg.mkPen("#2f6f9f", width=2), name=column)
+            self.saved_curve_plot.setTitle(f"{path.name} - {column}")
+            self.saved_curve_plot.enableAutoRange(axis="xy", enable=True)
+
+        def _autorange_saved_step_curve(self, *_args: Any) -> None:
+            if not self._saved_curve_data:
+                self.saved_curve_status.setText("当前没有可自适应的保存曲线。")
+                return
+            if pg is None:
+                self.saved_curve_status.setText("未安装 pyqtgraph，无法执行曲线自适应。")
+                return
+            self.saved_curve_plot.enableAutoRange(axis="xy", enable=True)
+            self.saved_curve_plot.autoRange(padding=0.08)
+
+        def _clear_saved_step_curve(self, message: str) -> None:
+            self._saved_curve_data = {}
+            self._saved_curve_path = None
+            self.saved_curve_column.blockSignals(True)
+            self.saved_curve_column.clear()
+            self.saved_curve_column.setEnabled(False)
+            self.saved_curve_column.blockSignals(False)
+            self.manual_curve_judgment_combo.blockSignals(True)
+            self.manual_curve_judgment_combo.setCurrentIndex(0)
+            self.manual_curve_judgment_combo.setEnabled(False)
+            self.manual_curve_judgment_combo.blockSignals(False)
+            self.btn_use_history_curve.setEnabled(False)
+            self.btn_retest_substep.setEnabled(bool(self._current_curve_step_key))
+            self.btn_saved_curve_autorange.setEnabled(False)
+            self.saved_curve_status.setText(message)
+            if pg is None:
+                self.saved_curve_plot.setPlainText(message)
+            else:
+                self.saved_curve_plot.clear()
+
+        def _use_selected_history_curve(self) -> None:
+            detail_step = self._step_view_for_substep_row(self.substep_list.currentRow())
+            if detail_step is None:
+                self.saved_curve_status.setText("请先选择一个细分步骤。")
+                return
+            if self._history_curve_path_for_step(detail_step) is None:
+                self.saved_curve_status.setText("当前细分步骤没有可沿用的历史曲线。")
+                return
+            index = self.manual_curve_judgment_combo.findData("accept")
+            if index >= 0:
+                self.manual_curve_judgment_combo.setCurrentIndex(index)
+            self.saved_curve_status.setText(
+                f"已标记沿用历史数据: STEP{detail_step.substep_index}. {_friendly_text(detail_step.substep_name)}"
+            )
+            self._sync_substep_list(self._current_step_view)
+
+        def _retest_selected_substep(self) -> None:
+            detail_step = self._step_view_for_substep_row(self.substep_list.currentRow())
+            if detail_step is None:
+                self.saved_curve_status.setText("请先选择一个细分步骤。")
+                return
+            try:
+                summary = vm.run_single_substep(detail_step.step_id, detail_step.substep_id, self._vna_run_settings())
+            except Exception as exc:
+                self._show_modal_dialog(
+                    title="重测当前细分步骤失败",
+                    message=str(exc),
+                    buttons=(("确定", "ok", "center"),),
+                    default_action="ok",
+                    width=560,
+                    height=220,
+                )
+                return
+            self._history_data_summary = self._merged_history_summary_with_current(summary)
+            self._curve_quality_cache.clear()
+            self._manual_curve_judgments.pop(self._step_key(detail_step), None)
+            self._save_manual_curve_judgments()
+            self._sync_substep_list(self._current_step_view)
+            self._sync_item_list()
+            self._sync_step_list_colored()
+            refreshed_step = self._step_view_for_substep_row(self.substep_list.currentRow()) or detail_step
+            self._sync_saved_step_curve(refreshed_step)
+            self._sync_overview()
+
+        def _generate_resume_results(self) -> None:
+            if not self._history_data_summary:
+                self.saved_curve_status.setText("请先导入历史数据。")
+                return
+            try:
+                summary = vm.generate_resume_results(
+                    self._history_data_summary,
+                    self._manual_curve_judgments,
+                    self._vna_run_settings(),
+                )
+            except Exception as exc:
+                self._show_modal_dialog(
+                    title="生成/更新结果失败",
+                    message=str(exc),
+                    buttons=(("确定", "ok", "center"),),
+                    default_action="ok",
+                    width=560,
+                    height=220,
+                )
+                return
+            self._history_data_summary = self._merged_history_summary_with_current(summary)
+            self._curve_quality_cache.clear()
+            state = str(summary.get("state") or "")
+            self.history_data_status.setText(f"续测结果: {state}")
+            self.saved_curve_status.setText(
+                f"续测结果已生成: {state}\n"
+                f"raw: {len(summary.get('raw_files', ()) or ())}; "
+                f"final/loss: {len(summary.get('loss_files', ()) or ())}"
+            )
+            self._sync_substep_list(self._current_step_view)
+            self._sync_item_list()
+            self._sync_step_list_colored()
+            self._sync_overview()
+            self.tabs.setCurrentWidget(self.result_page)
+
+        def _merged_history_summary_with_current(self, current_summary: dict[str, object]) -> dict[str, object]:
+            if not self._history_data_summary:
+                return current_summary
+            merged = dict(self._history_data_summary)
+            for key in ("raw_files", "loss_files", "metadata_files"):
+                current_paths = tuple(str(path) for path in current_summary.get(key, ()) or ())
+                old_paths = tuple(str(path) for path in self._history_data_summary.get(key, ()) or ())
+                current_names = {Path(path).name for path in current_paths}
+                merged[key] = (*current_paths, *(path for path in old_paths if Path(path).name not in current_names))
+            merged["state"] = "RESUME_MIXED"
+            merged["last_event"] = str(current_summary.get("last_event") or "single_substep_retest")
+            merged["latest_retest_session_id"] = str(current_summary.get("session_id") or "")
+            old_retested = {str(key) for key in self._history_data_summary.get("current_retested_substep_ids", ()) or ()}
+            new_retested = {str(key) for key in current_summary.get("completed_substep_ids", ()) or ()}
+            merged["current_retested_substep_ids"] = tuple(sorted(old_retested | new_retested))
+            return merged
 
         def _sync_result_curve(self, *_args: Any) -> None:
             path_text = self._selected_result_path()
@@ -2374,9 +3170,7 @@ def run_gui() -> int:
             horn_gain_file = str(entry.get("horn_gain_file", "")).strip()
             if not horn_gain_file:
                 return
-            path = Path(horn_gain_file)
-            if not path.is_absolute() and vm.catalog.source_path:
-                path = Path(vm.catalog.source_path).parent / path
+            path = resolve_data_file(horn_gain_file, source_path=vm.catalog.source_path)
             self.horn_gain_file_input.setText(str(path.resolve()))
 
         def _selected_band_entry(self) -> dict[str, Any]:
@@ -2553,6 +3347,9 @@ def run_gui() -> int:
         def _finish_modal_dialog(self, dialog: QDialog, selected_action: dict[str, str], action: str) -> None:
             selected_action["value"] = action
             dialog.accept()
+
+        def _confirm_start_button(self) -> None:
+            self._confirm_start_calibration(recalibrate=bool(self.btn_start.property("recalibrateAction")))
 
         def _confirm_start_calibration(self, recalibrate: bool = False) -> None:
             item = vm.selected_item
@@ -2743,13 +3540,18 @@ def run_gui() -> int:
                 button_state = "idle"
             else:
                 button_state = "running"
-            _style_button(self.btn_start, role="primary", state=button_state)
-            _style_button(self.btn_recalibrate, role="warning", state=button_state)
-            can_start = button_state == "idle" and item_state != "done" and selected_item is not None
-            can_recalibrate = button_state in {"done", "error"} and selected_item is not None
-            self.btn_start.setEnabled(can_start)
-            self.btn_recalibrate.setEnabled(can_recalibrate)
-            self.btn_recalibrate.setVisible(item_state == "done" or button_state == "error")
+            is_recalibrate = button_state in {"done", "error"} and selected_item is not None
+            if button_state == "running":
+                text = "校准中"
+            elif is_recalibrate:
+                text = "重新校准"
+            else:
+                text = "开始校准"
+            self.btn_start.setText(text)
+            self.btn_start.setProperty("recalibrateAction", is_recalibrate)
+            _style_button(self.btn_start, role="warning" if is_recalibrate else "primary", state=button_state)
+            can_click = selected_item is not None and (button_state == "idle" or is_recalibrate)
+            self.btn_start.setEnabled(can_click)
 
         def _fill_preset(self, panel: DeviceCommandPanel) -> None:
             panel.command_input.setText(panel.selected_command())
@@ -2986,18 +3788,25 @@ def run_gui() -> int:
         window._sync_device_connection_panels()
         window._sync_logs()
         window._sync_start_button_state("READY")
-        initial_button_ok = window.btn_start.isEnabled() and window.btn_recalibrate.isHidden()
+        initial_button_ok = window.btn_start.isEnabled() and window.btn_start.text() == "开始校准" and not bool(window.btn_start.property("recalibrateAction"))
         window._sync_start_button_state("WAIT_MANUAL_CONFIRM")
-        running_button_ok = not window.btn_start.isEnabled() and not window.btn_recalibrate.isEnabled()
+        running_button_ok = not window.btn_start.isEnabled() and window.btn_start.text() == "校准中"
         run_summary: dict[str, object] = {}
         latest_result_rows_ok = False
         latest_result_detail_ok = False
         history_result_rows_ok = False
         history_result_detail_ok = False
+        legacy_result_rows_ok = False
+        legacy_result_detail_ok = False
+        history_import_button_ok = False
+        step_detail_tabs_ok = False
+        history_curve_preview_ok = False
+        history_item_step_color_ok = False
         if vm.selected_item is not None:
             with TemporaryDirectory() as tmpdir:
                 window.project_code_input.setText("SMOKE_PROJECT")
                 workspace = workspace_for_catalog(vm.catalog, Path(tmpdir))
+                write_workspace_manifest(workspace, vm.catalog)
                 session = create_session_context(
                     workspace=workspace,
                     run=CalibrationRunContext(
@@ -3033,6 +3842,50 @@ def run_gui() -> int:
                 window._sync_overview()
                 history_result_rows_ok = window.result_file_table.rowCount() >= 4
                 history_result_detail_ok = "session_id:" in window.result_session.toPlainText()
+                history_import_button_ok = window.btn_import_history_data.text() == "导入历史数据"
+                step_detail_tabs_ok = (
+                    window.step_detail_stack.count() == 2
+                    and window.step_detail_stack.tabText(0) == "链路说明"
+                    and window.step_detail_stack.tabText(1) == "数据展示"
+                )
+                window._history_data_summary = load_session_summary_from_manifest(session.session_root / "session_manifest.json")
+                window.step_list.setCurrentRow(0)
+                window._sync_item_list()
+                window._sync_step_list_colored()
+                window._sync_substep_list()
+                item_tooltip = window.item_list.item(window.item_list.currentRow()).toolTip()
+                step_tooltip = window.step_list.item(0).toolTip()
+                history_item_step_color_ok = item_tooltip in {"已有历史", "已完成"} and step_tooltip in {"已有历史", "已完成"}
+                history_detail_step = window._step_view_for_substep_row(0)
+                history_curve_path = window._history_curve_path_for_step(history_detail_step) if history_detail_step else None
+                if history_detail_step is not None and history_curve_path is not None:
+                    window._sync_saved_step_curve(history_detail_step, activate=False)
+                    history_curve_preview_ok = bool(window._saved_curve_data)
+                legacy_root = Path(tmpdir) / "legacy_output"
+                legacy_raw = legacy_root / "raw" / "LINK-CAL-001_LEGACY_RAW.csv"
+                legacy_loss = legacy_root / "loss" / "L_LEGACY_10_15G_F10_17G_H10_15G.csv"
+                legacy_metadata = legacy_root / "metadata" / "LINK-CAL-001_LEGACY.json"
+                legacy_raw.parent.mkdir(parents=True, exist_ok=True)
+                legacy_loss.parent.mkdir(parents=True, exist_ok=True)
+                legacy_metadata.parent.mkdir(parents=True, exist_ok=True)
+                legacy_raw.write_text("freq_hz,raw_s21_db\n10000000000,-1\n", encoding="utf-8")
+                legacy_loss.write_text("freq_hz,value_db\n10000000000,-2\n", encoding="utf-8")
+                legacy_metadata.write_text(
+                    json.dumps(
+                        {
+                            "calibration_item": vm.selected_item.id,
+                            "input_files": [str(legacy_raw)],
+                            "output_files": [str(legacy_loss)],
+                        },
+                        ensure_ascii=False,
+                    ),
+                    encoding="utf-8",
+                )
+                window.result_workspace_input.setText(str(legacy_root))
+                window.result_view_combo.setCurrentIndex(3)
+                window._sync_overview()
+                legacy_result_rows_ok = window.result_file_table.rowCount() >= 3
+                legacy_result_detail_ok = "UNBOUND_LEGACY" in window.result_session.toPlainText()
                 window.result_view_combo.setCurrentIndex(0)
                 window._sync_overview()
         app.processEvents()
@@ -3063,13 +3916,17 @@ def run_gui() -> int:
             "latest_result_detail": latest_result_detail_ok,
             "history_result_rows": history_result_rows_ok,
             "history_result_detail": history_result_detail_ok,
+            "legacy_result_rows": legacy_result_rows_ok,
+            "legacy_result_detail": legacy_result_detail_ok,
+            "history_import_button": history_import_button_ok,
+            "step_detail_tabs": step_detail_tabs_ok,
+            "history_curve_preview": history_curve_preview_ok,
+            "history_item_step_color": history_item_step_color_ok,
             "session_detail": "workspace_id:" in window.result_session.toPlainText(),
             "completed_status": vm.overview.get("status") == "Calibration completed",
             "initial_buttons": initial_button_ok,
             "running_buttons": running_button_ok,
-            "done_start_disabled": not window.btn_start.isEnabled(),
-            "done_recalibrate_visible": not window.btn_recalibrate.isHidden(),
-            "done_recalibrate_enabled": window.btn_recalibrate.isEnabled(),
+            "done_recalibrate_button": window.btn_start.isEnabled() and window.btn_start.text() == "重新校准" and bool(window.btn_start.property("recalibrateAction")),
             "signal_generator_settings": sg_panel.signal_generator_settings_group is not None and sg_panel.signal_generator_settings_group.isEnabled(),
             "spectrum_analyzer_settings": sa_panel.spectrum_analyzer_settings_group is not None and sa_panel.spectrum_analyzer_settings_group.isEnabled(),
             "device_panel_group_titles": grouped_panel_titles_ok,

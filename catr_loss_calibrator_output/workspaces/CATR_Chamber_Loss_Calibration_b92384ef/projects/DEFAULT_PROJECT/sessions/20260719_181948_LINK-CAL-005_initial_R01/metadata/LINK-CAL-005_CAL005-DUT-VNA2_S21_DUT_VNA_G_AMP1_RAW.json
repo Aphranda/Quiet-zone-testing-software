@@ -1,0 +1,46 @@
+{
+  "session_id": "20260719_181948_LINK-CAL-005_initial_R01",
+  "project_name": "CATR Loss Calibrator",
+  "project_version": "0.1.0",
+  "calibration_item": "LINK-CAL-005",
+  "calibration_step": "CAL005-DUT-VNA2_S21_DUT_VNA_G_AMP1_RAW",
+  "instrument_snapshot": {
+    "vna": "MockVna"
+  },
+  "link_commands": [
+    "CONFigure:LINK DUT, AMP1, VNA2"
+  ],
+  "manual_confirmation": true,
+  "input_files": [
+    "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b92384ef\\projects\\DEFAULT_PROJECT\\sessions\\20260719_181948_LINK-CAL-005_initial_R01\\raw\\LINK-CAL-005_CAL005-DUT-VNA2_S21_DUT_VNA_G_AMP1_RAW.csv"
+  ],
+  "input_hashes": [
+    "b8eb6f54c48c42ab1e64e6c065cdfd1a8438b1f566f96b1f5894217daed592e1"
+  ],
+  "input_roles": [
+    "raw_s21"
+  ],
+  "output_files": [
+    "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b92384ef\\projects\\DEFAULT_PROJECT\\sessions\\20260719_181948_LINK-CAL-005_initial_R01\\loss\\L_DUT_VNA_G_AMP1_10_15G_F10_17G_H10_15G.csv"
+  ],
+  "output_hashes": [
+    "65f771c4508c3c90338a175e4b26f77b1cf8e92a8de1201fbcd60ce71f9bad27"
+  ],
+  "output_roles": [
+    "final"
+  ],
+  "run_uid": "d30eecdd-6b92-418d-af72-edc5117c0ad0",
+  "workspace_id": "CATR_Chamber_Loss_Calibration_b92384ef",
+  "workspace_root": "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b92384ef",
+  "session_root": "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b92384ef\\projects\\DEFAULT_PROJECT\\sessions\\20260719_181948_LINK-CAL-005_initial_R01",
+  "config_hash": "b92384ef7665bfdf14efeeb80faf9970c284ec6c1d321933a264dd23469a439d",
+  "config_source_path": "D:\\OneDrive\\4.Code\\SWTEST\\TEST\\catr_loss_calibrator\\src\\catr_loss_calibrator\\calibration\\configs\\catr_chamber_loss_calibration.json",
+  "project_code": "DEFAULT_PROJECT",
+  "calibration_stage": "initial",
+  "run_label": "R01",
+  "operator": "",
+  "operator_note": "",
+  "formula_version": "v1",
+  "profile_version": "lcd74000f:v1",
+  "note": "mock-runner:S21_DUT_VNA_G_AMP1_RAW"
+}

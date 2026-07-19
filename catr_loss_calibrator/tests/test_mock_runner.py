@@ -11,6 +11,7 @@ from catr_loss_calibrator.calibration.definitions import default_calibration_cat
 from catr_loss_calibrator.calibration.mock_runner import MockCalibrationRunner
 from catr_loss_calibrator.calibration.recovery import CalibrationRunError
 from catr_loss_calibrator.calibration.state_machine import CalibrationState, CalibrationStateMachine
+from catr_loss_calibrator.hardware.interfaces import SParameterTrace
 from catr_loss_calibrator.hardware.mock import MockLinkBox, MockVna
 from catr_loss_calibrator.storage.loss_file_policy import LossFilePolicy
 from catr_loss_calibrator.storage.workspace import (
@@ -31,6 +32,22 @@ class TimeoutLinkBox(MockLinkBox):
 class TimeoutReadVna(MockVna):
     def read_s_parameter(self, parameter: str = "S21"):
         raise TimeoutError("VNA sweep timed out.")
+
+
+class ChangingReadVna(MockVna):
+    def __init__(self, values: tuple[float, ...]) -> None:
+        super().__init__()
+        self._values = list(values)
+
+    def read_s_parameter(self, parameter: str = "S21"):
+        value = self._values.pop(0) if self._values else -99.0
+        frequency = np.linspace(self._start_hz, self._stop_hz, self._points)
+        return SParameterTrace(
+            frequency_hz=frequency,
+            value_db=np.full(self._points, value, dtype=float),
+            phase_deg=np.zeros(self._points),
+            parameter=parameter.upper(),
+        )
 
 
 def test_state_machine_enforces_order() -> None:
@@ -538,6 +555,32 @@ def test_saved_prompt_retry_repeats_current_substep() -> None:
     ]
     assert "retry:CAL001-AUX:AUX-A" in events
     assert sum(1 for event in events if event.startswith("raw:LINK-CAL-001_CAL001-AUX_AUX-A")) == 2
+
+
+def test_saved_prompt_retry_recomputes_final_loss_from_new_raw() -> None:
+    item = default_calibration_catalog().get("LINK-CAL-001")
+    actions = iter(["continue", "retry", "continue", "cancel"])
+
+    def confirm(step, substep, phase, index, total, substep_index, substep_total):
+        _ = step, substep, phase, index, total, substep_index, substep_total
+        return next(actions)
+
+    with TemporaryDirectory() as tmpdir:
+        runner = MockCalibrationRunner(
+            item,
+            ChangingReadVna(values=(-1.0, -11.0)),
+            MockLinkBox(),
+            Path(tmpdir),
+            confirm_step=confirm,
+            vna_settings={"points": 3},
+        )
+        runner.link_box.connect()
+        runner.vna.connect()
+        runner.run()
+        loss_path = Path(tmpdir) / "loss" / "L_AUX_A_10_15G_F10_17G_H10_15G.csv"
+        rows = loss_path.read_text(encoding="utf-8-sig").splitlines()
+
+    assert rows[1].split(",")[1] == "11"
 
 
 def test_saved_prompt_next_skips_without_double_counting_substep() -> None:

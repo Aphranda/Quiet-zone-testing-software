@@ -11,11 +11,13 @@ import pytest
 pytest.importorskip("PySide6")
 
 
-def test_gui_smoke_starts_main_window_and_loads_default_catalog() -> None:
+def test_gui_smoke_starts_main_window_and_loads_default_catalog(tmp_path: Path) -> None:
     project_root = Path(__file__).resolve().parents[1]
     env = dict(os.environ)
     env["PYTHONPATH"] = str(project_root / "src")
     env["QT_QPA_PLATFORM"] = "offscreen"
+    env["CATR_LOSS_CALIBRATOR_HOME"] = str(tmp_path / "appdata")
+    env["CATR_LOSS_CALIBRATOR_OUTPUT"] = str(tmp_path / "calibrations")
 
     result = subprocess.run(
         [sys.executable, "-m", "catr_loss_calibrator", "--gui-smoke"],

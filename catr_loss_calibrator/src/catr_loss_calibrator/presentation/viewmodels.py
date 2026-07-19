@@ -1,30 +1,37 @@
 from __future__ import annotations
 
 import threading
+import csv
 from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
+import numpy as np
 from PySide6.QtCore import QObject, QThread, Signal
 
 from catr_loss_calibrator.calibration.config_loader import load_calibration_catalog
-from catr_loss_calibrator.calibration.definitions import default_calibration_catalog
 from catr_loss_calibrator.calibration.models import CalibrationCatalog, CalibrationStep, CalibrationSubStep
 from catr_loss_calibrator.calibration.mock_runner import MockCalibrationRunner
+from catr_loss_calibrator.calibration.state_machine import CalibrationState
 from catr_loss_calibrator.hardware.mock import MockLinkBox, MockScpiInstrument, MockVna
 from catr_loss_calibrator.hardware.link_box.lcd74000f import Lcd74000fLinkBox
 from catr_loss_calibrator.hardware.scpi import PyVisaScpiInstrument
 from catr_loss_calibrator.hardware.vna.pyvisa_vna import PyVisaVna
 from catr_loss_calibrator.instrument_management.models import InstrumentConnectionConfig
 from catr_loss_calibrator.link_management.link_templates import link_command
+from catr_loss_calibrator.runtime_resources import initialize_runtime_files, runtime_default_config_path
 from catr_loss_calibrator.storage.loss_file_policy import LossFilePolicy
 from catr_loss_calibrator.storage.workspace import (
     CalibrationRunContext,
     DEFAULT_OUTPUT_ROOT,
     create_session_context,
+    write_latest_index,
+    write_session_manifest,
+    write_workspace_manifest,
     workspace_for_catalog,
 )
+from catr_loss_calibrator.storage.models import TraceRecord
 
 
 @dataclass(frozen=True)
@@ -54,6 +61,7 @@ class StepViewData:
     item_completed_substeps: int = 0
     path_template: str = ""
     path: dict[str, Any] | None = None
+    saved_files: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -149,6 +157,7 @@ class CalibrationRunWorker(QThread):
             item_completed_substeps=item_completed_substeps,
             path_template=substep.path_template or step.path_template,
             path=substep.path or step.path,
+            saved_files=self._saved_files_for_prompt(step, substep, phase),
         )
         self._active_prompt = prompt
         self.prompt_ready.emit(prompt)
@@ -169,6 +178,29 @@ class CalibrationRunWorker(QThread):
     @property
     def active_prompt(self) -> StepViewData | None:
         return self._active_prompt
+
+    def _saved_files_for_prompt(self, step: CalibrationStep, substep: CalibrationSubStep, phase: str) -> tuple[str, ...]:
+        if phase != "saved":
+            return ()
+        files: list[str] = []
+        output_paths = getattr(self._runner, "_output_paths", {})
+        for parameter in ((substep.final_output,) if substep.final_output else step.final_outputs):
+            path = output_paths.get(parameter) if isinstance(output_paths, dict) else None
+            if path is not None:
+                files.append(str(path))
+        source_step = f"{step.id}_{self._runner._safe_token(substep.id)}"
+        raw_name = f"{self._runner.item.id}_{source_step}.csv"
+        for path in getattr(self._runner, "_raw_paths", ()):
+            if Path(path).name == raw_name:
+                files.append(str(path))
+        seen: set[str] = set()
+        unique: list[str] = []
+        for path in files:
+            key = path.lower()
+            if key not in seen:
+                seen.add(key)
+                unique.append(path)
+        return tuple(unique)
 
     def _handle_runner_event(self, event: str) -> None:
         level, source, name, message = self._log_fields_for_event(event, self._runner.item.name)
@@ -296,7 +328,8 @@ class CalibrationViewModel(QObject):
         return self._command_response
 
     def load_default_catalog(self) -> None:
-        self._replace_catalog(default_calibration_catalog(), "已导入默认链路配置")
+        initialize_runtime_files()
+        self._replace_catalog(load_calibration_catalog(runtime_default_config_path()), "已导入默认链路配置")
 
     def load_catalog(self, path: str | Path) -> None:
         self._replace_catalog(load_calibration_catalog(path), "已导入链路配置")
@@ -545,6 +578,7 @@ class CalibrationViewModel(QObject):
         self._run_status_by_item[item.id] = f"Running {item.id}"
         self._active_run_item_id = item.id
         workspace = workspace_for_catalog(self.catalog, DEFAULT_OUTPUT_ROOT)
+        write_workspace_manifest(workspace, self.catalog)
         run_context = CalibrationRunContext(
             project_code=str(settings.get("project_code") or "DEFAULT_PROJECT"),
             calibration_stage=str(settings.get("calibration_stage") or "initial"),
@@ -580,6 +614,287 @@ class CalibrationViewModel(QObject):
         self._append_log("INFO", "runner", item.name, f"开始执行 {item.id}")
         self.refresh_overview()
         worker.start()
+
+    def run_single_substep(self, step_id: str, substep_id: str, vna_settings: dict[str, Any] | None = None) -> dict[str, object]:
+        settings = dict(vna_settings or {})
+        if self._worker and self._worker.isRunning():
+            raise RuntimeError("校准运行中，不能单独重测细分步骤。")
+        item = self.selected_item
+        if item is None:
+            raise RuntimeError("请先导入链路配置或导入默认配置。")
+        step = next((candidate for candidate in item.steps if candidate.id == step_id), None)
+        if step is None:
+            raise RuntimeError(f"未找到步骤: {step_id}")
+        substep = next((candidate for candidate in self._substeps_for_step(step) if candidate.id == substep_id), None)
+        if substep is None:
+            raise RuntimeError(f"未找到细分步骤: {step_id}/{substep_id}")
+        workspace = workspace_for_catalog(self.catalog, DEFAULT_OUTPUT_ROOT)
+        write_workspace_manifest(workspace, self.catalog)
+        run_context = CalibrationRunContext(
+            project_code=str(settings.get("project_code") or "DEFAULT_PROJECT"),
+            calibration_stage=str(settings.get("calibration_stage") or "initial"),
+            run_label=f"{settings.get('run_label') or 'R01'}_RETEST",
+            operator=str(settings.get("operator") or ""),
+            operator_note=f"single-substep-retest:{step_id}:{substep_id}",
+        )
+        session_context = create_session_context(workspace=workspace, run=run_context, item_id=item.id)
+        runner = MockCalibrationRunner(
+            item=item,
+            vna=self._mock_vna,
+            link_box=self._mock_link_box,
+            output_root=session_context.session_root,
+            vna_settings=settings,
+            feed=str(settings.get("feed") or "F10_17G"),
+            horn=str(settings.get("horn") or "H10_15G"),
+            loss_file_policy=LossFilePolicy.from_band_config(self.catalog.band_config),
+            session_context=session_context,
+        )
+        runner._ensure_ready()
+        runner.state_machine.transition(CalibrationState.WAIT_MANUAL_CONFIRM)
+        self._append_log("INFO", "runner", item.name, f"单独重测细分步骤: {step_id}/{substep_id}")
+        runner._run_substep(step, substep)
+        runner.state_machine.transition(CalibrationState.DONE)
+        runner._record_event(f"single_done:{step_id}:{substep_id}")
+        runner._write_session_manifest()
+        summary = runner.overview()
+        existing = dict(self._run_summaries_by_item.get(item.id, {}))
+        completed = set(str(value) for value in existing.get("completed_substep_ids", ()) or ())
+        completed.add(f"{step_id}:{substep_id}")
+        completed_steps = set(str(value) for value in existing.get("completed_step_ids", ()) or ())
+        if all(f"{step.id}:{candidate.id}" in completed for candidate in self._substeps_for_step(step)):
+            completed_steps.add(step_id)
+        summary["completed_substep_ids"] = tuple(sorted(completed))
+        summary["completed_step_ids"] = tuple(sorted(completed_steps))
+        summary["completed_steps"] = len(completed)
+        summary["completed_big_steps"] = len(completed_steps)
+        summary["active_step_id"] = step_id
+        summary["active_substep_id"] = substep_id
+        self._run_summaries_by_item[item.id] = summary
+        self._run_status_by_item[item.id] = "Single substep retested"
+        self.status_text_update(f"已重测 {step_id}/{substep_id}")
+        self._append_log("INFO", "runner", item.name, f"单独重测完成: {step_id}/{substep_id}")
+        self.refresh_overview()
+        return summary
+
+    def generate_resume_results(
+        self,
+        history_summary: dict[str, object],
+        manual_judgments: dict[str, str],
+        vna_settings: dict[str, Any] | None = None,
+    ) -> dict[str, object]:
+        settings = dict(vna_settings or {})
+        if self._worker and self._worker.isRunning():
+            raise RuntimeError("校准运行中，不能生成续测结果。")
+        item = self.selected_item
+        if item is None:
+            raise RuntimeError("请先导入链路配置或导入默认配置。")
+        workspace = workspace_for_catalog(self.catalog, DEFAULT_OUTPUT_ROOT)
+        write_workspace_manifest(workspace, self.catalog)
+        run_context = CalibrationRunContext(
+            project_code=str(settings.get("project_code") or "DEFAULT_PROJECT"),
+            calibration_stage=str(settings.get("calibration_stage") or "initial"),
+            run_label=f"{settings.get('run_label') or 'R01'}_RESUME",
+            operator=str(settings.get("operator") or ""),
+            operator_note="resume-generate-results",
+        )
+        session_context = create_session_context(workspace=workspace, run=run_context, item_id=item.id)
+        runner = MockCalibrationRunner(
+            item=item,
+            vna=self._mock_vna,
+            link_box=self._mock_link_box,
+            output_root=session_context.session_root,
+            vna_settings=settings,
+            feed=str(settings.get("feed") or "F10_17G"),
+            horn=str(settings.get("horn") or "H10_15G"),
+            loss_file_policy=LossFilePolicy.from_band_config(self.catalog.band_config),
+            session_context=session_context,
+        )
+        raw_by_key = self._resume_raw_paths_by_substep(item, history_summary)
+        current_retested = {str(key) for key in history_summary.get("current_retested_substep_ids", ()) or ()}
+        accepted_keys = {
+            str(key)
+            for key, judgment in manual_judgments.items()
+            if str(judgment) == "accept"
+        } | current_retested
+        required_keys = self._required_substep_keys(item)
+        loaded_keys: set[str] = set()
+        loaded_records: list[TraceRecord] = []
+        reused_files: list[str] = []
+        new_files: list[str] = []
+        invalid_files: list[str] = []
+        substep_status: dict[str, dict[str, object]] = {}
+        for key in sorted(required_keys & accepted_keys):
+            path = raw_by_key.get(key)
+            if path is None:
+                substep_status[key] = {"status": "MISSING", "reason": "未找到 raw CSV"}
+                continue
+            step_id, substep_id = key.split(":", 1)
+            step = next(step for step in item.steps if step.id == step_id)
+            substep = next(substep for substep in self._substeps_for_step(step) if substep.id == substep_id)
+            try:
+                record = self._trace_record_from_csv(path, fallback_parameter=substep.raw_output or step.id, source_step=f"{step_id}_{self._safe_token(substep_id)}")
+            except Exception as exc:
+                invalid_files.append(str(path))
+                substep_status[key] = {"status": "BROKEN_FILE", "reason": str(exc), "raw_file": str(path)}
+                continue
+            runner._records[record.parameter] = record
+            runner._track_path(runner._raw_paths, path)
+            loaded_keys.add(key)
+            loaded_records.append(record)
+            if key in current_retested:
+                new_files.append(str(path))
+                status = "VALID_CURRENT"
+                reason = "本次重测数据"
+            else:
+                reused_files.append(str(path))
+                status = "VALID_HISTORY"
+                reason = "人工判定沿用历史数据"
+            substep_status[key] = {"status": status, "reason": reason, "raw_file": str(path), "parameter": record.parameter}
+        for key in sorted(required_keys - set(substep_status)):
+            if key in raw_by_key:
+                judgment = str(manual_judgments.get(key) or "")
+                substep_status[key] = {
+                    "status": "REJECTED_BY_OPERATOR" if judgment == "retest" else "MISSING",
+                    "reason": "人工判定需重测" if judgment == "retest" else "未人工判定沿用",
+                    "raw_file": str(raw_by_key[key]),
+                }
+            else:
+                substep_status[key] = {"status": "MISSING", "reason": "未找到 raw CSV"}
+        for record in loaded_records:
+            runner._compute_available_outputs("RESUME_RECOMPUTE", record.frequency_hz)
+        state = "RESUMED_DONE" if required_keys and required_keys <= loaded_keys else "PARTIAL"
+        manifest_path = write_session_manifest(
+            session_context,
+            state=state,
+            raw_files=tuple(str(path) for path in runner._raw_paths),
+            loss_files=tuple(str(path) for path in runner._output_paths.values()),
+            metadata_files=tuple(str(path) for path in history_summary.get("metadata_files", ()) or ()),
+            last_event=f"resume_generate:{state}",
+            extra_fields={
+                "resume_source": {
+                    "workspace_root": str(history_summary.get("workspace_root") or ""),
+                    "session_id": str(history_summary.get("session_id") or ""),
+                    "manifest_file": str(history_summary.get("manifest_file") or ""),
+                    "item_id": str(history_summary.get("item_id") or ""),
+                },
+                "substep_status": substep_status,
+                "reused_files": tuple(reused_files),
+                "new_files": tuple(new_files),
+                "invalid_files": tuple(invalid_files),
+            },
+        )
+        latest_path = write_latest_index(session_context, manifest_path) if state == "RESUMED_DONE" else None
+        summary = runner.overview()
+        summary.update(
+            {
+                "state": state,
+                "raw_files": tuple(str(path) for path in runner._raw_paths),
+                "loss_files": tuple(str(path) for path in runner._output_paths.values()),
+                "metadata_files": tuple(str(path) for path in history_summary.get("metadata_files", ()) or ()),
+                "manifest_file": str(manifest_path),
+                "latest_index_file": str(latest_path) if latest_path else "",
+                "completed_substep_ids": tuple(sorted(loaded_keys)),
+                "completed_step_ids": tuple(
+                    step.id
+                    for step in item.steps
+                    if all(f"{step.id}:{substep.id}" in loaded_keys for substep in self._substeps_for_step(step))
+                ),
+                "completed_steps": len(loaded_keys),
+                "completed_big_steps": sum(
+                    1
+                    for step in item.steps
+                    if all(f"{step.id}:{substep.id}" in loaded_keys for substep in self._substeps_for_step(step))
+                ),
+                "resume_source_session_id": str(history_summary.get("session_id") or ""),
+                "resume_source": {
+                    "workspace_root": str(history_summary.get("workspace_root") or ""),
+                    "session_id": str(history_summary.get("session_id") or ""),
+                    "manifest_file": str(history_summary.get("manifest_file") or ""),
+                    "item_id": str(history_summary.get("item_id") or ""),
+                },
+                "substep_status": substep_status,
+                "reused_files": tuple(reused_files),
+                "new_files": tuple(new_files),
+                "invalid_files": tuple(invalid_files),
+            }
+        )
+        self._run_summaries_by_item[item.id] = summary
+        self._run_status_by_item[item.id] = state
+        self.status_text_update(f"续测结果已生成: {state}")
+        self._append_log("INFO", "runner", item.name, f"续测结果已生成: {state}")
+        self.refresh_overview()
+        return summary
+
+    def _required_substep_keys(self, item) -> set[str]:
+        return {
+            f"{step.id}:{substep.id}"
+            for step in item.steps
+            for substep in self._substeps_for_step(step)
+        }
+
+    def _resume_raw_paths_by_substep(self, item, history_summary: dict[str, object]) -> dict[str, Path]:
+        paths: dict[str, Path] = {}
+        for step in item.steps:
+            for substep in self._substeps_for_step(step):
+                expected_name = f"{item.id}_{step.id}_{self._safe_token(substep.id)}.csv"
+                key = f"{step.id}:{substep.id}"
+                for path in self._summary_paths(history_summary, "raw_files"):
+                    if path.name == expected_name:
+                        paths[key] = path
+                        break
+        return paths
+
+    @staticmethod
+    def _summary_paths(summary: dict[str, object], key: str) -> tuple[Path, ...]:
+        session_root = Path(str(summary.get("session_root") or ""))
+        workspace_root = Path(str(summary.get("workspace_root") or ""))
+        result: list[Path] = []
+        for raw_path in summary.get(key, ()) or ():
+            path = Path(str(raw_path))
+            if not path.is_absolute():
+                candidates = [path]
+                if session_root:
+                    candidates.append(session_root / path)
+                if workspace_root:
+                    candidates.append(workspace_root / path)
+                path = next((candidate for candidate in candidates if candidate.exists()), candidates[0])
+            if path.exists():
+                result.append(path)
+        return tuple(result)
+
+    @staticmethod
+    def _trace_record_from_csv(path: Path, *, fallback_parameter: str, source_step: str) -> TraceRecord:
+        with path.open("r", encoding="utf-8-sig", newline="") as handle:
+            reader = csv.DictReader(handle)
+            rows = list(reader)
+            fieldnames = tuple(reader.fieldnames or ())
+        if not fieldnames:
+            raise ValueError(f"{path.name} 没有表头。")
+        lower_to_name = {name.strip().lower(): name for name in fieldnames}
+        freq_column = lower_to_name.get("freq_hz") or lower_to_name.get("frequency_hz") or next(
+            (name for name in fieldnames if "freq" in name.strip().lower()),
+            "",
+        )
+        if not freq_column:
+            raise ValueError(f"{path.name} 未找到频率列。")
+        value_column = lower_to_name.get("value_db") or lower_to_name.get("raw_s21_db") or next(
+            (name for name in fieldnames if name != freq_column and (name.strip().lower().endswith("_db") or "s21" in name.strip().lower())),
+            "",
+        )
+        if not value_column:
+            raise ValueError(f"{path.name} 未找到 dB 曲线列。")
+        frequency_hz = np.asarray([float(str(row.get(freq_column)).strip()) for row in rows], dtype=float)
+        value_db = np.asarray([float(str(row.get(value_column)).strip()) for row in rows], dtype=float)
+        parameter = str(rows[0].get("param") or fallback_parameter).strip() if rows else fallback_parameter
+        output_role = str(rows[0].get("output_role") or "raw_s21").strip() if rows else "raw_s21"
+        return TraceRecord(
+            frequency_hz=frequency_hz,
+            value_db=value_db,
+            parameter=parameter or fallback_parameter,
+            source_cal="resume",
+            source_step=source_step,
+            output_role=output_role,
+        )
 
     def submit_action(self, action: str) -> bool:
         item_name = self.selected_item.name if self.selected_item is not None else "未加载链路配置"
@@ -700,8 +1015,6 @@ class CalibrationViewModel(QObject):
         vbw_hz = float(settings["vbw_hz"])
         reference_level_dbm = float(settings["reference_level_dbm"])
         attenuation_db = float(settings["attenuation_db"])
-        preamp_state = "ON" if bool(settings.get("preamp_enabled", False)) else "OFF"
-        continuous_state = "ON" if bool(settings.get("continuous", False)) else "OFF"
         commands = (
             "INSTrument:SELect SA",
             "CONFigure:SANalyzer",
@@ -712,8 +1025,6 @@ class CalibrationViewModel(QObject):
             f"BANDwidth:VIDeo {vbw_hz:.12g}",
             f"DISPlay:WINDow:TRACe:Y:RLEVel {reference_level_dbm:.12g}",
             f"POWer:ATTenuation {attenuation_db:.12g}",
-            f"POWer:GAIN:STATe {preamp_state}",
-            f"INITiate:CONTinuous {continuous_state}",
         )
         self._send_device_command_sequence("spectrum_analyzer", "spectrum_analyzer", commands)
         response = (
@@ -798,9 +1109,6 @@ class CalibrationViewModel(QObject):
                 "查询 VBW": "BANDwidth:VIDeo?",
                 "设置参考电平": "DISPlay:WINDow:TRACe:Y:RLEVel 0dBm",
                 "设置衰减": "POWer:ATTenuation 10",
-                "打开前置放大": "POWer:GAIN:STATe ON",
-                "关闭前置放大": "POWer:GAIN:STATe OFF",
-                "关闭连续测量": "INITiate:CONTinuous OFF",
                 "立即测量": "INITiate:IMMediate",
                 "读取频谱数据": "READ:SANalyzer?",
                 "峰值搜索": "CALCulate:MARKer1:MAXimum",

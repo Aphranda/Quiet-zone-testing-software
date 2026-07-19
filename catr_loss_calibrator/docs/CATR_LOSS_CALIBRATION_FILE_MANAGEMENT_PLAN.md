@@ -187,8 +187,8 @@ projects/{project_code}/latest/{item_id}.json
 
 规则：
 
-- 只有 `DONE` session 更新 latest。
-- `FAILED` 和 `CANCELLED` 保留 session，但不覆盖 latest。
+- 只有 `DONE` / `RESUMED_DONE` session 更新 latest。
+- `PARTIAL` / `FAILED` / `CANCELLED` 保留 session，但不覆盖 latest。
 - 结果页可以提供“当前 session”和“最新成功 session”两个视图。
 
 ## 兼容策略
@@ -209,10 +209,17 @@ projects/{project_code}/latest/{item_id}.json
 - [X] FM-08 成功完成后更新 `latest/{item_id}.json`；失败或取消不覆盖 latest。
 - [X] FM-09 结果页增加当前 workspace、project、session 显示，并支持打开 workspace/project/session 目录。
 - [X] FM-10 结果页支持切换“当前 session / 最新成功 session / 历史 session”。
-- [ ] FM-11 保留旧版输出目录只读兼容展示，并明确标记“未绑定配置”。
+- [X] FM-11 保留旧版输出目录只读兼容展示，并明确标记“未绑定配置”。
 - [X] FM-12 增加单元测试：同名不同配置进入不同 workspace。
 - [X] FM-13 增加单元测试：同配置不同 project/stage/run_label 进入不同 session。
 - [X] FM-14 增加 GUI smoke 测试：填写批次字段后完成 Mock 校准，结果页显示对应 workspace/session。
 - [X] FM-15 增加失败路径测试：FAILED/CANCELLED session 保留 manifest，但不更新 latest。
-- [ ] FM-16 更新用户文档，说明项目代号、阶段、轮次如何填写和如何查找历史校准文件。
-- [ ] FM-17 建立 exe 打包后的文件管理策略：识别 PyInstaller/源码运行模式，区分内置资源目录、用户配置目录、用户资源目录和校准输出目录；首次启动可复制默认 JSON/CSV 到用户配置目录，JSON 相对 CSV 路径优先按 JSON 所在目录解析，并以内置资源目录作为只读兜底。
+- [X] FM-16 更新用户文档，说明项目代号、阶段、轮次如何填写和如何查找历史校准文件。
+- [X] FM-17 建立 exe 打包后的文件管理策略：识别 PyInstaller/源码运行模式，区分内置资源目录、用户配置目录、用户资源目录和校准输出目录；首次启动可复制默认 JSON/CSV 到用户配置目录，JSON 相对 CSV 路径优先按 JSON 所在目录解析，并以内置资源目录作为只读兜底。
+- [x] FM-18 为 `session_manifest.json` 增加 `resume_source`、`substep_status`、`reused_files`、`new_files`、`invalid_files` 字段，用于记录历史导入和续测来源。
+- [ ] FM-19 建立历史 session 文件索引器，能从 manifest、metadata、raw、loss 反查每个细分步骤的数据文件和校验状态。
+- [ ] FM-20 建立历史数据有效性校验：校验 config_hash、item/step/substep、feed/horn/band、频率范围、点数、文件 hash 和曲线可读性。
+- [x] FM-21 调整 latest 更新策略：只有 `DONE` / `RESUMED_DONE` 更新 latest，`PARTIAL` / `SKIPPED_NOT_MEASURED` / `CANCELLED` / `FAILED` 不更新 latest。
+- [x] FM-22 支持在新 session 中引用历史文件而不复制文件，同时在 manifest 中明确记录引用来源；如需导出完整包，再执行显式归档。
+- [ ] FM-23 支持基于已有 raw 的 final/loss 复算输出，并记录复算输入和输出 hash。（已完成复算输出；输入/输出 hash manifest 扩展待接入。）
+- [ ] FM-24 在 `substep_status` 中记录曲线质量字段 `curve_quality`、异常原因 `quality_reason` 和人工强制沿用原因 `override_reason`。
