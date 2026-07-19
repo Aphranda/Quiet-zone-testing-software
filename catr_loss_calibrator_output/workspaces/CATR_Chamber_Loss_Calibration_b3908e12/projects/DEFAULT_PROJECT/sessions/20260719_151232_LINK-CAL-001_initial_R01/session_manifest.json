@@ -1,0 +1,47 @@
+{
+  "schema_version": "catr-session-manifest.v1",
+  "run_uid": "7fa23fef-98b6-4485-8f21-695c682f410b",
+  "session_id": "20260719_151232_LINK-CAL-001_initial_R01",
+  "workspace_id": "CATR_Chamber_Loss_Calibration_b3908e12",
+  "workspace_root": "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b3908e12",
+  "config_hash": "b3908e126fcf908b2682d4b597e5bdc1ac5efa208c04e20a4474725aca3d6062",
+  "config_name": "CATR Chamber Loss Calibration",
+  "config_display_name": "CATR 暗室路损校准",
+  "config_source_path": "D:\\OneDrive\\4.Code\\SWTEST\\TEST\\catr_loss_calibrator\\src\\catr_loss_calibrator\\calibration\\configs\\catr_chamber_loss_calibration.json",
+  "project_code": "DEFAULT_PROJECT",
+  "calibration_stage": "initial",
+  "run_label": "R01",
+  "operator": "",
+  "operator_note": "",
+  "item_id": "LINK-CAL-001",
+  "state": "DONE",
+  "started_at": "2026-07-19T15:12:32+08:00",
+  "finished_at": "2026-07-19T15:12:44+08:00",
+  "raw_files": [
+    "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b3908e12\\projects\\DEFAULT_PROJECT\\sessions\\20260719_151232_LINK-CAL-001_initial_R01\\raw\\LINK-CAL-001_CAL001-AUX_AUX-A.csv",
+    "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b3908e12\\projects\\DEFAULT_PROJECT\\sessions\\20260719_151232_LINK-CAL-001_initial_R01\\raw\\LINK-CAL-001_CAL001-AUX_AUX-B.csv",
+    "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b3908e12\\projects\\DEFAULT_PROJECT\\sessions\\20260719_151232_LINK-CAL-001_initial_R01\\raw\\LINK-CAL-001_CAL001-AUX_AUX-C.csv",
+    "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b3908e12\\projects\\DEFAULT_PROJECT\\sessions\\20260719_151232_LINK-CAL-001_initial_R01\\raw\\LINK-CAL-001_CAL001-H_S21_CH_INT_H_RAW.csv",
+    "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b3908e12\\projects\\DEFAULT_PROJECT\\sessions\\20260719_151232_LINK-CAL-001_initial_R01\\raw\\LINK-CAL-001_CAL001-V_S21_CH_INT_V_RAW.csv",
+    "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b3908e12\\projects\\DEFAULT_PROJECT\\sessions\\20260719_151232_LINK-CAL-001_initial_R01\\raw\\LINK-CAL-001_CAL001-DUT_S21_CH_INT_DUT_RAW.csv"
+  ],
+  "loss_files": [
+    "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b3908e12\\projects\\DEFAULT_PROJECT\\sessions\\20260719_151232_LINK-CAL-001_initial_R01\\loss\\L_AUX_A_10_15G_F10_17G_H10_15G.csv",
+    "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b3908e12\\projects\\DEFAULT_PROJECT\\sessions\\20260719_151232_LINK-CAL-001_initial_R01\\loss\\L_AUX_B_10_15G_F10_17G_H10_15G.csv",
+    "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b3908e12\\projects\\DEFAULT_PROJECT\\sessions\\20260719_151232_LINK-CAL-001_initial_R01\\loss\\L_AUX_C_10_15G_F10_17G_H10_15G.csv",
+    "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b3908e12\\projects\\DEFAULT_PROJECT\\sessions\\20260719_151232_LINK-CAL-001_initial_R01\\loss\\L_CH_INT_H_10_15G_F10_17G_H10_15G.csv",
+    "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b3908e12\\projects\\DEFAULT_PROJECT\\sessions\\20260719_151232_LINK-CAL-001_initial_R01\\loss\\L_CH_INT_V_10_15G_F10_17G_H10_15G.csv",
+    "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b3908e12\\projects\\DEFAULT_PROJECT\\sessions\\20260719_151232_LINK-CAL-001_initial_R01\\loss\\L_CH_INT_DUT_10_15G_F10_17G_H10_15G.csv",
+    "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b3908e12\\projects\\DEFAULT_PROJECT\\sessions\\20260719_151232_LINK-CAL-001_initial_R01\\loss\\L_CH_INT_FEED_H_10_15G_F10_17G_H10_15G.csv",
+    "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b3908e12\\projects\\DEFAULT_PROJECT\\sessions\\20260719_151232_LINK-CAL-001_initial_R01\\loss\\L_CH_INT_FEED_V_10_15G_F10_17G_H10_15G.csv"
+  ],
+  "metadata_files": [
+    "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b3908e12\\projects\\DEFAULT_PROJECT\\sessions\\20260719_151232_LINK-CAL-001_initial_R01\\metadata\\LINK-CAL-001_CAL001-AUX_AUX-A.json",
+    "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b3908e12\\projects\\DEFAULT_PROJECT\\sessions\\20260719_151232_LINK-CAL-001_initial_R01\\metadata\\LINK-CAL-001_CAL001-AUX_AUX-B.json",
+    "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b3908e12\\projects\\DEFAULT_PROJECT\\sessions\\20260719_151232_LINK-CAL-001_initial_R01\\metadata\\LINK-CAL-001_CAL001-AUX_AUX-C.json",
+    "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b3908e12\\projects\\DEFAULT_PROJECT\\sessions\\20260719_151232_LINK-CAL-001_initial_R01\\metadata\\LINK-CAL-001_CAL001-H_S21_CH_INT_H_RAW.json",
+    "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b3908e12\\projects\\DEFAULT_PROJECT\\sessions\\20260719_151232_LINK-CAL-001_initial_R01\\metadata\\LINK-CAL-001_CAL001-V_S21_CH_INT_V_RAW.json",
+    "catr_loss_calibrator_output\\workspaces\\CATR_Chamber_Loss_Calibration_b3908e12\\projects\\DEFAULT_PROJECT\\sessions\\20260719_151232_LINK-CAL-001_initial_R01\\metadata\\LINK-CAL-001_CAL001-DUT_S21_CH_INT_DUT_RAW.json"
+  ],
+  "last_event": "done:LINK-CAL-001"
+}

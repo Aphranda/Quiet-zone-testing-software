@@ -1,5 +1,7 @@
 from catr_loss_calibrator.calibration.definitions import default_calibration_catalog, legacy_python_calibration_catalog
 from catr_loss_calibrator.calibration.config_loader import DEFAULT_CONFIG_PATH, load_calibration_catalog
+from catr_loss_calibrator.calibration.models import OutputRole, classify_output_parameter
+from catr_loss_calibrator.storage.loss_file_policy import default_feed_horn_from_config
 
 
 def test_default_catalog_contains_five_calibration_items() -> None:
@@ -47,6 +49,25 @@ def test_builtin_json_catalog_contains_path_node_templates() -> None:
         "LB-VNA1",
         "PORT2",
     ]
+
+
+def test_builtin_json_catalog_contains_band_config() -> None:
+    catalog = load_calibration_catalog(DEFAULT_CONFIG_PATH)
+
+    assert default_feed_horn_from_config(catalog.band_config) == ("F10_17G", "H10_15G")
+    first_entry = catalog.band_config["feed_horn_bands"][0]
+    assert first_entry == {
+        "feed": "F10_17G",
+        "horn": "H10_15G",
+        "band": "10_15G",
+        "start_ghz": 10.0,
+        "stop_ghz": 15.0,
+        "horn_gain_file": "../../../../resources/10_15G_horn_gain_10MHz.csv",
+    }
+    assert any(
+        entry["horn"] == "H14P5_22G" and entry["horn_gain_file"].endswith("fabricated.csv")
+        for entry in catalog.band_config["feed_horn_bands"]
+    )
 
 
 def test_builtin_json_steps_reference_path_templates() -> None:
@@ -140,3 +161,16 @@ def test_link_cal_005_uses_aux_g_after_cal004_owns_aux_f() -> None:
     assert "L_DUT_VNA_G" in outputs
     assert "L_DUT_VNA_G_AMP1" in outputs
     assert "L_DUT_VNA_F" not in required
+
+
+def test_output_parameter_roles_distinguish_raw_temporary_and_final_outputs() -> None:
+    assert classify_output_parameter("S21_AUX_A") == OutputRole.RAW_S21
+    assert classify_output_parameter("T_SYS_TX_SA_H") == OutputRole.TEMPORARY
+    assert classify_output_parameter("L_CH_INT_H") == OutputRole.FINAL
+
+    item = default_calibration_catalog().get("LINK-CAL-002")
+    main_step = next(step for step in item.steps if step.id == "CAL002-MAIN")
+
+    assert main_step.outputs_by_role(OutputRole.RAW_S21) == ()
+    assert "L_VNA_H" in main_step.outputs_by_role(OutputRole.TEMPORARY)
+    assert "L_VNA_FEED_H" in main_step.outputs_by_role(OutputRole.FINAL)

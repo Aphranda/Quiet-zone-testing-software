@@ -1,10 +1,10 @@
 # CATR 路损校准软件开发 TODO
 
-Status: Active  
-Domain: CATR_LOSS_CALIBRATOR  
-Canonical: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_DEVELOPMENT_TODO.md`  
-Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_SOFTWARE_DESIGN.md`, `catr_loss_calibrator/docs/CATR_CHAMBER_CALIBRATION_TEST_PLAN.html`, `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_TASK_PROGRESS.md`  
-更新时间：2026-07-18
+Status: Active
+Domain: CATR_LOSS_CALIBRATOR
+Canonical: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_DEVELOPMENT_TODO.md`
+Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_SOFTWARE_DESIGN.md`, `catr_loss_calibrator/docs/CATR_CHAMBER_CALIBRATION_TEST_PLAN.html`, `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_TASK_PROGRESS.md`, `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_FILE_MANAGEMENT_PLAN.md`
+更新时间：2026-07-19
 
 本文档跟踪 `catr_loss_calibrator` 独立软件的开发任务。任务按 P0-P5 优先级排列，优先保证“架构边界正确、校准流程可跑、数据可追溯”，再逐步完善 UI、真实硬件和长期可靠性。
 
@@ -19,36 +19,36 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_SOFTWARE_DESIGN.md`, `
 
 ## 验收标准摘要
 
-| 优先级 | 验收标准 |
-|---|---|
-| P0 | 项目边界清楚，目录骨架完整，5 个校准项可列出，且不依赖 `quiet_zone_tester`。 |
-| P1 | 链路端口、链路箱 profile、校准步骤命令和人工接线说明可由软件模型表达。 |
-| P2 | 5 个校准项能用 Mock 数据生成 raw trace、metadata 和最终带符号路损文件。 |
-| P3 | 操作人员可通过 UI/CLI 按步骤完成 Mock 校准，非法操作被状态机阻止。 |
-| P4 | 真实 VNA + LCD74000F 至少完成一个校准项闭环，并有硬件验证记录。 |
-| P5 | 软件具备 session 追溯、复算、报告导出、长期稳定性验证和版本管理。 |
+| 优先级 | 验收标准                                                                      |
+| ------ | ----------------------------------------------------------------------------- |
+| P0     | 项目边界清楚，目录骨架完整，5 个校准项可列出，且不依赖`quiet_zone_tester`。 |
+| P1     | 链路端口、链路箱 profile、校准步骤命令和人工接线说明可由软件模型表达。        |
+| P2     | 5 个校准项能用 Mock 数据生成 raw trace、metadata 和最终带符号路损文件。       |
+| P3     | 操作人员可通过 UI/CLI 按步骤完成 Mock 校准，非法操作被状态机阻止。            |
+| P4     | 真实 VNA + LCD74000F 至少完成一个校准项闭环，并有硬件验证记录。               |
+| P5     | 软件具备 session 追溯、复算、报告导出、长期稳定性验证和版本管理。             |
 
 ## 推荐执行顺序
 
-| 顺序 | 待办 | 原因 |
-|---|---|---|
-| 1 | P0-05 catalog 与 HTML 方案一致性 | 先固定 5 个校准项的真实边界，否则后续模型都会漂。 |
-| 2 | P0-06 公式口径检查 | 公式是后续数据文件的根，必须先防止符号口径分裂。 |
-| 3 | P1-03 链路箱 profile 数据化 | 自动化校准依赖稳定的链路模板。 |
-| 4 | P1-04 校准步骤输入/输出/接线定义 | 这是 UI 引导和 runner 执行的共同数据源。 |
-| 5 | P2-01/P2-02 trace 与 raw/final 存储 | 先保证数据事实能落盘，再谈真实硬件。 |
-| 6 | P3-02 状态机 | 防止 UI 和执行流在人工确认、采样、保存阶段互相绕过。 |
-| 7 | P4 真实硬件适配 | 在 Mock 闭环稳定后再接真实设备，降低现场风险。 |
+| 顺序       | 待办                                | 原因                                                                                            |
+| ---------- | ----------------------------------- | ----------------------------------------------------------------------------------------------- |
+| 1          | P1-05 参数角色分类                  | 当前 raw/final 已能落盘，但正式输出、原始 S21、临时追溯量还依赖命名约定，影响结果页和追溯验收。 |
+| 2          | P1-06 链路模板矩阵测试              | 链路箱命令已经可生成，需要用直通、AMP1、AMP2、SG、SA、VNA1/VNA2 工况锁住回归。                  |
+| 3          | P4-01/P4-02 实机验证                | VNA/LCD adapter 已有代码雏形，下一步是按 checklist 接真实设备确认命令兼容。                     |
+| 4          | UI-51/UI-54/UI-63                   | Mock UI 闭环、LOG 复制和 UI 自动化测试用于现场操作验收。                                        |
+| 5          | FM-01 至 FM-16 文件管理             | 先把配置、项目、阶段、session 与输出文件绑定，避免多项目校准文件混淆。                           |
+| 6          | P5-04/P5-05/P5-06                   | 长稳、版本管理、文档同步属于交付硬化，放在核心闭环稳定之后。                                    |
+| 已完成基线 | P0、P2、P3、P5-01/P5-02/P5-03/P5-07 | 这些任务已有代码和单元测试支撑，后续以回归保护为主。                                            |
 
 ## P0 - 架构边界与基础骨架
 
-- [x] P0-01 建立独立项目 `catr_loss_calibrator`，避免依赖 `quiet_zone_tester` 运行时。
-- [x] P0-02 按业务域建立基础目录：`presentation`、`app`、`application`、`calibration`、`instrument_management`、`link_management`、`hardware`、`storage`、`project`、`diagnostics`。
-- [x] P0-03 将 UI / presentation 层提前，作为面向操作人员的交互入口。
-- [x] P0-04 定义 `LINK-CAL-001` 至 `LINK-CAL-005` 五个校准项 catalog。
-- [x] P0-05 检查并修正 catalog 中所有校准项名称、步骤编号、输出参数，使其与 `CATR_CHAMBER_CALIBRATION_TEST_PLAN.html` 完全一致。
-- [x] P0-06 检查公式实现，确保不引入 `AUX_CORR`，不把 `L_AUX_*` 改成正损耗口径。
-- [x] P0-07 建立项目级 import 边界测试，确认新软件不 import `quiet_zone_tester.*`。
+- [X] P0-01 建立独立项目 `catr_loss_calibrator`，避免依赖 `quiet_zone_tester` 运行时。
+- [X] P0-02 按业务域建立基础目录：`presentation`、`app`、`application`、`calibration`、`instrument_management`、`link_management`、`hardware`、`storage`、`project`、`diagnostics`。
+- [X] P0-03 将 UI / presentation 层提前，作为面向操作人员的交互入口。
+- [X] P0-04 定义 `LINK-CAL-001` 至 `LINK-CAL-005` 五个校准项 catalog。
+- [X] P0-05 检查并修正 catalog 中所有校准项名称、步骤编号、输出参数，使其与 `CATR_CHAMBER_CALIBRATION_TEST_PLAN.html` 完全一致。
+- [X] P0-06 检查公式实现，确保不引入 `AUX_CORR`，不把 `L_AUX_*` 改成正损耗口径。
+- [X] P0-07 建立项目级 import 边界测试，确认新软件不 import `quiet_zone_tester.*`。
 
 ### P0 验收
 
@@ -59,19 +59,19 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_SOFTWARE_DESIGN.md`, `
 
 ## P1 - 校准项模型与链路箱命令
 
-- [x] P1-01 建立链路端口枚举与 `CONFigure:LINK ...` 命令生成器。
-- [x] P1-02 建立 LCD74000F profile 基础端口校验。
-- [x] P1-03 将 `resource/LCD74000F.md` 中的链路命令整理为软件内 profile 数据。
-- [x] P1-04 为每个 `LINK-CAL` 步骤定义明确的输入端口、输出端口、人工接线说明、链路箱指令。
-- [ ] P1-05 区分正式输出参数、原始 `S21_*`、临时追溯参数 `T_*`。
-- [ ] P1-06 为链路模板增加单元测试，覆盖直通、AMP1、AMP2、SG、SA、VNA1/VNA2 工况。
-- [x] P1-07 将“路损校准操作台”定位为通用路损校准控制台，代码和 UI 文案中避免把 CATR 写死为软件名称。
-- [x] P1-08 根据 `CATR_CHAMBER_CALIBRATION_TEST_PLAN.html` 生成内置 CATR 链路配置 JSON，覆盖当前 `LINK-CAL-001` 至 `LINK-CAL-005` 的校准项、大步骤、细分步骤、命令和结果参数。
-- [x] P1-09 实现链路配置 JSON loader，将 `CATR_LOSS_CALIBRATION_LINK_CONFIG_JSON.md` 定义的 JSON 转换为 `CalibrationCatalog` / `CalibrationItem` / `CalibrationStep` / `CalibrationSubStep`。
-- [x] P1-10 将 `default_calibration_catalog()` 改为默认加载内置 CATR JSON，保留 Python 硬编码 catalog 作为迁移期测试基准或 fallback。
-- [x] P1-11 为 JSON 导入增加单元测试，验证导入后的 5 个校准项、步骤数、细分步骤顺序、链路命令、raw/final/required 参数与现有 catalog 一致。
-- [x] P1-12 将接线路径节点图从 presentation 硬编码模板迁移到 JSON 的 `node_catalog` / `path_templates` / `path` 字段。
-- [x] P1-13 为内置 CATR JSON 补齐 `node_catalog`、`path_templates` 和步骤/细分步骤 `path_template` 引用，覆盖 HTML 中的节点图。
+- [X] P1-01 建立链路端口枚举与 `CONFigure:LINK ...` 命令生成器。
+- [X] P1-02 建立 LCD74000F profile 基础端口校验。
+- [X] P1-03 将 `resource/LCD74000F.md` 中的链路命令整理为软件内 profile 数据。
+- [X] P1-04 为每个 `LINK-CAL` 步骤定义明确的输入端口、输出端口、人工接线说明、链路箱指令。
+- [X] P1-05 区分正式输出参数、原始 `S21_*`、临时追溯参数 `T_*`。
+- [X] P1-06 为链路模板增加单元测试，覆盖直通、AMP1、AMP2、SG、SA、VNA1/VNA2 工况。
+- [X] P1-07 将“路损校准操作台”定位为通用路损校准控制台，代码和 UI 文案中避免把 CATR 写死为软件名称。
+- [X] P1-08 根据 `CATR_CHAMBER_CALIBRATION_TEST_PLAN.html` 生成内置 CATR 链路配置 JSON，覆盖当前 `LINK-CAL-001` 至 `LINK-CAL-005` 的校准项、大步骤、细分步骤、命令和结果参数。
+- [X] P1-09 实现链路配置 JSON loader，将 `CATR_LOSS_CALIBRATION_LINK_CONFIG_JSON.md` 定义的 JSON 转换为 `CalibrationCatalog` / `CalibrationItem` / `CalibrationStep` / `CalibrationSubStep`。
+- [X] P1-10 将 `default_calibration_catalog()` 改为默认加载内置 CATR JSON，保留 Python 硬编码 catalog 作为迁移期测试基准或 fallback。
+- [X] P1-11 为 JSON 导入增加单元测试，验证导入后的 5 个校准项、步骤数、细分步骤顺序、链路命令、raw/final/required 参数与现有 catalog 一致。
+- [X] P1-12 将接线路径节点图从 presentation 硬编码模板迁移到 JSON 的 `node_catalog` / `path_templates` / `path` 字段。
+- [X] P1-13 为内置 CATR JSON 补齐 `node_catalog`、`path_templates` 和步骤/细分步骤 `path_template` 引用，覆盖 HTML 中的节点图。
 
 ### P1 验收
 
@@ -84,13 +84,13 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_SOFTWARE_DESIGN.md`, `
 
 ## P2 - 数据与公式闭环
 
-- [x] P2-01 建立统一 trace 数据模型，保存频率、幅度、相位、参数名、来源步骤。
-- [x] P2-02 建立原始 S21 保存策略，区分 raw trace 与最终路损文件。
-- [x] P2-03 建立 metadata 保存策略，记录项目配置、仪表信息、链路命令、人工确认、输入文件 hash、输出文件 hash。
-- [x] P2-04 将 5 个校准项的最终输出公式逐项落到 `calibration/formulas.py`。
-- [x] P2-05 为每个最终输出参数建立单元测试，验证带符号 dB 计算。
-- [x] P2-06 落实文件命名规则：`{PARAM}_{BAND}_{FEED}_{HORN}.csv`。
-- [x] P2-07 建立馈源/喇叭有效频段交集校验。
+- [X] P2-01 建立统一 trace 数据模型，保存频率、幅度、相位、参数名、来源步骤。
+- [X] P2-02 建立原始 S21 保存策略，区分 raw trace 与最终路损文件。
+- [X] P2-03 建立 metadata 保存策略，记录项目配置、仪表信息、链路命令、人工确认、输入文件 hash、输出文件 hash。
+- [X] P2-04 将 5 个校准项的最终输出公式逐项落到 `calibration/formulas.py`。
+- [X] P2-05 为每个最终输出参数建立单元测试，验证带符号 dB 计算。
+- [X] P2-06 落实文件命名规则：`{PARAM}_{BAND}_{FEED}_{HORN}.csv`。
+- [X] P2-07 建立馈源/喇叭有效频段交集校验。
 
 ### P2 验收
 
@@ -100,12 +100,12 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_SOFTWARE_DESIGN.md`, `
 
 ## P3 - Mock 流程与操作员 UI
 
-- [x] P3-01 建立 Mock VNA 与 Mock 链路箱的完整校准流程模拟。
-- [x] P3-02 建立校准执行状态机：`IDLE → WAIT_MANUAL_CONFIRM → CONFIGURE_LINK → CONFIGURE_VNA → TRIGGER_SWEEP → READ_TRACE → SAVE_RAW → COMPUTE_OUTPUT → SAVE_OUTPUT → DONE`。
-- [x] P3-03 建立人工接线确认步骤，支持暂停、跳过、重试和取消。
-- [x] P3-04 建立一期 UI 主窗口或 CLI/TUI 操作入口，优先满足操作人员按步骤执行。
-- [x] P3-05 UI 显示当前校准项、当前步骤、接线说明、链路箱命令、输出文件。
-- [x] P3-06 UI 禁止非法操作：采样中修改配置、未连接硬件执行链路切换、校准中重复启动。
+- [X] P3-01 建立 Mock VNA 与 Mock 链路箱的完整校准流程模拟。
+- [X] P3-02 建立校准执行状态机：`IDLE → WAIT_MANUAL_CONFIRM → CONFIGURE_LINK → CONFIGURE_VNA → TRIGGER_SWEEP → READ_TRACE → SAVE_RAW → COMPUTE_OUTPUT → SAVE_OUTPUT → DONE`。
+- [X] P3-03 建立人工接线确认步骤，支持暂停、跳过、重试和取消。
+- [X] P3-04 建立一期 UI 主窗口或 CLI/TUI 操作入口，优先满足操作人员按步骤执行。
+- [X] P3-05 UI 显示当前校准项、当前步骤、接线说明、链路箱命令、输出文件。
+- [X] P3-06 UI 禁止非法操作：采样中修改配置、未连接硬件执行链路切换、校准中重复启动。
 
 ### P3 验收
 
@@ -117,25 +117,36 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_SOFTWARE_DESIGN.md`, `
 
 - [ ] P4-01 实现真实 VNA VISA adapter，支持连接、配置 sweep、单次触发、读取 S21。
 - [ ] P4-02 实现真实 LCD74000F 链路箱 adapter，支持命令下发、响应检查、错误提示。
-- [x] P4-03 建立仪表连接管理：VNA、链路箱、SG、SA 的连接配置、状态快照和失败清理。
-- [x] P4-04 建立资源互锁：校准中独占 VNA 和链路箱，禁止与静区测试软件同时操作。
-- [ ] P4-05 建立超时和失败恢复策略：VNA 采样超时、链路箱无响应、保存失败、人工取消。
-- [x] P4-06 建立真实硬件验证 checklist，覆盖连接、链路切换、采样、保存、错误恢复。
+- [X] P4-03 建立仪表连接管理：VNA、链路箱、SG、SA 的连接配置、状态快照和失败清理。
+- [X] P4-04 建立资源互锁：校准中独占 VNA 和链路箱，禁止与静区测试软件同时操作。
+- [X] P4-05 建立超时和失败恢复策略：VNA 采样超时、链路箱无响应、保存失败、人工取消。
+- [X] P4-06 建立真实硬件验证 checklist，覆盖连接、链路切换、采样、保存、错误恢复。
+- [X] P4-07 建立信号源和频谱仪的基础配置命令链路，先覆盖 Mock 和通用 SCPI 指令记录，实机兼容性验证放入 P4-01/P4-02 后续硬件阶段。
+- [X] P4-08 建立信号源和频谱仪的手动 SCPI 发送链路，支持通过统一指令控制区发送输出控制、状态查询、单次测量、峰值搜索和 Marker 读取等命令。
 
 ### P4 验收
 
 - 真实硬件测试默认不运行，必须显式启用。
 - 验证记录包含日期、操作者、VNA 型号/序列号/固件、链路箱型号、连接方式。
 - 链路切换、VNA 触发、采样点数、保存文件、错误恢复均有记录。
+- 信号源和频谱仪的基础配置能在 Mock 模式下产生可追踪命令，后续可替换为型号 adapter 兼容实现。
+- 信号源和频谱仪任意 SCPI 能在 Mock/Real 统一 `send_command()` 入口下发送，并记录命令与响应。
 
 ## P5 - 工程化、报告与长期维护
 
-- [x] P5-01 建立校准 session 管理，支持历史记录、复算和结果追溯。
-- [x] P5-02 建立日志与错误报告，能回答“哪一步、哪条命令、哪个文件、为什么失败”。
-- [x] P5-03 建立校准结果浏览和导出功能。
+- [X] P5-01 建立校准 session 管理，支持历史记录、复算和结果追溯。
+- [X] P5-02 建立日志与错误报告，能回答“哪一步、哪条命令、哪个文件、为什么失败”。
+- [X] P5-03 建立校准结果浏览和导出功能。
+- [X] P5-07 将结果浏览从文本摘要升级为 session 文件索引与曲线预览，确保 raw、final/loss、metadata 能按本次运行追溯、查看和导出。
+- [X] P5-08 按 `CATR_LOSS_CALIBRATION_FILE_MANAGEMENT_PLAN.md` 建立配置绑定的校准文件 workspace。
+- [X] P5-09 校准界面增加项目代号、校准阶段、批次/轮次、操作员和备注字段。
+- [X] P5-10 metadata 与 session manifest 记录 config_hash、workspace_id、project_code、session_id 和批次信息。
+- [X] P5-11 结果页按当前 workspace/project/session 浏览文件，并支持 latest 成功输出索引。
+- [ ] P5-12 旧版输出目录只读兼容展示，新运行不再写入旧目录结构。
+- [ ] P5-13 建立 exe 打包后的运行时路径策略：内置默认 JSON/CSV 随程序打包，用户项目 JSON/CSV 复制到 `%APPDATA%/CATRLossCalibrator` 等外部可写目录，校准输出默认放到用户文档或用户指定 workspace，软件升级不得影响历史校准文件。
 - [ ] P5-04 建立长期稳定性测试，覆盖多频段、多喇叭、多校准项循环执行。
 - [ ] P5-05 建立版本管理：公式版本、profile 版本、报告版本、软件版本。
-- [ ] P5-06 与 `CATR_CHAMBER_CALIBRATION_TEST_PLAN.html` 保持同步，文档变更后更新 catalog、公式和测试。
+- [ ] P5-06 与 `CATR_CHAMBER_CALIBRATION_TEST_PLAN.html` 保持同步，文档变更后更新 catalog、公式和测试。（这是通用软件，JSON配置与文档相同）
 
 ### P5 验收
 

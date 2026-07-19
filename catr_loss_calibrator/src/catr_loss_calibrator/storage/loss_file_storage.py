@@ -19,6 +19,7 @@ def save_loss_record(path: Path, record: TraceRecord) -> None:
         feed=record.feed,
         horn=record.horn,
         source_cal=record.source_cal,
+        output_role=record.output_role,
     )
 
 
@@ -32,6 +33,7 @@ def save_loss_record_with_policy(root: Path, record: TraceRecord, policy: LossFi
         parameter=record.parameter,
         source_cal=record.source_cal,
         source_step=record.source_step,
+        output_role=record.output_role,
         band=band,
         feed=record.feed.strip().upper(),
         horn=record.horn.strip().upper(),

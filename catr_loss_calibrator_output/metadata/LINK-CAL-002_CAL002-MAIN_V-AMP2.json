@@ -13,15 +13,17 @@
   ],
   "manual_confirmation": true,
   "input_files": [
-    "LINK-CAL-002_CAL002-MAIN_V-AMP2.raw"
+    "catr_loss_calibrator_output\\raw\\LINK-CAL-002_CAL002-MAIN_V-AMP2.csv"
   ],
   "input_hashes": [
-    "mock"
+    "1d5e5dcacb4ee9e82383864825366d0cf49c1bcff3ce86732beb10bc3536849a"
   ],
   "output_files": [
-    "L_VNA_FEED_V_AMP2"
+    "catr_loss_calibrator_output\\loss\\L_VNA_FEED_V_AMP2_10_15G_F10_17G_H10_15G.csv"
   ],
-  "output_hashes": [],
+  "output_hashes": [
+    "0b83076c6f5a56d9461fd954c34d2948a570b12f21b167d2786d197981113fd9"
+  ],
   "formula_version": "v1",
   "profile_version": "lcd74000f:v1",
   "note": "mock-runner:V 极化馈源侧 AMP2"

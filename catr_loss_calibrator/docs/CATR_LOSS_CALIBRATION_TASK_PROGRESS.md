@@ -4,7 +4,7 @@ Status: Active
 Domain: CATR_LOSS_CALIBRATOR  
 Canonical: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_TASK_PROGRESS.md`  
 Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_DEVELOPMENT_TODO.md`, `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_SOFTWARE_DESIGN.md`  
-Last updated: 2026-07-18
+Last updated: 2026-07-19
 
 本文档记录 `catr_loss_calibrator` 的正式开发任务进度。每完成一个正式任务后，在“任务记录”章节顶部追加记录，说明任务目标、完成内容、验证结果、剩余工作和下一步计划。
 
@@ -48,6 +48,656 @@ Last updated: 2026-07-18
 ```
 
 ## 任务记录
+
+### CATR-CAL-TASK-20260719-043 - 结果页历史 session 与 workspace 路径导入
+
+- 状态：完成
+- 日期：2026-07-19
+- 任务目标：
+  - 解决软件关闭后重新打开，结果页无法查看之前校准数据的问题。
+  - 结果页支持导入校准工作空间路径，并按当前项目代号、当前校准项列出历史 session。
+  - 支持直接打开历史 session 目录，便于从资源管理器查看原始文件。
+- 完成内容：
+  - `storage/workspace.py` 增加 `load_session_summary_from_manifest()`、`list_session_summaries()`、`list_session_summaries_from_project_root()`。
+  - 结果页“结果视图”增加“历史Session”，并增加历史 session 下拉框。
+  - 结果页增加“校准工作空间”文本框，以及“浏览Workspace”“加载历史”“打开历史目录”按钮。
+  - latest 和 history 查询优先使用导入的 workspace 路径；未填写时使用当前 run summary 或当前配置默认 workspace。
+  - GUI smoke 覆盖从导入 workspace 路径加载历史 session，并显示文件表和 session 详情。
+  - 文件管理 TODO 完成 `FM-10`，UI TODO 增加并完成 `UI-88`。
+- 验证结果：
+  - 通过针对性测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests\test_workspace_management.py catr_loss_calibrator\tests\test_presentation_gui_smoke.py`，共 7 项。
+  - 通过完整测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests`，共 104 项。
+- 使用说明：
+  - 重新打开软件后，先加载同一个链路配置。
+  - 在校准执行页确认项目代号与历史数据一致。
+  - 到结果页填写或浏览选择 `catr_loss_calibrator_output/workspaces/{workspace_id}`。
+  - 结果视图选择“历史Session”，再从历史下拉框选择要查看的 session。
+- 还需完成：
+  - `FM-11/P5-12`：旧版 `catr_loss_calibrator_output/metadata` 等非 workspace 目录仍未做只读兼容展示。
+  - `FM-16`：用户文档还需补充如何填写项目代号、如何定位 workspace。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/storage/workspace.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`
+  - `catr_loss_calibrator/tests/test_workspace_management.py`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_FILE_MANAGEMENT_PLAN.md`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_TODO.md`
+- 下一步：
+  - 做旧版输出目录只读兼容，或者补用户文档说明 workspace/history 的使用方式。
+
+### CATR-CAL-TASK-20260719-042 - 主窗口初始尺寸自适应
+
+- 状态：完成
+- 日期：2026-07-19
+- 任务目标：
+  - 明确当前主窗口初始尺寸来源。
+  - 避免初始窗口因固定尺寸、右侧 LOG 和四列仪表卡片超出屏幕。
+- 完成内容：
+  - 将主窗口固定 `1180x780` 初始化改为 `_apply_initial_window_size()`。
+  - 默认目标尺寸调整为 `1180x720`，并按当前屏幕可用区域裁剪：宽度不超过 `available.width() - 80`，高度不超过 `available.height() - 80`。
+  - 仪表配置页设备卡片区域改为 `QScrollArea`，卡片过宽或过高时在页内滚动，不再强行撑大主窗口。
+  - GUI smoke 增加主窗口尺寸不超过屏幕可用区域、仪表配置页存在滚动区的检查。
+  - 更新 `UI-87` 状态。
+- 验证结果：
+  - 通过针对性测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests\test_presentation_gui_smoke.py catr_loss_calibrator\tests\test_presentation_viewmodels.py`，共 20 项。
+  - 通过完整测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests`，共 103 项。
+- 还需完成：
+  - 如现场屏幕 DPI 或缩放比例导致控件仍显拥挤，可进一步把右侧 LOG 做成可折叠或默认更窄。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_TODO.md`
+- 下一步：
+  - 继续处理结果历史 session 浏览或旧版输出目录只读兼容。
+
+### CATR-CAL-TASK-20260719-041 - 仪表卡片三区布局与 SCPI 入口收敛
+
+- 状态：完成
+- 日期：2026-07-19
+- 任务目标：
+  - 将网分、信号源、频谱仪卡片按竖向三区组织：资源连接、仪表配置、指令控制。
+  - 去掉信号源/频谱仪常用 SCPI 快捷按钮，统一通过手动命令输入框发送 SCPI。
+  - 保留结构化配置按钮，用于一键下发基础配置命令序列。
+- 完成内容：
+  - `DeviceCommandPanel` 将连接表单套入“资源连接”分组。
+  - VNA/SG/SA 的配置表单统一标题为“仪表配置”。
+  - 预设、手动命令、发送命令和当前响应统一套入“指令控制”分组。
+  - 移除 SG/SA 快捷 SCPI 按钮及其专用 ViewModel action 接口，避免界面过重。
+  - 保留 SG/SA 手动 SCPI 发送能力，测试覆盖通过 `send_device_command()` 发送并读取 Mock 状态。
+  - GUI smoke 增加 VNA/SG/SA 三区标题检查。
+  - 更新 `UI-84`、`UI-85`、`UI-86` 和 `P4-08` 的 TODO 描述。
+- 验证结果：
+  - 通过针对性测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests\test_presentation_viewmodels.py catr_loss_calibrator\tests\test_presentation_gui_smoke.py`，共 20 项。
+  - 通过完整测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests`，共 103 项。
+  - 仅完成 Mock/通用 SCPI 验证，未做 N5183B/N9020B 实机验证。
+- 还需完成：
+  - 实机阶段确认 N5183B/N9020B 的 SCPI 兼容性、错误返回和超时处理。
+  - 如后续需要，可把设备卡片的三区高度做成更严格的响应式比例。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/viewmodels.py`
+  - `catr_loss_calibrator/tests/test_presentation_viewmodels.py`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_TODO.md`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_DEVELOPMENT_TODO.md`
+- 下一步：
+  - 继续非实机 TODO，优先处理旧版输出目录只读兼容展示或结果历史 session 浏览。
+
+### CATR-CAL-TASK-20260719-040 - SG/SA 常用 SCPI 动作按钮与 Mock 查询状态
+
+- 状态：完成
+- 日期：2026-07-19
+- 任务目标：
+  - 在信号源和频谱仪卡片上补齐常用 SCPI 动作入口，减少现场重复手输命令。
+  - 所有快捷动作仍走统一 `send_command()` 链路，命令和响应进入 LOG。
+  - Mock 模式下查询命令能返回可解释状态，而不是全部返回 `0`。
+- 完成内容：
+  - 信号源基础配置区新增输出开、输出关、查输出、查频率、查功率按钮。
+  - 频谱仪基础配置区新增单次测量、峰值搜索、读频率、读幅度、查错误按钮。
+  - `CalibrationViewModel` 新增 `run_signal_generator_action()` 和 `run_spectrum_analyzer_action()`，将动作名映射为 SCPI 命令序列。
+  - `MockScpiInstrument` 增加常用 SCPI 状态跟踪，支持返回频率、功率、输出状态、频谱中心频率、marker 频率/幅度和错误状态。
+  - GUI smoke 增加 SG/SA SCPI 快捷按钮启用检查。
+  - 更新 `UI-84`、`UI-85`、`P4-08` 的 TODO 状态。
+- 验证结果：
+  - 通过针对性测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests\test_presentation_viewmodels.py catr_loss_calibrator\tests\test_presentation_gui_smoke.py`，共 20 项。
+  - 通过完整测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests`，共 103 项。
+  - 仅完成 Mock/通用 SCPI 验证，未做 N5183B/N9020B 实机验证。
+- 还需完成：
+  - 实机阶段需要确认 N5183B/N9020B 对这些 SCPI 的兼容性、返回格式和异常码。
+  - 后续可增加“保存当前 SG/SA 配置为项目默认值”的配置持久化能力。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/viewmodels.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/hardware/mock.py`
+  - `catr_loss_calibrator/tests/test_presentation_viewmodels.py`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_TODO.md`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_DEVELOPMENT_TODO.md`
+- 下一步：
+  - 继续非实机 TODO，可优先处理旧版输出目录只读兼容或 SG/SA 配置持久化。
+
+### CATR-CAL-TASK-20260719-039 - SG/SA 基础配置面板与 Mock 指令闭环
+
+- 状态：完成
+- 日期：2026-07-19
+- 任务目标：
+  - 将信号源和频谱仪的基础配置做成类似网分配置的结构化面板。
+  - 支持 Mock 模式下一键配置，并在 LOG 中记录实际下发的 SCPI 指令。
+  - 暂不展开真实硬件兼容验证，保留到后续硬件阶段。
+- 完成内容：
+  - 信号源卡片新增“信号源基础配置”，包含频率、功率、输出开关和“配置”按钮。
+  - 频谱仪卡片新增“频谱仪基础配置”，包含中心频率、Span、点数、RBW、VBW、参考电平、衰减、前置放大、连续测量和“配置”按钮。
+  - `CalibrationViewModel` 新增 `configure_signal_generator()` 和 `configure_spectrum_analyzer()`，将结构化字段转换为通用 SCPI 命令序列。
+  - 增加统一 `_send_device_command_sequence()`，让配置序列逐条进入 LOG，包含发送命令和返回响应。
+  - GUI smoke 增加 SG/SA 配置组启用检查。
+  - 更新 `UI-82`、`UI-83`、`P4-07` 的 TODO 状态。
+- 验证结果：
+  - 通过针对性测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests\test_presentation_viewmodels.py catr_loss_calibrator\tests\test_presentation_gui_smoke.py`，共 18 项。
+  - 通过完整测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests`，共 101 项。
+  - 仅完成 Mock/通用 SCPI 指令验证，未做真实硬件验证。
+- 还需完成：
+  - 后续真实硬件阶段需要按 N5183B、N9020B 实机逐项确认 SCPI 兼容性、错误查询和安全输出默认值。
+  - 可进一步将 SG/SA 型号特定策略下沉到 adapter/service，避免 ViewModel 长期承载硬件差异。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/viewmodels.py`
+  - `catr_loss_calibrator/tests/test_presentation_viewmodels.py`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_TODO.md`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_DEVELOPMENT_TODO.md`
+- 下一步：
+  - 继续推进非实机 TODO，优先处理旧版输出目录只读兼容展示或历史 session 列表浏览。
+
+### CATR-CAL-TASK-20260719-038 - latest 成功 session 索引与结果页切换
+
+- 状态：完成
+- 日期：2026-07-19
+- 任务目标：
+  - 成功完成校准后维护 `latest/{item_id}.json`，便于结果页快速找到当前项目的最新成功校准结果。
+  - 失败或取消的 session 只保留 manifest，不覆盖 latest。
+  - 结果页支持在“当前Session”和“最新成功”之间切换。
+- 完成内容：
+  - `storage/workspace.py` 增加 latest index 读写能力：`write_latest_index()`、`load_latest_summary()`、`load_latest_summary_from_index()`。
+  - `session_manifest.json` 增加 `session_root` 字段，latest index 内嵌 manifest 并记录 `manifest_file`。
+  - `MockCalibrationRunner` 在 `DONE` 状态写入 latest index；`FAILED/CANCELLED` 不写入 latest。
+  - 结果页增加“结果视图”下拉框，支持“当前Session / 最新成功”切换。
+  - 结果页的文件表、摘要、会话详情、打开 session/project/workspace 目录和导出摘要均跟随当前结果视图。
+  - GUI smoke 覆盖 latest 视图，确认最新成功结果能显示文件行和 latest index 详情。
+  - 增加 storage/runner 测试，覆盖 latest 指向成功 manifest、取消不覆盖 latest、失败不覆盖 latest。
+- 验证结果：
+  - 通过完整测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests`，共 99 项。
+  - 仅完成 Mock/导入验证，未做真实硬件验证。
+- 还需完成：
+  - `FM-10` 的完整历史 session 列表浏览仍未实现，目前只支持当前 session 和 latest 成功 session。
+  - `P5-12/FM-11` 旧版输出目录只读兼容展示仍待实现。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/storage/workspace.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/mock_runner.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`
+  - `catr_loss_calibrator/tests/test_workspace_management.py`
+  - `catr_loss_calibrator/tests/test_mock_runner.py`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_DEVELOPMENT_TODO.md`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_FILE_MANAGEMENT_PLAN.md`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_TASK_PROGRESS.md`
+- 下一步：
+  - 继续实现历史 session 列表浏览，或转向旧版输出目录只读兼容展示。
+
+### CATR-CAL-TASK-20260719-037 - 登记 exe 打包后文件管理 TODO
+
+- 状态：完成
+- 日期：2026-07-19
+- 任务目标：
+  - 将 exe 打包后的资源路径、用户配置目录和校准输出目录策略纳入后续 TODO。
+  - 暂不实现代码，避免打断当前功能主线。
+- 完成内容：
+  - 开发 TODO 新增 `P5-13`，要求建立 exe 打包后的运行时路径策略。
+  - 文件管理计划新增 `FM-17`，明确区分内置资源目录、用户配置目录、用户资源目录和校准输出目录。
+  - TODO 中记录 PyInstaller/源码运行模式识别、首次启动复制默认 JSON/CSV、JSON 相对 CSV 路径解析和内置资源只读兜底。
+- 验证结果：
+  - 本次仅更新 TODO 文档，未执行测试。
+- 还需完成：
+  - 后续实现 `runtime_paths.py` 或等价模块，并补充打包 smoke/路径解析测试。
+- 关联文件：
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_DEVELOPMENT_TODO.md`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_FILE_MANAGEMENT_PLAN.md`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_TASK_PROGRESS.md`
+- 下一步：
+  - 继续推进 latest 成功 session 索引和历史 session 浏览；exe 打包路径策略暂不进入实现。
+
+### CATR-CAL-TASK-20260719-036 - 标准喇叭增益 CSV 由 JSON 引用
+
+- 状态：完成
+- 日期：2026-07-19
+- 任务目标：
+  - 按“JSON 管配置，CSV 管曲线”的方案，将标准喇叭增益文件引用纳入 `band_config`。
+  - 默认配置加载后，界面自动带出当前馈源/喇叭组合对应的增益 CSV。
+- 完成内容：
+  - `band_config.feed_horn_bands[]` 支持 `horn_gain_file` 字段。
+  - UI 选择馈源/喇叭组合时，会按当前 JSON 文件所在目录解析相对路径并填入“喇叭增益文件”输入框。
+  - 内置 CATR JSON 为 10-15G、14.5-22G、21.7-33G 组合配置了默认喇叭增益 CSV 引用。
+  - 新增 `14P5_22G_horn_gain_10MHz_fabricated.csv`，作为 14.5-22G 的工程占位曲线，10 MHz 步进，线性 17.8 dB 到 20.9 dB。
+  - JSON 规范文档补充 `horn_gain_file` 字段说明，明确曲线点保存在 CSV 中，不写入主 JSON。
+  - GUI smoke 增加默认喇叭增益文件自动带出且存在的检查。
+- 验证结果：
+  - 通过完整测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests`，共 96 项。
+  - 仅完成 Mock/导入验证，未做真实硬件验证。
+- 还需完成：
+  - 14.5-22G 当前为 fabricated 占位数据；真实校准前应替换为标准喇叭证书或图像识别后的正式曲线。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/config_loader.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/configs/catr_chamber_loss_calibration.json`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/storage/loss_file_policy.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`
+  - `catr_loss_calibrator/resources/14P5_22G_horn_gain_10MHz_fabricated.csv`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_LINK_CONFIG_JSON.md`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_TASK_PROGRESS.md`
+  - `catr_loss_calibrator/tests/test_calibration_catalog.py`
+  - `catr_loss_calibrator/tests/test_loss_file_policy.py`
+- 下一步：
+  - 继续推进 latest 成功 session 索引和历史 session 浏览。
+
+### CATR-CAL-TASK-20260719-035 - 频段配置改为 JSON 驱动
+
+- 状态：完成
+- 日期：2026-07-19
+- 任务目标：
+  - 支持不同项目通过导入链路配置 JSON 定义自己的馈源、标准喇叭和有效频段组合。
+  - 校准界面的频段配置和最终路损文件命名使用当前项目配置，而不是固定内置列表。
+- 完成内容：
+  - `CalibrationCatalog` 增加 `band_config` 字段。
+  - 链路配置 JSON loader 支持可选 `band_config`，校验 `feed_horn_bands[].feed/horn/band`，并支持可选 `start_ghz/stop_ghz`。
+  - 内置 `catr_chamber_loss_calibration.json` 增加默认 CATR 馈源/喇叭/频段交集配置。
+  - `LossFilePolicy` 支持从 `band_config` 创建动态文件命名策略。
+  - `CalibrationViewModel` 启动校准时使用当前 catalog 的动态策略。
+  - GUI 频段配置下拉框改为从当前 catalog 加载；导入不同 JSON 后自动刷新馈源和喇叭列表，喇叭按当前馈源过滤。
+  - 当某个馈源/喇叭组合配置了 `start_ghz/stop_ghz` 时，UI 自动同步网分扫频起止频。
+  - 更新 `CATR_LOSS_CALIBRATION_LINK_CONFIG_JSON.md`，补充 `band_config` 结构说明和示例。
+- 验证结果：
+  - 通过完整测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests`，共 96 项。
+  - 仅完成 Mock/导入验证，未做真实硬件验证。
+- 还需完成：
+  - 如现场需要中文显示馈源/喇叭名称，可在后续扩展 `label` 字段，同时保持文件名短码不变。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/models.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/config_loader.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/configs/catr_chamber_loss_calibration.json`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/storage/loss_file_policy.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/mock_runner.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/viewmodels.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_LINK_CONFIG_JSON.md`
+  - `catr_loss_calibrator/tests/test_calibration_catalog.py`
+  - `catr_loss_calibrator/tests/test_loss_file_policy.py`
+  - `catr_loss_calibrator/tests/test_mock_runner.py`
+- 下一步：
+  - 继续推进 latest 成功 session 索引和历史 session 浏览。
+
+### CATR-CAL-TASK-20260719-034 - 配置绑定的校准文件空间落地
+
+- 状态：完成
+- 日期：2026-07-19
+- 任务目标：
+  - 按文件管理方案先落地配置绑定 workspace、项目/阶段/轮次 session 目录和结果页基础展示。
+  - 让新执行的 Mock 校准文件不再混在旧版输出根目录中。
+- 完成内容：
+  - 新增 `storage/workspace.py`，提供 `CalibrationRunContext`、`WorkspaceContext`、`SessionContext`、配置 hash、workspace/session 目录生成和 `session_manifest.json` 写入。
+  - 校准界面增加“校准批次”输入区：项目代号、校准阶段、批次/轮次、操作员、备注。
+  - `CalibrationViewModel.start_selected()` 根据当前链路配置和批次字段创建 session，并让 runner 输出到 `catr_loss_calibrator_output/workspaces/{workspace_id}/projects/{project_code}/sessions/{session_id}`。
+  - `MockCalibrationRunner` 在 metadata 和 overview 中写入 `run_uid`、`workspace_id`、`session_root`、`config_hash`、`project_code`、`calibration_stage`、`run_label` 等字段，并在完成/失败/取消时生成 manifest。
+  - 结果页摘要和会话详情增加 workspace/project/session/manifest 信息，文件表增加 `MANIFEST` 行，并支持打开当前 workspace/project/session 目录。
+  - 新增 workspace 单元测试和 runner session 输出测试，GUI smoke 覆盖 session 模式结果页。
+- 验证结果：
+  - 通过编译检查：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m py_compile ...`。
+  - 通过完整测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests`，共 93 项。
+  - 仅完成 Mock/导入验证，未做真实硬件验证。
+- 还需完成：
+  - `FM-08/P5-11`：成功完成后维护 latest 成功输出索引，并支持结果页切换当前/latest/历史 session。
+  - `FM-11/P5-12`：旧版输出目录只读兼容展示。
+  - `FM-15`：补失败/取消 session 不覆盖 latest 的测试。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/storage/workspace.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/storage/models.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/mock_runner.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/viewmodels.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`
+  - `catr_loss_calibrator/tests/test_workspace_management.py`
+  - `catr_loss_calibrator/tests/test_mock_runner.py`
+  - `catr_loss_calibrator/tests/test_presentation_gui_smoke.py`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_FILE_MANAGEMENT_PLAN.md`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_DEVELOPMENT_TODO.md`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_TASK_PROGRESS.md`
+- 下一步：
+  - 实现 latest 成功 session 索引和结果页 session 浏览能力。
+
+### CATR-CAL-TASK-20260719-033 - 校准文件管理方案与 TODO
+
+- 状态：完成
+- 日期：2026-07-19
+- 任务目标：
+  - 针对不同链路配置、不同项目、不同阶段/轮次校准文件混淆的问题，形成文件管理完善方案。
+  - 对比市面/开源测试采集方案，并沉淀为本项目文件管理 TODO。
+- 完成内容：
+  - 新增 `CATR_LOSS_CALIBRATION_FILE_MANAGEMENT_PLAN.md`。
+  - 方案定义配置绑定 workspace、project、session、manifest、latest 索引和旧目录兼容策略。
+  - 方案建议校准界面增加项目代号、校准阶段、批次/轮次、操作员和备注字段。
+  - 对比 QCoDeS Dataset、Bluesky/Databroker、PyMeasure Results 的数据组织经验。
+  - 新增 `FM-01` 至 `FM-16` 文件管理 TODO。
+  - 开发 TODO 增加 `P5-08` 至 `P5-12`，把文件管理方案纳入主线任务。
+- 验证结果：
+  - 本次为文档和 TODO 方案更新，未执行测试。
+- 还需完成：
+  - 按 `P5-08/P5-09` 先实现 workspace 生成和校准批次 UI。
+- 关联文件：
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_FILE_MANAGEMENT_PLAN.md`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_DEVELOPMENT_TODO.md`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_TASK_PROGRESS.md`
+- 下一步：
+  - 实现 `FM-01` 至 `FM-05`，先完成配置 hash、workspace/session root 和 UI 批次字段。
+
+### CATR-CAL-TASK-20260719-032 - 非法确认操作拦截
+
+- 状态：完成
+- 日期：2026-07-19
+- 任务目标：
+  - 完成 `UI-66`，在非法操作时进行拦截并给出明确提示。
+- 完成内容：
+  - `CalibrationViewModel.submit_action()` 改为返回布尔值，调用方可判断操作是否被接受。
+  - 对未知动作进行 ERROR 级别拦截，并更新状态栏文本。
+  - 对没有活动确认步骤时的确认/跳过/重试/取消进行 WARNING 级别拦截，并提示“当前没有等待确认的校准步骤”。
+  - 保持运行中合法动作正常下发给 worker。
+  - 增加单元测试覆盖未知动作和无活动 prompt 两类非法操作。
+- 验证结果：
+  - 通过测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests`，共 88 项。
+- 还需完成：
+  - `UI-65`：支持暂停 / 继续等现场操作动作。
+  - `UI-55` 等体验优化项仍待排期。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/viewmodels.py`
+  - `catr_loss_calibrator/tests/test_presentation_viewmodels.py`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_TODO.md`
+- 下一步：
+  - 根据现场需求决定先做 `UI-65` 暂停/继续，还是做 `UI-55` 折叠 LOG 区。
+
+### CATR-CAL-TASK-20260719-031 - 校准执行按钮状态绑定
+
+- 状态：完成
+- 日期：2026-07-19
+- 任务目标：
+  - 完成 `UI-64`，将校准执行页按钮状态严格绑定到校准运行状态。
+- 完成内容：
+  - 收敛“开始校准 / 重新校准”按钮规则：
+    - 未运行/Ready：只允许“开始校准”。
+    - 运行中/等待确认：两个按钮都禁用。
+    - 完成/失败/取消：只允许“重新校准”。
+  - GUI smoke 自动检查 idle、running、done 三类按钮状态，防止后续回归。
+  - smoke 失败时输出具体失败检查项，方便定位 UI 启动或状态同步问题。
+- 验证结果：
+  - 通过测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests`，共 86 项。
+- 还需完成：
+  - `UI-65/UI-66`：继续完善暂停/继续和非法操作提示。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`
+  - `catr_loss_calibrator/tests/test_presentation_gui_smoke.py`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_TODO.md`
+- 下一步：
+  - 推进 `UI-66` 非法操作提示，减少无效点击只写 LOG 的情况。
+
+### CATR-CAL-TASK-20260719-030 - GUI Smoke 与 Mock 校准闭环验证
+
+- 状态：完成
+- 日期：2026-07-19
+- 任务目标：
+  - 完成 `UI-63`，补充 UI 启动和主要交互的自动化测试。
+  - 完成 `UI-51`，完成一轮 Mock 校准的完整 UI 流程闭环验证。
+- 完成内容：
+  - 新增 `--gui-smoke` 启动参数，用于自动化测试中创建 QApplication 和主窗口，但不进入长期事件循环。
+  - GUI smoke 路径会导入默认链路配置、连接四类 mock 设备、同步设备卡片和 LOG。
+  - GUI smoke 路径会运行一轮完整 Mock 校准，将运行摘要写入 ViewModel，并刷新结果页。
+  - smoke 检查覆盖页签、校准项列表、步骤列表、LOG 内容、连接状态、raw/loss/metadata 文件清单和结果表格。
+  - 新增 subprocess 级 GUI smoke 测试，使用 `QT_QPA_PLATFORM=offscreen`，更接近真实入口启动路径。
+- 验证结果：
+  - 通过测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests`，共 86 项。
+  - 该验证使用 Mock 设备和 offscreen GUI，未做真实显示器截图验证。
+- 还需完成：
+  - `UI-64/UI-65/UI-66`：继续完善执行按钮状态、暂停/继续和非法操作提示。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`
+  - `catr_loss_calibrator/tests/test_presentation_gui_smoke.py`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_TODO.md`
+- 下一步：
+  - 推进 `UI-64`，将校准执行页按钮状态更严格地绑定到 state machine。
+
+### CATR-CAL-TASK-20260719-029 - 当前步骤自动滚动可见
+
+- 状态：完成
+- 日期：2026-07-19
+- 任务目标：
+  - 修复校准执行推进到后续细分步骤时，列表选中项可能不在可视区域内的问题。
+- 完成内容：
+  - 新增列表选中 helper，设置当前行后调用 `scrollToItem(..., PositionAtCenter)`。
+  - 校准项列表、步骤列表、细分步骤列表刷新时都会自动滚动到当前选中项。
+  - 细分步骤随 runner 推进到新的小步骤时，会自动滚动到当前小步骤。
+- 验证结果：
+  - `py_compile` 通过：`catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`。
+  - 通过测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests`，共 85 项。
+  - 未做 GUI 手工滚动截图验证。
+- 还需完成：
+  - `UI-51/UI-63`：补完整 Mock GUI 流程验证和主要 UI 自动化测试。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_TODO.md`
+- 下一步：
+  - 继续补 UI 自动化验证，覆盖执行推进时当前步骤可见。
+
+### CATR-CAL-TASK-20260719-028 - 清理历史命令残留状态
+
+- 状态：完成
+- 日期：2026-07-19
+- 任务目标：
+  - 完成 `UI-62`，清理 ViewModel 中不再展示的历史命令残留状态。
+- 完成内容：
+  - 删除 `CalibrationViewModel._command_history` 和 `command_history` 属性。
+  - `send_device_command()` 不再维护独立历史命令列表，命令发送与响应统一进入实时 LOG。
+  - 保留 `command_response` 和 `command_response_changed`，继续支持设备卡片显示当前响应。
+  - 增加测试确认命令追踪通过 LOG 完成，且不再暴露旧 `command_history`。
+- 验证结果：
+  - 通过测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests`，共 85 项。
+- 还需完成：
+  - `UI-51/UI-63`：补完整 Mock GUI 流程验证和主要 UI 自动化测试。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/viewmodels.py`
+  - `catr_loss_calibrator/tests/test_presentation_viewmodels.py`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_TODO.md`
+- 下一步：
+  - 运行全量测试后继续推进 UI 自动化验证。
+
+### CATR-CAL-TASK-20260719-027 - LOG 复制选中与复制全部
+
+- 状态：完成
+- 日期：2026-07-19
+- 任务目标：
+  - 完成 `UI-54`，让 LOG 区支持复制选中内容或复制当前可见全部内容。
+- 完成内容：
+  - LOG 工具栏新增“复制选中”和“复制全部”两个动作。
+  - “复制选中”读取 QTextEdit 当前选区，保持换行后写入系统剪贴板。
+  - “复制全部”复制当前 LOG 面板可见纯文本内容，因此会跟随当前级别筛选和时间戳开关结果。
+- 验证结果：
+  - `py_compile` 通过：`catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`。
+  - 未做 GUI 手工点击或截图验证。
+- 还需完成：
+  - `UI-51/UI-63`：补完整 Mock GUI 流程验证和主要 UI 自动化测试。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_TODO.md`
+- 下一步：
+  - 继续推进非实机项目，优先补 UI 自动化验证或 UI-62 历史命令残留清理。
+
+### CATR-CAL-TASK-20260719-026 - 校准失败恢复策略
+
+- 状态：完成
+- 日期：2026-07-19
+- 任务目标：
+  - 完成 `P4-05`，建立 VNA 采样超时、链路箱无响应、保存失败、人工取消的统一失败恢复策略。
+  - 失败时必须能回答：失败类型、发生状态、步骤/小步骤、原始错误、建议恢复动作。
+- 完成内容：
+  - 新增 `calibration/recovery.py`，定义 `CalibrationFailureKind`、`RecoveryAction`、`CalibrationFailure` 和 `CalibrationRunError`。
+  - runner 在小步骤执行异常时进入 `FAILED`，记录 `failure:*` 事件，并在 `overview()` 中暴露 `failure_kind`、`failure_action`、`failure_state`、`failure_step_id`、`failure_substep_id`、`failure_message`。
+  - 人工取消保持 `CANCELLED` 终态，同时记录 `operator_cancelled` 和 `stopped_by_operator`，便于 session 追溯。
+  - LOG 事件格式化支持 `failure:*`，在 UI 中按 `ERROR` 等级显示失败类型、步骤、状态和建议动作。
+  - 单元测试覆盖链路箱超时、VNA 读数超时、保存路径失败、人工取消和 LOG failure 格式化。
+- 验证结果：
+  - 通过测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests`，共 84 项。
+  - 本次使用 Mock/单元测试验证失败策略，未接真实 VNA 或 LCD74000F 做故障注入。
+- 还需完成：
+  - `P4-01/P4-02`：真实 VNA 和 LCD74000F 实机联调，确认真实超时/错误队列能正确映射到当前 failure kind。
+  - `UI-51/UI-63`：补完整 GUI 流程和异常路径自动化验证。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/recovery.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/mock_runner.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/viewmodels.py`
+  - `catr_loss_calibrator/tests/test_mock_runner.py`
+  - `catr_loss_calibrator/tests/test_presentation_viewmodels.py`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_DEVELOPMENT_TODO.md`
+- 下一步：
+  - 优先推进 `P4-01/P4-02` 实机验证，或者先补 `UI-54` LOG 复制以提升现场排障效率。
+
+### CATR-CAL-TASK-20260719-025 - TODO 优先级重排与参数角色分类
+
+- 状态：完成
+- 日期：2026-07-19
+- 任务目标：
+  - 重新审查当前 TODO 与代码实现的吻合度，按当前验收风险调整后续优先级。
+  - 完成 `P1-05`，让正式输出、原始 `S21_*`、临时追溯参数具备结构化角色。
+  - 完成 `P1-06`，用单元测试锁定链路模板的直通、AMP1、AMP2、SG、SA、VNA1/VNA2 工况。
+- 完成内容：
+  - 将开发 TODO 的推荐执行顺序更新为当前剩余风险优先：参数角色、链路矩阵测试、失败恢复、实机验证、UI 验证、长期治理。
+  - 新增 `OutputRole`、`OutputParameter` 和 `classify_output_parameter()`，支持按声明位置区分 raw/final，避免把 `raw_outputs` 中的中间 `L_*` 误判为正式输出。
+  - `TraceRecord`、CSV 输出和 metadata 增加 `output_role` / `input_roles` / `output_roles`，生成文件可直接追溯参数角色。
+  - 增加链路模板矩阵测试，覆盖 DUT-SA、DUT-AMP1-SA、DUT-VNA2、DUT-AMP1-VNA2、H/V-VNA1、H/V-AMP2-VNA1、H/V-SA、H/V-AMP2-SA、H/V-SG、H/V-AMP2-SG。
+  - 增加 AMP1/AMP2 方向非法用例测试，防止链路方向回归。
+- 验证结果：
+  - 通过测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests`，共 80 项。
+  - 本次不涉及真实硬件验证。
+- 还需完成：
+  - `P4-05`：补 VNA 超时、链路箱无响应、保存失败、人工取消后的统一恢复策略。
+  - `UI-51/UI-54/UI-63`：补完整 Mock GUI 流程验证、LOG 复制和 UI 自动化测试。
+- 关联文件：
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_DEVELOPMENT_TODO.md`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/models.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/mock_runner.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/storage/models.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/storage/csv_storage.py`
+  - `catr_loss_calibrator/tests/test_calibration_catalog.py`
+  - `catr_loss_calibrator/tests/test_link_management.py`
+  - `catr_loss_calibrator/tests/test_mock_runner.py`
+- 下一步：
+  - 推进 `P4-05`，先定义失败恢复策略与 runner/ViewModel 的错误状态边界。
+
+### CATR-CAL-TASK-20260719-024 - N5245B VNA 命令链路同步
+
+- 状态：完成
+- 日期：2026-07-19
+- 任务目标：
+  - 对照 `docs/N5245B_SCPI_Command_Reference.md` 和静区测试软件稳定 VNA 实现同步真实 VNA adapter 和 UI 预设。
+  - 优先使用 N5245B/PNA-X 推荐的复数 `SDATA` 读取路径。
+- 完成内容：
+  - 参考 `src/quiet_zone_tester/hardware/vna/scpi.py` 和 `tests/test_vna_scpi.py`，自动采集路径收敛为稳定链路：`TRIG:SOUR IMM` + `SENS1:SWE:MODE SING`，不额外下发 `INIT1:IMM`。
+  - `PyVisaVna.configure_power()` 默认使用静区测试已验证的 `SOUR:POW`，保留 N5245B 端口功率命令为 UI 手动预设。
+  - `PyVisaVna.read_s_parameter()` 设置 `FORM:DATA REAL,64` 和 `FORM:BORD SWAP` 后读取 `CALC:DATA? SDATA`，优先使用二进制 `query_binary_values`，无二进制能力时回退 ASCII。
+  - `PyVisaVna.configure_sweep()` 配置后读取 `SENS:FREQ:STAR?`、`SENS:FREQ:STOP?`、`SENS:SWE:POIN?`，以仪器实际值更新内部状态。
+  - VNA 预设增加 N5245B 端口功率、N5245B INIT 手动验证命令、`FORM:DATA REAL,64`、`FORM:BORD SWAP`、ASCII 数据和 `CALC1:DATA? SDATA/FDATA`；默认“立即触发”仍使用稳定的 `SENS1:SWE:MODE SING`。
+  - 增加单元测试覆盖 SDATA 优先、稳定功率命令、稳定单次触发流程和扫频实际值回读。
+- 验证结果：
+  - `py_compile` 通过：`hardware/vna/pyvisa_vna.py`、`presentation/viewmodels.py`。
+  - 通过测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests`，共 76 项。
+  - 未做真实 N5245B 硬件联机验证。
+- 还需完成：
+  - 真实硬件接入时核对二进制 REAL64 / ASCII 数据模式、VISA 端序和仪器错误队列。
+- 关联文件：
+  - `docs/N5245B_SCPI_Command_Reference.md`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/hardware/vna/pyvisa_vna.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/viewmodels.py`
+  - `catr_loss_calibrator/tests/test_pyvisa_vna.py`
+  - `catr_loss_calibrator/tests/test_presentation_viewmodels.py`
+- 下一步：
+  - 按真实 VNA 资源地址执行最小 sweep 验证并记录硬件信息。
+
+### CATR-CAL-TASK-20260719-023 - N5183B 与 N9020B 常用预设命令
+
+- 状态：完成
+- 日期：2026-07-19
+- 任务目标：
+  - 信号源型号列表包含 `N5183B`。
+  - 频谱仪型号列表包含 `N9020B`。
+  - 为信号源和频谱仪补齐现场常用基础 SCPI 预设。
+- 完成内容：
+  - 信号源预设增加清状态、查询错误、频率查询、功率查询、关闭输出和输出状态查询。
+  - 频谱仪预设增加清状态、查询错误、频谱模式、频谱测量配置、中心/起止频、Span、点数、RBW/VBW、参考电平、衰减、前置放大、连续测量、频谱数据读取、峰值搜索和 Marker 读数。
+  - 增加 ViewModel 单元测试，锁定 `N5183B` / `N9020B` 型号选项和关键预设命令。
+  - 参考 QCoDeS `KeysightN5183B` / `KeysightN9030B` 驱动和 Keysight X-Series 资料交叉核对命令方向；N9020B 与 N9030B 均按 X-Series 信号分析仪基础频谱测量口径处理。
+- 验证结果：
+  - `py_compile` 通过：`presentation/viewmodels.py`。
+  - 通过测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests`，共 75 项。
+  - 未做真实 N5183B / N9020B 硬件联机验证。
+- 还需完成：
+  - 后续接真实仪表时按设备固件版本核对 SCPI 响应和错误队列。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/viewmodels.py`
+  - `catr_loss_calibrator/tests/test_presentation_viewmodels.py`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_TODO.md`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_TASK_PROGRESS.md`
+- 下一步：
+  - 运行回归测试并在真实硬件验证清单中记录后续联机结果。
+
+### CATR-CAL-TASK-20260719-022 - 结果曲线自适应范围按钮
+
+- 状态：完成
+- 日期：2026-07-19
+- 任务目标：
+  - 在结果页曲线预览区增加一键自适应当前曲线范围的操作。
+- 完成内容：
+  - 在曲线预览工具栏增加“自适应”按钮。
+  - 加载 CSV 曲线后自动启用按钮，并在绘图后执行一次自动范围适配。
+  - 点击按钮时调用 pyqtgraph `autoRange`，按当前曲线重新适配 X/Y 轴范围。
+  - 无可绘制曲线或未安装 pyqtgraph 时禁用按钮或给出状态提示。
+- 验证结果：
+  - `py_compile` 通过：`presentation/main.py`。
+  - 通过测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests`，共 70 项。
+  - 未做 GUI 截图验证，未做真实硬件验证。
+- 还需完成：
+  - 后续可补 GUI 截图或人工操作记录，确认按钮在实际窗口中的位置和交互效果。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_TODO.md`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_TASK_PROGRESS.md`
+- 下一步：
+  - 继续根据现场使用反馈优化结果页曲线交互。
+
+### CATR-CAL-TASK-20260719-021 - 结果页文件索引与曲线预览
+
+- 状态：完成
+- 日期：2026-07-19
+- 任务目标：
+  - 让结果页显示本次运行生成的 raw、final/loss、metadata 文件。
+  - 支持结果文件路径复制、打开目录、导出 session 摘要。
+  - 支持选中 CSV 后直接预览频率-GHz / dB 曲线。
+- 完成内容：
+  - `MockCalibrationRunner.overview()` 增加 `output_root`、`raw_files`、`loss_files`、`metadata_files`。
+  - 结果页新增生成文件表格，按 `FINAL`、`RAW`、`METADATA` 分类展示文件名、大小、修改时间和完整路径。
+  - 结果页新增刷新结果、复制路径、打开目录和导出摘要按钮。
+  - 结果页新增 CSV 曲线预览，自动识别频率列和常见 dB 数据列。
+  - 同步更新 UI TODO、开发 TODO 和 LOG 功能描述。
+- 验证结果：
+  - `py_compile` 通过：`calibration/mock_runner.py`、`presentation/main.py`。
+  - 通过测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests`，共 70 项。
+  - 仅完成 Mock/UI 代码验证，未做真实硬件验证。
+- 还需完成：
+  - 后续可补 GUI 自动化截图验证结果页表格和曲线在实际窗口中的布局。
+  - LOG 复制选中内容或全部内容仍按 `UI-54` 跟踪。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/mock_runner.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`
+  - `catr_loss_calibrator/tests/test_mock_runner.py`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_TODO.md`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_DEVELOPMENT_TODO.md`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_TASK_PROGRESS.md`
+- 下一步：
+  - 继续补结果页 GUI 截图验证，或推进真实硬件下的文件输出一致性检查。
 
 ### CATR-CAL-TASK-20260718-020 - 小步骤确认内嵌到步骤执行页
 

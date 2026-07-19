@@ -12,15 +12,17 @@
   ],
   "manual_confirmation": true,
   "input_files": [
-    "LINK-CAL-002_CAL002-DUT-AMP1-VNA2_S21_DUT_VNA_AMP1_RAW.raw"
+    "catr_loss_calibrator_output\\raw\\LINK-CAL-002_CAL002-DUT-AMP1-VNA2_S21_DUT_VNA_AMP1_RAW.csv"
   ],
   "input_hashes": [
-    "mock"
+    "4ff52032abc6ff134cf162eabd77ba186a00a53ac2ee416ad9729dfb931775c0"
   ],
   "output_files": [
-    "L_DUT_VNA_AMP1"
+    "catr_loss_calibrator_output\\loss\\L_DUT_VNA_AMP1_10_15G_F10_17G_H10_15G.csv"
   ],
-  "output_hashes": [],
+  "output_hashes": [
+    "636284e557c5709a5a107a2371ecd62f7810b22e6ce43b33fad23dcc942406fc"
+  ],
   "formula_version": "v1",
   "profile_version": "lcd74000f:v1",
   "note": "mock-runner:S21_DUT_VNA_AMP1_RAW"

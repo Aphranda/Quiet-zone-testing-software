@@ -82,6 +82,22 @@ class MockScpiInstrument:
         self.resource = resource or f"MOCK::{name}"
         self._connected = False
         self.commands: list[str] = []
+        self.settings: dict[str, str] = {
+            "frequency_cw": "10000000000",
+            "power_level": "-10",
+            "output_state": "0",
+            "center_frequency": "10000000000",
+            "span": "100000000",
+            "points": "1001",
+            "rbw": "1000000",
+            "vbw": "1000000",
+            "reference_level": "0",
+            "attenuation": "10",
+            "preamp_state": "0",
+            "continuous": "0",
+            "marker_frequency": "10000000000",
+            "marker_power": "-42.0",
+        }
 
     @property
     def is_connected(self) -> bool:
@@ -101,9 +117,98 @@ class MockScpiInstrument:
         upper = command.strip().upper()
         if upper == "*IDN?":
             return f"MOCK,{self.model},0001,1.0"
+        if upper == "*OPC?":
+            return "1"
+        specific_response = self._handle_common_scpi(command)
+        if specific_response is not None:
+            return specific_response
         if upper.endswith("?"):
             return "0"
         return "OK"
+
+    def _handle_common_scpi(self, command: str) -> str | None:
+        normalized = command.strip()
+        upper = normalized.upper()
+        value = self._command_value(normalized)
+
+        query_map = {
+            "FREQUENCY:CW?": "frequency_cw",
+            "FREQ:CW?": "frequency_cw",
+            "POWER:LEVEL?": "power_level",
+            "POW:LEV?": "power_level",
+            "OUTPUT:STATE?": "output_state",
+            "OUTP:STAT?": "output_state",
+            "FREQUENCY:CENTER?": "center_frequency",
+            "FREQ:CENT?": "center_frequency",
+            "FREQUENCY:SPAN?": "span",
+            "FREQ:SPAN?": "span",
+            "SWEEP:POINTS?": "points",
+            "SWE:POIN?": "points",
+            "BANDWIDTH:RESOLUTION?": "rbw",
+            "BAND:RES?": "rbw",
+            "BANDWIDTH:VIDEO?": "vbw",
+            "BAND:VID?": "vbw",
+            "CALCULATE:MARKER1:X?": "marker_frequency",
+            "CALC:MARK1:X?": "marker_frequency",
+            "CALCULATE:MARKER1:Y?": "marker_power",
+            "CALC:MARK1:Y?": "marker_power",
+        }
+        if upper in query_map:
+            return self.settings[query_map[upper]]
+        if upper in {"SYSTEM:ERROR?", "SYSTEM:ERROR:NEXT?", "SYST:ERR?", "SYST:ERR:NEXT?"}:
+            return "0,No error"
+
+        write_prefixes = (
+            ("FREQUENCY:CW ", "frequency_cw"),
+            ("FREQ:CW ", "frequency_cw"),
+            ("POWER:LEVEL ", "power_level"),
+            ("POW:LEV ", "power_level"),
+            ("FREQUENCY:CENTER ", "center_frequency"),
+            ("FREQ:CENT ", "center_frequency"),
+            ("FREQUENCY:SPAN ", "span"),
+            ("FREQ:SPAN ", "span"),
+            ("SWEEP:POINTS ", "points"),
+            ("SWE:POIN ", "points"),
+            ("BANDWIDTH:RESOLUTION ", "rbw"),
+            ("BAND:RES ", "rbw"),
+            ("BANDWIDTH:VIDEO ", "vbw"),
+            ("BAND:VID ", "vbw"),
+            ("DISPLAY:WINDOW:TRACE:Y:RLEVEL ", "reference_level"),
+            ("DISP:WIND:TRAC:Y:RLEV ", "reference_level"),
+            ("POWER:ATTENUATION ", "attenuation"),
+            ("POW:ATT ", "attenuation"),
+        )
+        for prefix, key in write_prefixes:
+            if upper.startswith(prefix) and value:
+                self.settings[key] = value
+                return "OK"
+        if upper.startswith("OUTPUT:STATE ") or upper.startswith("OUTP:STAT "):
+            self.settings["output_state"] = self._state_value(value)
+            return "OK"
+        if upper.startswith("POWER:GAIN:STATE ") or upper.startswith("POW:GAIN:STAT "):
+            self.settings["preamp_state"] = self._state_value(value)
+            return "OK"
+        if upper.startswith("INITIATE:CONTINUOUS ") or upper.startswith("INIT:CONT "):
+            self.settings["continuous"] = self._state_value(value)
+            return "OK"
+        if upper in {"CALCULATE:MARKER1:MAXIMUM", "CALC:MARK1:MAX"}:
+            self.settings["marker_frequency"] = self.settings["center_frequency"]
+            return "OK"
+        return None
+
+    @staticmethod
+    def _command_value(command: str) -> str:
+        parts = command.strip().split(maxsplit=1)
+        return parts[1].strip() if len(parts) == 2 else ""
+
+    @staticmethod
+    def _state_value(value: str) -> str:
+        normalized = value.strip().upper()
+        if normalized in {"ON", "1", "TRUE"}:
+            return "1"
+        if normalized in {"OFF", "0", "FALSE"}:
+            return "0"
+        return normalized
 
 
 class MockLinkBox:

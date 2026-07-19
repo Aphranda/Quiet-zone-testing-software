@@ -18,6 +18,13 @@ from catr_loss_calibrator.hardware.scpi import PyVisaScpiInstrument
 from catr_loss_calibrator.hardware.vna.pyvisa_vna import PyVisaVna
 from catr_loss_calibrator.instrument_management.models import InstrumentConnectionConfig
 from catr_loss_calibrator.link_management.link_templates import link_command
+from catr_loss_calibrator.storage.loss_file_policy import LossFilePolicy
+from catr_loss_calibrator.storage.workspace import (
+    CalibrationRunContext,
+    DEFAULT_OUTPUT_ROOT,
+    create_session_context,
+    workspace_for_catalog,
+)
 
 
 @dataclass(frozen=True)
@@ -88,7 +95,7 @@ class SubStepViewData:
 
 class CalibrationRunWorker(QThread):
     prompt_ready = Signal(object)
-    log_message = Signal(str)
+    log_message = Signal(str, str, str, str)
     state_changed = Signal(str)
     finished_summary = Signal(object)
     error_occurred = Signal(str)
@@ -102,12 +109,15 @@ class CalibrationRunWorker(QThread):
 
     def run(self) -> None:  # pragma: no cover - Qt thread
         try:
+            self._runner.event_callback = self._handle_runner_event
             self.state_changed.emit(self._runner.state_machine.state.value)
             self._runner.run()
-            self.log_message.emit(f"run complete: {self._runner.item.id}")
+            self.log_message.emit("INFO", "runner", self._runner.item.name, f"执行完成: {self._runner.item.id}")
             self.finished_summary.emit(self._runner.overview())
         except Exception as exc:  # pragma: no cover - Qt thread
             self.error_occurred.emit(str(exc))
+        finally:
+            self._runner.event_callback = None
 
     def confirm_step(self, step, substep, phase: str, index: int, total: int, substep_index: int, substep_total: int) -> str:
         status = "等待开始确认" if phase == "start" else "等待保存完成确认"
@@ -160,6 +170,41 @@ class CalibrationRunWorker(QThread):
     def active_prompt(self) -> StepViewData | None:
         return self._active_prompt
 
+    def _handle_runner_event(self, event: str) -> None:
+        level, source, name, message = self._log_fields_for_event(event, self._runner.item.name)
+        self.log_message.emit(level, source, name, message)
+
+    @staticmethod
+    def _log_fields_for_event(event: str, item_name: str) -> tuple[str, str, str, str]:
+        if event.startswith("failure:"):
+            parts = event.split(":", 6)
+            if len(parts) == 7:
+                _, kind, step_id, substep_id, state, action, message = parts
+                return (
+                    "ERROR",
+                    "runner",
+                    item_name,
+                    f"失败: {kind}; 步骤={step_id}/{substep_id}; 状态={state}; 建议={action}; {message}",
+                )
+        parts = event.split(":", 3)
+        kind = parts[0] if parts else ""
+        if kind == "link" and len(parts) == 4:
+            return ("INFO", "link_box", item_name, f"下发链路箱命令: {parts[3]}")
+        if kind == "raw" and len(parts) >= 2:
+            return ("INFO", "storage", item_name, f"保存原始曲线: {parts[1]}")
+        if kind == "loss" and len(parts) >= 2:
+            return ("INFO", "storage", item_name, f"保存路损文件: {parts[1]}")
+        if kind == "metadata" and len(parts) >= 2:
+            return ("INFO", "storage", item_name, f"保存元数据: {parts[1]}")
+        if kind == "start" and len(parts) >= 2:
+            return ("INFO", "runner", item_name, f"开始执行: {parts[1]}")
+        if kind == "done" and len(parts) >= 2:
+            return ("INFO", "runner", item_name, f"流程结束: {parts[1]}")
+        if kind in {"skip", "retry", "cancel"}:
+            messages = {"skip": "跳过步骤", "retry": "重试步骤", "cancel": "取消流程"}
+            return ("WARNING" if kind == "cancel" else "INFO", "runner", item_name, f"{messages[kind]}: {event}")
+        return ("INFO", "runner", item_name, event)
+
     def _item_completed_substeps(self, step_index: int, substep_index: int, phase: str) -> int:
         completed = 0
         for item_step in self._runner.item.steps[: max(step_index - 1, 0)]:
@@ -206,7 +251,6 @@ class CalibrationViewModel(QObject):
         self._mock_signal_generator = self._create_device("signal_generator")
         self._mock_link_box = self._create_device("link_box")
         self._mock_spectrum_analyzer = self._create_device("spectrum_analyzer")
-        self._command_history: list[str] = []
         self._append_log(
             "INFO",
             "config",
@@ -250,10 +294,6 @@ class CalibrationViewModel(QObject):
     @property
     def command_response(self) -> str:
         return self._command_response
-
-    @property
-    def command_history(self) -> list[str]:
-        return list(self._command_history)
 
     def load_default_catalog(self) -> None:
         self._replace_catalog(default_calibration_catalog(), "已导入默认链路配置")
@@ -494,8 +534,9 @@ class CalibrationViewModel(QObject):
             raise RuntimeError(f"搜索 VISA 资源失败: {exc}") from exc
 
     def start_selected(self, vna_settings: dict[str, Any] | None = None) -> None:
+        settings = dict(vna_settings or {})
         if self._worker and self._worker.isRunning():
-            self._append_log("runner already running")
+            self._append_log("WARN", "runner", self._active_run_item_id or "unknown", "runner already running")
             return
         item = self.selected_item
         if item is None:
@@ -503,16 +544,31 @@ class CalibrationViewModel(QObject):
         self._run_summaries_by_item.pop(item.id, None)
         self._run_status_by_item[item.id] = f"Running {item.id}"
         self._active_run_item_id = item.id
+        workspace = workspace_for_catalog(self.catalog, DEFAULT_OUTPUT_ROOT)
+        run_context = CalibrationRunContext(
+            project_code=str(settings.get("project_code") or "DEFAULT_PROJECT"),
+            calibration_stage=str(settings.get("calibration_stage") or "initial"),
+            run_label=str(settings.get("run_label") or "R01"),
+            operator=str(settings.get("operator") or ""),
+            operator_note=str(settings.get("operator_note") or ""),
+        )
+        session_context = create_session_context(workspace=workspace, run=run_context, item_id=item.id)
         runner = MockCalibrationRunner(
             item=item,
             vna=self._mock_vna,
             link_box=self._mock_link_box,
-            output_root=Path("catr_loss_calibrator_output"),
-            vna_settings=dict(vna_settings or {}),
+            output_root=session_context.session_root,
+            vna_settings=settings,
+            feed=str(settings.get("feed") or "F10_17G"),
+            horn=str(settings.get("horn") or "H10_15G"),
+            loss_file_policy=LossFilePolicy.from_band_config(self.catalog.band_config),
+            session_context=session_context,
         )
         worker = CalibrationRunWorker(runner)
         worker.prompt_ready.connect(self._on_prompt_ready)
-        worker.log_message.connect(self._append_log)
+        worker.log_message.connect(
+            lambda level, source, name, message: self._append_log(level, source, name, message)
+        )
         worker.state_changed.connect(self.run_state_changed.emit)
         worker.finished_summary.connect(self._on_finished_summary)
         worker.error_occurred.connect(self._on_worker_error)
@@ -525,13 +581,23 @@ class CalibrationViewModel(QObject):
         self.refresh_overview()
         worker.start()
 
-    def submit_action(self, action: str) -> None:
+    def submit_action(self, action: str) -> bool:
         item_name = self.selected_item.name if self.selected_item is not None else "未加载链路配置"
+        normalized_action = action.strip().lower()
+        if normalized_action not in {"continue", "skip", "retry", "cancel"}:
+            message = f"非法操作: {action}"
+            self._append_log("ERROR", "ui", item_name, message)
+            self.status_text_update(message)
+            return False
         if self._worker and self._worker.isRunning():
-            self._append_log("INFO", "ui", item_name, f"用户操作: {action}")
-            self._worker.submit_action(action)
+            self._append_log("INFO", "ui", item_name, f"用户操作: {normalized_action}")
+            self._worker.submit_action(normalized_action)
+            return True
         else:
-            self._append_log("WARNING", "ui", item_name, f"忽略操作: {action}")
+            message = f"非法操作: 当前没有等待确认的校准步骤，已忽略 {normalized_action}"
+            self._append_log("WARNING", "ui", item_name, message)
+            self.status_text_update(message)
+            return False
 
     def send_command(self, command: str) -> str:
         return self.send_device_command("link_box", command)
@@ -542,12 +608,21 @@ class CalibrationViewModel(QObject):
             raise ValueError("Command is empty.")
         instrument, display_name = self._command_device(device)
         response = instrument.send_command(command)
-        self._command_history.append(f"{display_name}> {command}\n{response}")
         self._command_response = response
         self.command_response_changed.emit(response)
         self._append_log("INFO", "command", display_name, f"发送命令: {command}")
         self._append_log("INFO", "command", display_name, f"返回响应: {response}")
         return response
+
+    def _send_device_command_sequence(self, device: str, log_source: str, commands: tuple[str, ...]) -> tuple[str, ...]:
+        instrument, display_name = self._command_device(device)
+        responses: list[str] = []
+        for command in commands:
+            response = instrument.send_command(command)
+            responses.append(response)
+            self._append_log("INFO", log_source, display_name, f"发送命令: {command}")
+            self._append_log("INFO", log_source, display_name, f"返回响应: {response}")
+        return tuple(responses)
 
     def configure_vna(self, settings: dict[str, Any]) -> str:
         vna, display_name = self._command_device("vna")
@@ -600,6 +675,56 @@ class CalibrationViewModel(QObject):
         self._append_log("INFO", "vna", display_name, response)
         return response
 
+    def configure_signal_generator(self, settings: dict[str, Any]) -> str:
+        frequency_hz = float(settings["frequency_ghz"]) * 1e9
+        power_dbm = float(settings["power_dbm"])
+        output_enabled = bool(settings.get("output_enabled", False))
+        output_state = "ON" if output_enabled else "OFF"
+        commands = (
+            f"FREQuency:CW {frequency_hz:.12g}",
+            f"POWer:LEVel {power_dbm:.12g}",
+            f"OUTPut:STATe {output_state}",
+        )
+        self._send_device_command_sequence("signal_generator", "signal_generator", commands)
+        response = f"OK: SG {frequency_hz:.12g} Hz, {power_dbm:.1f} dBm, output {output_state}"
+        self._command_response = response
+        self.command_response_changed.emit(response)
+        self._append_log("INFO", "signal_generator", "信号源", response)
+        return response
+
+    def configure_spectrum_analyzer(self, settings: dict[str, Any]) -> str:
+        center_hz = float(settings["center_ghz"]) * 1e9
+        span_hz = float(settings["span_mhz"]) * 1e6
+        points = int(settings["points"])
+        rbw_hz = float(settings["rbw_hz"])
+        vbw_hz = float(settings["vbw_hz"])
+        reference_level_dbm = float(settings["reference_level_dbm"])
+        attenuation_db = float(settings["attenuation_db"])
+        preamp_state = "ON" if bool(settings.get("preamp_enabled", False)) else "OFF"
+        continuous_state = "ON" if bool(settings.get("continuous", False)) else "OFF"
+        commands = (
+            "INSTrument:SELect SA",
+            "CONFigure:SANalyzer",
+            f"FREQuency:CENTer {center_hz:.12g}",
+            f"FREQuency:SPAN {span_hz:.12g}",
+            f"SWEep:POINts {points}",
+            f"BANDwidth:RESolution {rbw_hz:.12g}",
+            f"BANDwidth:VIDeo {vbw_hz:.12g}",
+            f"DISPlay:WINDow:TRACe:Y:RLEVel {reference_level_dbm:.12g}",
+            f"POWer:ATTenuation {attenuation_db:.12g}",
+            f"POWer:GAIN:STATe {preamp_state}",
+            f"INITiate:CONTinuous {continuous_state}",
+        )
+        self._send_device_command_sequence("spectrum_analyzer", "spectrum_analyzer", commands)
+        response = (
+            f"OK: SA center {center_hz:.12g} Hz, span {span_hz:.12g} Hz, "
+            f"{points} pts, RBW {rbw_hz:.12g} Hz, VBW {vbw_hz:.12g} Hz"
+        )
+        self._command_response = response
+        self.command_response_changed.emit(response)
+        self._append_log("INFO", "spectrum_analyzer", "频谱仪", response)
+        return response
+
     def preset_command(self, preset: str) -> str:
         return self.device_preset_command("link_box", preset)
 
@@ -618,31 +743,69 @@ class CalibrationViewModel(QObject):
                 "设置止频": "SENS:FREQ:STOP 17GHz",
                 "设置点数": "SENS:SWE:POIN 71",
                 "设置功率": "SOUR:POW -10",
+                "N5245B 端口1功率": "SOUR1:POW1:LEV:IMM:AMPL -10",
+                "N5245B 端口2功率": "SOUR1:POW2:LEV:IMM:AMPL -10",
                 "设置 IFBW": "SENS:BAND:RES 1000",
                 "配置 S21": "CALC1:PAR:DEF:EXT 'CH1_SPARAM','S21'",
                 "选择轨迹": "CALC1:PAR:SEL 'CH1_SPARAM'",
+                "关闭连续扫描": "SENS1:SWE:MODE HOLD",
+                "立即触发": "SENS1:SWE:MODE SING",
+                "N5245B 关闭连续扫描": "INIT1:CONT OFF",
+                "N5245B INIT 触发": "INIT1:IMM",
                 "单次扫描": "SENS1:SWE:MODE SING",
                 "保持扫描": "SENS1:SWE:MODE HOLD",
                 "连续扫描": "SENS1:SWE:MODE CONT",
                 "触发源 IMM": "TRIG:SOUR IMM",
                 "等待完成": "*OPC?",
                 "查询扫时": "SENS1:SWE:TIME?",
-                "读取 SDATA": "CALC:DATA? SDATA",
+                "二进制 REAL64": "FORM:DATA REAL,64",
+                "字节序 SWAP": "FORM:BORD SWAP",
+                "ASCII 数据": "FORM:DATA ASC,0",
+                "读取 SDATA": "CALC1:DATA? SDATA",
+                "读取 FDATA": "CALC1:DATA? FDATA",
             },
             "signal_generator": {
                 "*IDN?": "*IDN?",
+                "清状态": "*CLS",
+                "查询错误": "SYSTem:ERRor?",
                 "设置频率": "FREQuency:CW 10GHz",
+                "查询频率": "FREQuency:CW?",
                 "设置功率": "POWer:LEVel -10dBm",
+                "查询功率": "POWer:LEVel?",
                 "打开输出": "OUTPut:STATe ON",
+                "关闭输出": "OUTPut:STATe OFF",
+                "查询输出": "OUTPut:STATe?",
             },
             "link_box": {
                 **self._link_box_command_presets(),
             },
             "spectrum_analyzer": {
                 "*IDN?": "*IDN?",
+                "清状态": "*CLS",
+                "查询错误": "SYSTem:ERRor?",
+                "选择频谱模式": "INSTrument:SELect SA",
+                "配置频谱测量": "CONFigure:SANalyzer",
                 "设置中心频率": "FREQuency:CENTer 10GHz",
+                "查询中心频率": "FREQuency:CENTer?",
                 "设置 Span": "FREQuency:SPAN 100MHz",
-                "读取峰值": "CALCulate:MARKer1:Y?",
+                "查询 Span": "FREQuency:SPAN?",
+                "设置起频": "FREQuency:STARt 9.95GHz",
+                "设置止频": "FREQuency:STOP 10.05GHz",
+                "设置点数": "SWEep:POINts 1001",
+                "设置 RBW": "BANDwidth:RESolution 1MHz",
+                "查询 RBW": "BANDwidth:RESolution?",
+                "设置 VBW": "BANDwidth:VIDeo 1MHz",
+                "查询 VBW": "BANDwidth:VIDeo?",
+                "设置参考电平": "DISPlay:WINDow:TRACe:Y:RLEVel 0dBm",
+                "设置衰减": "POWer:ATTenuation 10",
+                "打开前置放大": "POWer:GAIN:STATe ON",
+                "关闭前置放大": "POWer:GAIN:STATe OFF",
+                "关闭连续测量": "INITiate:CONTinuous OFF",
+                "立即测量": "INITiate:IMMediate",
+                "读取频谱数据": "READ:SANalyzer?",
+                "峰值搜索": "CALCulate:MARKer1:MAXimum",
+                "读取 Marker 频率": "CALCulate:MARKer1:X?",
+                "读取 Marker 幅度": "CALCulate:MARKer1:Y?",
             },
         }
         return presets
@@ -885,11 +1048,17 @@ class CalibrationViewModel(QObject):
         self._logs.append(entry)
         self.logs_changed.emit()
 
+    def clear_logs(self) -> None:
+        self._logs.clear()
+        self.logs_changed.emit()
+
     def filtered_logs(self, *, level: str = "ALL", keyword: str = "") -> list[LogEntry]:
         keyword = keyword.strip().lower()
         level = level.strip().upper()
         records = self._logs
         if level and level != "ALL":
+            if level == "WARN":
+                level = "WARNING"
             records = [record for record in records if record.level == level]
         if keyword:
             records = [

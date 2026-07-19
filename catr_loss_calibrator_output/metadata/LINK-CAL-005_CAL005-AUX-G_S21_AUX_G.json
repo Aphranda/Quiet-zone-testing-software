@@ -1,0 +1,33 @@
+{
+  "session_id": "LINK-CAL-005-CAL005-AUX-G_S21_AUX_G",
+  "project_name": "CATR Loss Calibrator",
+  "project_version": "0.1.0",
+  "calibration_item": "LINK-CAL-005",
+  "calibration_step": "CAL005-AUX-G_S21_AUX_G",
+  "instrument_snapshot": {
+    "vna": "MockVna"
+  },
+  "link_commands": [],
+  "manual_confirmation": true,
+  "input_files": [
+    "catr_loss_calibrator_output\\raw\\LINK-CAL-005_CAL005-AUX-G_S21_AUX_G.csv"
+  ],
+  "input_hashes": [
+    "e4716d4ec21d303ba068d5f710eb611bb12fed42476168697b85aa24ff124f4d"
+  ],
+  "input_roles": [
+    "raw_s21"
+  ],
+  "output_files": [
+    "catr_loss_calibrator_output\\loss\\L_AUX_G_10_15G_F10_17G_H10_15G.csv"
+  ],
+  "output_hashes": [
+    "1c91ace950134f305fd03568c24fc7ec52a8d157bba6a249b61e64aa041f4e52"
+  ],
+  "output_roles": [
+    "final"
+  ],
+  "formula_version": "v1",
+  "profile_version": "lcd74000f:v1",
+  "note": "mock-runner:S21_AUX_G"
+}

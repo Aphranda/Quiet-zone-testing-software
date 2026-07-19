@@ -1,0 +1,36 @@
+{
+  "session_id": "LINK-CAL-005-CAL005-SG_V-SG-DUTAMP1",
+  "project_name": "CATR Loss Calibrator",
+  "project_version": "0.1.0",
+  "calibration_item": "LINK-CAL-005",
+  "calibration_step": "CAL005-SG_V-SG-DUTAMP1",
+  "instrument_snapshot": {
+    "vna": "MockVna"
+  },
+  "link_commands": [
+    "CONFigure:LINK V, SG",
+    "CONFigure:LINK DUT, AMP1, VNA2"
+  ],
+  "manual_confirmation": true,
+  "input_files": [
+    "catr_loss_calibrator_output\\raw\\LINK-CAL-005_CAL005-SG_V-SG-DUTAMP1.csv"
+  ],
+  "input_hashes": [
+    "e24bef5b08992e98e8625c19ccd30db979f43ed099d8aa24cc4ef4f5ba19afe5"
+  ],
+  "input_roles": [
+    "temporary"
+  ],
+  "output_files": [
+    "catr_loss_calibrator_output\\loss\\L_SG_DUT_V_AMP1_10_15G_F10_17G_H10_15G.csv"
+  ],
+  "output_hashes": [
+    "006619e6d100e03f68bc031fa83106ff905bd3fe583dcd9d9b752765581fd845"
+  ],
+  "output_roles": [
+    "final"
+  ],
+  "formula_version": "v1",
+  "profile_version": "lcd74000f:v1",
+  "note": "mock-runner:V 极化 SG 到 DUT，DUT 侧 AMP1"
+}

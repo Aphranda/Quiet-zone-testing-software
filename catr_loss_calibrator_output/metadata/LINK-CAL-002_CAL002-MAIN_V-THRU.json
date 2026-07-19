@@ -13,15 +13,17 @@
   ],
   "manual_confirmation": true,
   "input_files": [
-    "LINK-CAL-002_CAL002-MAIN_V-THRU.raw"
+    "catr_loss_calibrator_output\\raw\\LINK-CAL-002_CAL002-MAIN_V-THRU.csv"
   ],
   "input_hashes": [
-    "mock"
+    "a07f3227401ae30edd93f7fc804f10816d81d8ce3aa9c291de7f8ca6d6517311"
   ],
   "output_files": [
-    "L_VNA_FEED_V"
+    "catr_loss_calibrator_output\\loss\\L_VNA_FEED_V_10_15G_F10_17G_H10_15G.csv"
   ],
-  "output_hashes": [],
+  "output_hashes": [
+    "d54aefc523aef39207a4e51045f852a36c325f08229ca93967a9e92c1a4fae85"
+  ],
   "formula_version": "v1",
   "profile_version": "lcd74000f:v1",
   "note": "mock-runner:V 极化 VNA 主链路直通"

@@ -60,15 +60,15 @@ class PyVisaVna(Vna):
         self._write(f"SENS:SWE:POIN {points}")
         self._wait_for_operation_complete()
         self._raise_for_system_error()
-        self._start_hz = start_hz
-        self._stop_hz = stop_hz
-        self._points = points
+        self._start_hz = self._query_float_or_default("SENS:FREQ:STAR?", start_hz)
+        self._stop_hz = self._query_float_or_default("SENS:FREQ:STOP?", stop_hz)
+        self._points = int(self._query_float_or_default("SENS:SWE:POIN?", float(points)))
 
     def configure_power(self, power_dbm: float) -> None:
         if not -90.0 <= power_dbm <= 30.0:
             raise ValueError("VNA power must be between -90 dBm and 30 dBm.")
         self._prepare_for_reconfiguration()
-        self._write(f"SOUR:POW {power_dbm:.6g}")
+        self._write_with_error_fallback((f"SOUR:POW {power_dbm:.6g}", f"SOUR1:POW1:LEV:IMM:AMPL {power_dbm:.6g}"))
         self._wait_for_operation_complete()
         self._raise_for_system_error()
         self._power_dbm = power_dbm
@@ -107,9 +107,39 @@ class PyVisaVna(Vna):
     def read_s_parameter(self, parameter: str = "S21") -> SParameterTrace:
         if not self.is_connected:
             raise RuntimeError("VNA is not connected.")
-        frequency = np.linspace(self._start_hz, self._stop_hz, self._points)
-        value_db = np.zeros(self._points)
-        phase = np.zeros(self._points)
+        parameter = parameter.upper()
+        if self._selected_parameter != parameter:
+            self._select_parameter(parameter)
+        else:
+            self._write(f"CALC:PAR:SEL '{self._trace_name}'")
+
+        frequency = self._read_frequency_axis()
+        value_db: np.ndarray | None = None
+        phase: np.ndarray | None = None
+
+        try:
+            sdata = self._read_sdata()
+            if sdata.size != self._points * 2:
+                raise RuntimeError(f"VNA returned {sdata.size} SDATA values for {self._points} points.")
+            complex_values = sdata[0::2] + 1j * sdata[1::2]
+            magnitude = np.maximum(np.abs(complex_values), np.finfo(float).tiny)
+            value_db = 20.0 * np.log10(magnitude)
+            phase = np.degrees(np.angle(complex_values))
+        except Exception:
+            value_db = None
+
+        if value_db is None:
+            formatted = self._query_float_values("CALC1:DATA? FDATA")
+            if formatted.size != self._points:
+                formatted = self._query_float_values("CALC:DATA? FDATA")
+            if formatted.size != self._points:
+                raise RuntimeError(f"VNA returned {formatted.size} FDATA values for {self._points} points.")
+            value_db = formatted
+
+        if frequency.size != value_db.size:
+            raise RuntimeError(f"VNA frequency axis has {frequency.size} points but trace has {value_db.size}.")
+        if phase is None:
+            phase = np.zeros(value_db.size)
         return SParameterTrace(frequency, value_db, phase, parameter)
 
     def measure_s_parameter(self, parameter: str = "S21") -> SParameterTrace:
@@ -131,6 +161,49 @@ class PyVisaVna(Vna):
         if self._resource is None:
             raise RuntimeError("VNA is not connected.")
         return str(self._resource.query(command))
+
+    def _query_float_or_default(self, command: str, default: float) -> float:
+        try:
+            return float(self._query(command))
+        except Exception:
+            return float(default)
+
+    def _query_float_values(self, command: str) -> np.ndarray:
+        if self._resource is None:
+            raise RuntimeError("VNA is not connected.")
+        query_ascii_values = getattr(self._resource, "query_ascii_values", None)
+        if callable(query_ascii_values):
+            return np.asarray(query_ascii_values(command), dtype=float)
+        response = str(self._resource.query(command))
+        normalized = response.replace("\n", ",").replace("\r", ",").replace(";", ",")
+        values = [part.strip() for part in normalized.split(",") if part.strip()]
+        return np.asarray([float(value) for value in values], dtype=float)
+
+    def _query_binary_float_values(self, command: str) -> np.ndarray:
+        if self._resource is None:
+            raise RuntimeError("VNA is not connected.")
+        query_binary_values = getattr(self._resource, "query_binary_values", None)
+        if not callable(query_binary_values):
+            raise RuntimeError("VNA resource does not support binary value queries.")
+        return np.asarray(query_binary_values(command, datatype="d", is_big_endian=False), dtype=float)
+
+    def _read_sdata(self) -> np.ndarray:
+        self._write("FORM:DATA REAL,64")
+        self._write("FORM:BORD SWAP")
+        try:
+            return self._query_binary_float_values("CALC:DATA? SDATA")
+        except Exception:
+            return self._query_float_values("CALC:DATA? SDATA")
+
+    def _read_frequency_axis(self) -> np.ndarray:
+        for command in ("SENS:FREQ:DATA?", "SENS1:FREQ:DATA?"):
+            try:
+                values = self._query_float_values(command)
+            except Exception:
+                continue
+            if values.size == self._points:
+                return values
+        return np.linspace(self._start_hz, self._stop_hz, self._points)
 
     def _select_parameter(self, parameter: str) -> None:
         parameter = parameter.upper()
@@ -213,3 +286,27 @@ class PyVisaVna(Vna):
             self._write(command)
         except Exception:
             return
+
+    def _write_with_fallback(self, commands: tuple[str, ...]) -> None:
+        last_error: Exception | None = None
+        for command in commands:
+            try:
+                self._write(command)
+                return
+            except Exception as exc:  # noqa: BLE001 - alternate SCPI dialects.
+                last_error = exc
+        if last_error is not None:
+            raise last_error
+
+    def _write_with_error_fallback(self, commands: tuple[str, ...]) -> None:
+        last_error: Exception | None = None
+        for command in commands:
+            try:
+                self._write(command)
+                self._raise_for_system_error()
+                return
+            except Exception as exc:  # noqa: BLE001 - alternate SCPI dialects.
+                last_error = exc
+                self._drain_stale_init_ignored_error()
+        if last_error is not None:
+            raise last_error

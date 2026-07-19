@@ -13,15 +13,17 @@
   ],
   "manual_confirmation": true,
   "input_files": [
-    "LINK-CAL-002_CAL002-MAIN_H-DUTAMP1.raw"
+    "catr_loss_calibrator_output\\raw\\LINK-CAL-002_CAL002-MAIN_H-DUTAMP1.csv"
   ],
   "input_hashes": [
-    "mock"
+    "30ab10ef8b3f72d1553f1ec9d69df4e4f02fc298378d5212fad4567c8a1d5edd"
   ],
   "output_files": [
-    "L_VNA_FEED_H_AMP1"
+    "catr_loss_calibrator_output\\loss\\L_VNA_FEED_H_AMP1_10_15G_F10_17G_H10_15G.csv"
   ],
-  "output_hashes": [],
+  "output_hashes": [
+    "744dd2131a86df62cfeb60100ebee870b2a458d0f67cb52a786968da85d90678"
+  ],
   "formula_version": "v1",
   "profile_version": "lcd74000f:v1",
   "note": "mock-runner:H 极化 DUT 侧 AMP1 回传"

@@ -115,6 +115,33 @@ def test_worker_counts_progress_by_substep_not_big_step() -> None:
     assert worker._item_completed_substeps(2, 1, "saved") == first_step_substeps + 1
 
 
+def test_worker_formats_link_events_for_log_panel() -> None:
+    fields = CalibrationRunWorker._log_fields_for_event(
+        "link:CAL002-MAIN:V-THRU:CONFigure:LINK V, VNA1",
+        "VNA 链路损耗校准",
+    )
+
+    assert fields == (
+        "INFO",
+        "link_box",
+        "VNA 链路损耗校准",
+        "下发链路箱命令: CONFigure:LINK V, VNA1",
+    )
+
+
+def test_worker_formats_failure_events_for_log_panel() -> None:
+    fields = CalibrationRunWorker._log_fields_for_event(
+        "failure:vna_timeout:CAL001-AUX:AUX-A:READ_TRACE:check_vna_and_retry:VNA sweep timed out.",
+        "暗室内部链路校准",
+    )
+
+    assert fields[0] == "ERROR"
+    assert fields[1] == "runner"
+    assert fields[2] == "暗室内部链路校准"
+    assert "vna_timeout" in fields[3]
+    assert "check_vna_and_retry" in fields[3]
+
+
 def test_viewmodel_marks_last_big_step_completed_after_last_substep_saved() -> None:
     _app = QCoreApplication.instance() or QCoreApplication([])
     vm = default_loaded_viewmodel()
@@ -206,6 +233,215 @@ def test_viewmodel_starts_without_loaded_catalog() -> None:
     assert vm.selected_item is None
     vm.refresh_overview()
     assert vm.overview["item_name"] == "未加载链路配置"
+
+
+def test_viewmodel_clear_logs_removes_existing_records() -> None:
+    _app = QCoreApplication.instance() or QCoreApplication([])
+    vm = CalibrationViewModel()
+
+    assert vm.logs
+    vm.clear_logs()
+
+    assert vm.logs == []
+
+
+def test_viewmodel_command_tracking_uses_log_not_legacy_command_history() -> None:
+    _app = QCoreApplication.instance() or QCoreApplication([])
+    vm = CalibrationViewModel()
+    vm.connect_device("link_box")
+
+    response = vm.send_device_command("link_box", "*IDN?")
+
+    assert response.startswith("MOCK,")
+    assert vm.command_response == response
+    assert not hasattr(vm, "command_history")
+    messages = [record.message for record in vm.logs if record.source == "command"]
+    assert "发送命令: *IDN?" in messages
+    assert any(message.startswith("返回响应: MOCK,") for message in messages)
+
+
+def test_viewmodel_rejects_unknown_inline_action_with_clear_status() -> None:
+    _app = QCoreApplication.instance() or QCoreApplication([])
+    vm = CalibrationViewModel()
+
+    accepted = vm.submit_action("bad-action")
+
+    assert accepted is False
+    assert vm.status_text == "非法操作: bad-action"
+    assert vm.logs[-1].level == "ERROR"
+    assert vm.logs[-1].message == "非法操作: bad-action"
+
+
+def test_viewmodel_rejects_inline_action_when_no_prompt_is_active() -> None:
+    _app = QCoreApplication.instance() or QCoreApplication([])
+    vm = CalibrationViewModel()
+    vm.load_default_catalog()
+
+    accepted = vm.submit_action("continue")
+
+    assert accepted is False
+    assert "当前没有等待确认的校准步骤" in vm.status_text
+    assert vm.logs[-1].level == "WARNING"
+    assert "已忽略 continue" in vm.logs[-1].message
+
+
+def test_viewmodel_device_model_options_include_target_sg_and_sa_models() -> None:
+    _app = QCoreApplication.instance() or QCoreApplication([])
+    vm = CalibrationViewModel()
+
+    assert "N5183B" in vm.device_model_options("signal_generator")
+    assert "N9020B" in vm.device_model_options("spectrum_analyzer")
+
+
+def test_viewmodel_configures_signal_generator_with_structured_settings() -> None:
+    _app = QCoreApplication.instance() or QCoreApplication([])
+    vm = CalibrationViewModel()
+    vm.connect_device("signal_generator")
+
+    response = vm.configure_signal_generator(
+        {
+            "frequency_ghz": 12.5,
+            "power_dbm": -7.5,
+            "output_enabled": True,
+        }
+    )
+
+    assert response == "OK: SG 12500000000 Hz, -7.5 dBm, output ON"
+    assert vm._mock_signal_generator.commands == [
+        "FREQuency:CW 12500000000",
+        "POWer:LEVel -7.5",
+        "OUTPut:STATe ON",
+    ]
+    messages = [record.message for record in vm.logs if record.source == "signal_generator"]
+    assert "发送命令: FREQuency:CW 12500000000" in messages
+    assert "发送命令: OUTPut:STATe ON" in messages
+
+
+def test_viewmodel_configures_spectrum_analyzer_with_structured_settings() -> None:
+    _app = QCoreApplication.instance() or QCoreApplication([])
+    vm = CalibrationViewModel()
+    vm.connect_device("spectrum_analyzer")
+
+    response = vm.configure_spectrum_analyzer(
+        {
+            "center_ghz": 21.7,
+            "span_mhz": 200.0,
+            "points": 1601,
+            "rbw_hz": 10000.0,
+            "vbw_hz": 30000.0,
+            "reference_level_dbm": -5.0,
+            "attenuation_db": 6.0,
+            "preamp_enabled": True,
+            "continuous": False,
+        }
+    )
+
+    assert response == "OK: SA center 21700000000 Hz, span 200000000 Hz, 1601 pts, RBW 10000 Hz, VBW 30000 Hz"
+    assert vm._mock_spectrum_analyzer.commands == [
+        "INSTrument:SELect SA",
+        "CONFigure:SANalyzer",
+        "FREQuency:CENTer 21700000000",
+        "FREQuency:SPAN 200000000",
+        "SWEep:POINts 1601",
+        "BANDwidth:RESolution 10000",
+        "BANDwidth:VIDeo 30000",
+        "DISPlay:WINDow:TRACe:Y:RLEVel -5",
+        "POWer:ATTenuation 6",
+        "POWer:GAIN:STATe ON",
+        "INITiate:CONTinuous OFF",
+    ]
+    messages = [record.message for record in vm.logs if record.source == "spectrum_analyzer"]
+    assert "发送命令: FREQuency:CENTer 21700000000" in messages
+    assert "发送命令: INITiate:CONTinuous OFF" in messages
+
+
+def test_viewmodel_signal_generator_accepts_manual_scpi_commands() -> None:
+    _app = QCoreApplication.instance() or QCoreApplication([])
+    vm = CalibrationViewModel()
+    vm.connect_device("signal_generator")
+    vm.configure_signal_generator(
+        {
+            "frequency_ghz": 14.5,
+            "power_dbm": -3.0,
+            "output_enabled": False,
+        }
+    )
+
+    output_on = vm.send_device_command("signal_generator", "OUTPut:STATe ON")
+    query_output = vm.send_device_command("signal_generator", "OUTPut:STATe?")
+    query_frequency = vm.send_device_command("signal_generator", "FREQuency:CW?")
+    query_power = vm.send_device_command("signal_generator", "POWer:LEVel?")
+
+    assert output_on == "OK"
+    assert query_output == "1"
+    assert query_frequency == "14500000000"
+    assert query_power == "-3"
+    assert vm._mock_signal_generator.commands[-4:] == [
+        "OUTPut:STATe ON",
+        "OUTPut:STATe?",
+        "FREQuency:CW?",
+        "POWer:LEVel?",
+    ]
+
+
+def test_viewmodel_spectrum_analyzer_accepts_manual_scpi_commands() -> None:
+    _app = QCoreApplication.instance() or QCoreApplication([])
+    vm = CalibrationViewModel()
+    vm.connect_device("spectrum_analyzer")
+    vm.configure_spectrum_analyzer(
+        {
+            "center_ghz": 24.0,
+            "span_mhz": 500.0,
+            "points": 1001,
+            "rbw_hz": 100000.0,
+            "vbw_hz": 100000.0,
+            "reference_level_dbm": 0.0,
+            "attenuation_db": 10.0,
+            "preamp_enabled": False,
+            "continuous": True,
+        }
+    )
+
+    assert vm.send_device_command("spectrum_analyzer", "INITiate:CONTinuous OFF") == "OK"
+    assert vm.send_device_command("spectrum_analyzer", "INITiate:IMMediate") == "OK"
+    assert vm.send_device_command("spectrum_analyzer", "*OPC?") == "1"
+    assert vm.send_device_command("spectrum_analyzer", "CALCulate:MARKer1:MAXimum") == "OK"
+    assert vm.send_device_command("spectrum_analyzer", "CALCulate:MARKer1:X?") == "24000000000"
+    assert vm.send_device_command("spectrum_analyzer", "CALCulate:MARKer1:Y?") == "-42.0"
+    assert vm.send_device_command("spectrum_analyzer", "SYSTem:ERRor?") == "0,No error"
+
+
+def test_viewmodel_device_presets_include_target_sg_and_sa_commands() -> None:
+    _app = QCoreApplication.instance() or QCoreApplication([])
+    vm = CalibrationViewModel()
+    presets = vm.device_command_presets()
+
+    vna = presets["vna"]
+    assert vna["N5245B 端口1功率"] == "SOUR1:POW1:LEV:IMM:AMPL -10"
+    assert vna["关闭连续扫描"] == "SENS1:SWE:MODE HOLD"
+    assert vna["立即触发"] == "SENS1:SWE:MODE SING"
+    assert vna["N5245B 关闭连续扫描"] == "INIT1:CONT OFF"
+    assert vna["N5245B INIT 触发"] == "INIT1:IMM"
+    assert vna["二进制 REAL64"] == "FORM:DATA REAL,64"
+    assert vna["读取 SDATA"] == "CALC1:DATA? SDATA"
+
+    signal_generator = presets["signal_generator"]
+    assert signal_generator["设置频率"] == "FREQuency:CW 10GHz"
+    assert signal_generator["设置功率"] == "POWer:LEVel -10dBm"
+    assert signal_generator["关闭输出"] == "OUTPut:STATe OFF"
+    assert signal_generator["查询错误"] == "SYSTem:ERRor?"
+
+    spectrum_analyzer = presets["spectrum_analyzer"]
+    assert spectrum_analyzer["选择频谱模式"] == "INSTrument:SELect SA"
+    assert spectrum_analyzer["配置频谱测量"] == "CONFigure:SANalyzer"
+    assert spectrum_analyzer["设置中心频率"] == "FREQuency:CENTer 10GHz"
+    assert spectrum_analyzer["设置点数"] == "SWEep:POINts 1001"
+    assert spectrum_analyzer["设置 RBW"] == "BANDwidth:RESolution 1MHz"
+    assert spectrum_analyzer["设置 VBW"] == "BANDwidth:VIDeo 1MHz"
+    assert spectrum_analyzer["关闭连续测量"] == "INITiate:CONTinuous OFF"
+    assert spectrum_analyzer["读取频谱数据"] == "READ:SANalyzer?"
+    assert spectrum_analyzer["峰值搜索"] == "CALCulate:MARKer1:MAXimum"
+    assert spectrum_analyzer["读取 Marker 幅度"] == "CALCulate:MARKer1:Y?"
 
 
 def default_loaded_viewmodel() -> CalibrationViewModel:

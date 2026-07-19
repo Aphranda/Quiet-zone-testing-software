@@ -55,6 +55,7 @@ def load_calibration_catalog(path: str | Path) -> CalibrationCatalog:
         source_path=str(config_path),
         node_catalog=dict(payload.get("node_catalog") or {}),
         path_templates=dict(payload.get("path_templates") or {}),
+        band_config=_parse_band_config(payload.get("band_config"), "band_config"),
     )
 
 
@@ -163,6 +164,49 @@ def _optional_dict(value: Any, path: str) -> dict[str, Any] | None:
     if not isinstance(value, dict):
         raise LinkConfigError(f"{path} must be an object.")
     return dict(value)
+
+
+def _parse_band_config(value: Any, path: str) -> dict[str, Any]:
+    if value in (None, ""):
+        return {}
+    if not isinstance(value, dict):
+        raise LinkConfigError(f"{path} must be an object.")
+    entries = value.get("feed_horn_bands", ())
+    if not isinstance(entries, list):
+        raise LinkConfigError(f"{path}.feed_horn_bands must be an array.")
+    parsed_entries: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for index, entry in enumerate(entries):
+        entry_path = f"{path}.feed_horn_bands[{index}]"
+        if not isinstance(entry, dict):
+            raise LinkConfigError(f"{entry_path} must be an object.")
+        feed = _required_str(entry, "feed", f"{entry_path}.feed").strip().upper()
+        horn = _required_str(entry, "horn", f"{entry_path}.horn").strip().upper()
+        band = _required_str(entry, "band", f"{entry_path}.band").strip().upper()
+        key = (feed, horn)
+        if key in seen:
+            raise LinkConfigError(f"{entry_path} duplicates feed/horn pair: {feed}/{horn}.")
+        seen.add(key)
+        parsed = {"feed": feed, "horn": horn, "band": band}
+        for numeric_key in ("start_ghz", "stop_ghz"):
+            if numeric_key in entry:
+                try:
+                    parsed[numeric_key] = float(entry[numeric_key])
+                except (TypeError, ValueError) as exc:
+                    raise LinkConfigError(f"{entry_path}.{numeric_key} must be a number.") from exc
+        if "horn_gain_file" in entry:
+            horn_gain_file = str(entry["horn_gain_file"]).strip()
+            if horn_gain_file:
+                parsed["horn_gain_file"] = horn_gain_file
+        parsed_entries.append(parsed)
+
+    result = dict(value)
+    result["feed_horn_bands"] = parsed_entries
+    if result.get("default_feed"):
+        result["default_feed"] = str(result["default_feed"]).strip().upper()
+    if result.get("default_horn"):
+        result["default_horn"] = str(result["default_horn"]).strip().upper()
+    return result
 
 
 def _ensure_unique(values: list[str], path: str) -> None:

@@ -17,6 +17,7 @@ def save_raw_trace(path: Path, trace: SParameterTrace, *, source_cal: str) -> No
         feed="RAW",
         horn="RAW",
         source_cal=source_cal,
+        output_role="raw_s21",
     )
 
 
@@ -27,4 +28,5 @@ def trace_record_from_sparameter(trace: SParameterTrace, *, source_cal: str, sou
         parameter=trace.parameter,
         source_cal=source_cal,
         source_step=source_step,
+        output_role="raw_s21",
     )

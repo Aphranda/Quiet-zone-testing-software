@@ -508,6 +508,79 @@ LogWidget QComboBox {
     min-width: 60px;
 }
 
+QWidget#logPanel QToolBar {
+    background: transparent;
+    border: none;
+    spacing: 8px;
+    padding: 2px 0 6px 0;
+}
+
+QWidget#logPanel QToolBar QLabel {
+    color: #263238;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 0 2px 0 0;
+}
+
+QWidget#logPanel QComboBox {
+    min-height: 28px;
+    max-height: 28px;
+    border: 1px solid #c7d1d8;
+    border-radius: 6px;
+    background: #fafbfc;
+    color: #263238;
+    padding: 3px 20px 3px 8px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+QWidget#logPanel QComboBox:hover {
+    border-color: #8fb3d9;
+    background: #ffffff;
+}
+
+QWidget#logPanel QComboBox::drop-down {
+    width: 18px;
+    border: none;
+}
+
+QWidget#logPanel QToolButton {
+    min-height: 28px;
+    max-height: 28px;
+    border: 1px solid #c7d1d8;
+    border-radius: 6px;
+    background: #fafbfc;
+    color: #263238;
+    padding: 3px 8px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+QWidget#logPanel QToolButton:hover {
+    border-color: #8fb3d9;
+    background: #ffffff;
+}
+
+QWidget#logPanel QToolButton:pressed {
+    background: #e6eef5;
+}
+
+QWidget#logPanel QToolButton:checked {
+    background: #e7eff8;
+    border-color: #8fb3d9;
+    color: #23405c;
+}
+
+QWidget#logPanel QToolButton:checked:hover {
+    background: #ddeaf6;
+}
+
+QWidget#logPanel QTextEdit#logText {
+    border: 1px solid #c7d1d8;
+    border-radius: 6px;
+    background: #fafbfc;
+}
+
 LogWidget QLabel {
     font-size: 16px;
     color: #222;

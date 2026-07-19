@@ -25,6 +25,7 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_DESIGN.md`, `catr_l
   "schema_version": "catr-link-config.v1",
   "name": "CATR Chamber Loss Calibration",
   "description": "CATR 暗室路损校准配置",
+  "band_config": {},
   "node_catalog": {},
   "path_templates": {},
   "calibration_items": []
@@ -36,11 +37,57 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_DESIGN.md`, `catr_l
 | `schema_version` | 是 | 当前建议固定为 `catr-link-config.v1`。 |
 | `name` | 是 | 配置名称。 |
 | `description` | 否 | 配置说明。 |
+| `band_config` | 否 | 馈源、标准喇叭和有效频段交集配置；不同项目可用不同列表。 |
 | `node_catalog` | 是 | 节点短码到 UI 标签、节点类型、样式角色的映射。 |
 | `path_templates` | 否 | 可复用的接线路径节点模板。 |
 | `calibration_items` | 是 | 校准项列表。 |
 
-## 3. 节点字典
+## 3. 频段配置
+
+`band_config` 用于驱动校准界面“频段配置”下拉框、路损文件命名中的 `BAND/FEED/HORN`，以及可选的网分扫频起止频。未提供该字段时，软件使用内置 CATR 默认组合。
+
+```json
+{
+  "band_config": {
+    "default_feed": "F10_17G",
+    "default_horn": "H10_15G",
+    "feed_horn_bands": [
+      {
+        "feed": "F10_17G",
+        "horn": "H10_15G",
+        "band": "10_15G",
+        "start_ghz": 10.0,
+        "stop_ghz": 15.0,
+        "horn_gain_file": "resources/10_15G_horn_gain_10MHz.csv"
+      },
+      {
+        "feed": "F17_31G",
+        "horn": "H21P7_33G",
+        "band": "21P7_31G",
+        "start_ghz": 21.7,
+        "stop_ghz": 31.0,
+        "horn_gain_file": "resources/21P7_33G_horn_gain_10MHz.csv"
+      }
+    ]
+  }
+}
+```
+
+| 字段 | 必填 | 说明 |
+|---|---:|---|
+| `default_feed` | 否 | 导入配置后默认选择的馈源短码，必须存在于 `feed_horn_bands` 的组合中。 |
+| `default_horn` | 否 | 导入配置后默认选择的喇叭短码，必须与 `default_feed` 形成合法组合。 |
+| `feed_horn_bands[].feed` | 是 | 馈源型号/短码，会写入最终路损文件名。 |
+| `feed_horn_bands[].horn` | 是 | 标准喇叭型号/短码，会写入最终路损文件名。 |
+| `feed_horn_bands[].band` | 是 | 该馈源和喇叭的有效交集频段，会写入最终路损文件名。 |
+| `feed_horn_bands[].start_ghz` | 否 | 选择该组合后自动设置网分起频。 |
+| `feed_horn_bands[].stop_ghz` | 否 | 选择该组合后自动设置网分止频。 |
+| `feed_horn_bands[].horn_gain_file` | 否 | 该组合默认使用的标准喇叭增益 CSV。相对路径按 JSON 文件所在目录解析，操作员仍可在界面手工覆盖。 |
+
+`feed`、`horn`、`band` 建议使用稳定英文短码，便于批处理和历史文件检索；UI 可另行做中文显示，但文件名保持短码。
+曲线点不要直接写入主 JSON；主 JSON 只引用 CSV，CSV 负责保存 `freq_hz,gain_db` 或 `freq_hz,gain_h_db,gain_v_db` 等曲线列。
+
+## 4. 节点字典
 
 节点字典用于统一控制 UI 节点图，避免在代码里写死简称展开规则。
 
@@ -61,7 +108,7 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_DESIGN.md`, `catr_l
 
 建议保留原始短码作为 key，例如 `PORT1`、`CP-V`、`LB-SA`、`AMP1`。UI 只显示 `label`，命令和结果字段仍使用原始标识。
 
-## 4. 接线路径模板
+## 5. 接线路径模板
 
 接线路径应直接定义为节点数组，参考 HTML 报告中的节点图。
 
@@ -94,7 +141,7 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_DESIGN.md`, `catr_l
 
 `routes` 支持多条路径，用于一个大步骤包含直通和放大两种路径的展示。每个 route 的 `nodes` 必须引用 `node_catalog` 中的 key；临时节点可直接写完整中文 label，但不建议长期这样做。
 
-## 5. 校准项结构
+## 6. 校准项结构
 
 ```json
 {
@@ -112,7 +159,7 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_DESIGN.md`, `catr_l
 | `purpose` | 否 | `CalibrationItem.purpose` |
 | `steps` | 是 | `CalibrationItem.steps` |
 
-## 6. 大步骤结构
+## 7. 大步骤结构
 
 ```json
 {
@@ -150,7 +197,7 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_DESIGN.md`, `catr_l
 | `notes` | 否 | 补充说明。 |
 | `substeps` | 否 | 显式细分步骤。为空时软件可按大步骤生成单个默认小步骤。 |
 
-## 7. 细分步骤结构
+## 8. 细分步骤结构
 
 细分步骤是 runner 执行、确认和进度更新的最小单位。
 
@@ -180,7 +227,7 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_DESIGN.md`, `catr_l
 
 字段含义与大步骤一致。区别是 `raw_output` / `final_output` 为单值，方便一个小步骤保存一次测量数据。
 
-## 8. 矩阵生成
+## 9. 矩阵生成
 
 对于 H/V 极化、直通/AMP1/AMP2 工况，可用 `substep_matrix` 生成细分步骤，减少重复 JSON。
 
@@ -226,7 +273,7 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_DESIGN.md`, `catr_l
 - `{polarization}`、`{case}`、`{horn_gain}` 等占位符在生成时替换。
 - `substeps` 与 `substep_matrix` 不应同时出现；如同时出现，以显式 `substeps` 为准。
 
-## 9. 最小示例
+## 10. 最小示例
 
 ```json
 {
@@ -279,7 +326,7 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_DESIGN.md`, `catr_l
 }
 ```
 
-## 10. 导入校验规则
+## 11. 导入校验规则
 
 - `schema_version` 必须匹配当前软件支持版本。
 - `calibration_items[].id`、`steps[].id`、`substeps[].id` 在各自作用域内必须唯一。
@@ -291,7 +338,7 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_DESIGN.md`, `catr_l
 - 存在 `substep_matrix` 时，生成后的 `id` 也必须唯一。
 - 涉及极化切换的步骤必须包含 `operator_checks` 或在 `manual_instruction` 中明确提示人工确认。
 
-## 11. 后续落地建议
+## 12. 后续落地建议
 
 1. 新增 `calibration/config_loader.py`，负责 JSON 读取、校验和生成 `CalibrationCatalog`。
 2. 新增 `calibration/config_schema.py` 或 JSON Schema 文件，固化字段约束。

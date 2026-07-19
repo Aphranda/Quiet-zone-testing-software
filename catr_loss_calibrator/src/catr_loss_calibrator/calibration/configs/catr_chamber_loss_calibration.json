@@ -3,6 +3,44 @@
   "name": "CATR Chamber Loss Calibration",
   "display_name": "CATR 暗室路损校准",
   "description": "当前 CATR 暗室 LINK-CAL-001 至 LINK-CAL-005 校准项。",
+  "band_config": {
+    "default_feed": "F10_17G",
+    "default_horn": "H10_15G",
+    "feed_horn_bands": [
+      {
+        "feed": "F10_17G",
+        "horn": "H10_15G",
+        "band": "10_15G",
+        "start_ghz": 10.0,
+        "stop_ghz": 15.0,
+        "horn_gain_file": "../../../../resources/10_15G_horn_gain_10MHz.csv"
+      },
+      {
+        "feed": "F10_17G",
+        "horn": "H14P5_22G",
+        "band": "14P5_17G",
+        "start_ghz": 14.5,
+        "stop_ghz": 17.0,
+        "horn_gain_file": "../../../../resources/14P5_22G_horn_gain_10MHz_fabricated.csv"
+      },
+      {
+        "feed": "F17_31G",
+        "horn": "H14P5_22G",
+        "band": "17_22G",
+        "start_ghz": 17.0,
+        "stop_ghz": 22.0,
+        "horn_gain_file": "../../../../resources/14P5_22G_horn_gain_10MHz_fabricated.csv"
+      },
+      {
+        "feed": "F17_31G",
+        "horn": "H21P7_33G",
+        "band": "21P7_31G",
+        "start_ghz": 21.7,
+        "stop_ghz": 31.0,
+        "horn_gain_file": "../../../../resources/21P7_33G_horn_gain_10MHz.csv"
+      }
+    ]
+  },
   "node_catalog": {
     "PORT1": {
       "label": "网分 PORT1",

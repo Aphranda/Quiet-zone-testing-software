@@ -1,0 +1,36 @@
+{
+  "session_id": "LINK-CAL-005-CAL005-SG_H-SG",
+  "project_name": "CATR Loss Calibrator",
+  "project_version": "0.1.0",
+  "calibration_item": "LINK-CAL-005",
+  "calibration_step": "CAL005-SG_H-SG",
+  "instrument_snapshot": {
+    "vna": "MockVna"
+  },
+  "link_commands": [
+    "CONFigure:LINK H, SG",
+    "CONFigure:LINK DUT, VNA2"
+  ],
+  "manual_confirmation": true,
+  "input_files": [
+    "catr_loss_calibrator_output\\raw\\LINK-CAL-005_CAL005-SG_H-SG.csv"
+  ],
+  "input_hashes": [
+    "ae8629a0756f223e082db0dfa3e9393fb036d3665058925c6155c7f829b80d9e"
+  ],
+  "input_roles": [
+    "temporary"
+  ],
+  "output_files": [
+    "catr_loss_calibrator_output\\loss\\L_SG_DUT_H_10_15G_F10_17G_H10_15G.csv"
+  ],
+  "output_hashes": [
+    "97a03dd9c90632283c326499ede0852c902e33e0352a9819b804db6889264481"
+  ],
+  "output_roles": [
+    "final"
+  ],
+  "formula_version": "v1",
+  "profile_version": "lcd74000f:v1",
+  "note": "mock-runner:H 极化 SG 到 DUT 直通"
+}

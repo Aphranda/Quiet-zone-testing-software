@@ -1,0 +1,36 @@
+{
+  "session_id": "LINK-CAL-005-CAL005-SG_H-AMP2-SG",
+  "project_name": "CATR Loss Calibrator",
+  "project_version": "0.1.0",
+  "calibration_item": "LINK-CAL-005",
+  "calibration_step": "CAL005-SG_H-AMP2-SG",
+  "instrument_snapshot": {
+    "vna": "MockVna"
+  },
+  "link_commands": [
+    "CONFigure:LINK H, AMP2, SG",
+    "CONFigure:LINK DUT, VNA2"
+  ],
+  "manual_confirmation": true,
+  "input_files": [
+    "catr_loss_calibrator_output\\raw\\LINK-CAL-005_CAL005-SG_H-AMP2-SG.csv"
+  ],
+  "input_hashes": [
+    "046eb33044382a365f62cba1a0d7fc958780ad3addb16c73fac168dfb84cdf6d"
+  ],
+  "input_roles": [
+    "temporary"
+  ],
+  "output_files": [
+    "catr_loss_calibrator_output\\loss\\L_HV_SG_H_AMP2_10_15G_F10_17G_H10_15G.csv"
+  ],
+  "output_hashes": [
+    "1d8fa562fcac2cc165da7dddb374f9693acfc23b8c90ca960ac0304f4a4af058"
+  ],
+  "output_roles": [
+    "final"
+  ],
+  "formula_version": "v1",
+  "profile_version": "lcd74000f:v1",
+  "note": "mock-runner:H 极化经 AMP2 到 SG"
+}

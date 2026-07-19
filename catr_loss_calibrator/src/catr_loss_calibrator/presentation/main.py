@@ -1,14 +1,28 @@
 from __future__ import annotations
 
+import csv
 import html
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any
+
+import numpy as np
 
 from catr_loss_calibrator.calibration.definitions import default_calibration_catalog
 from catr_loss_calibrator.calibration.mock_runner import MockCalibrationRunner
 from catr_loss_calibrator.hardware.mock import MockLinkBox, MockVna
+from catr_loss_calibrator.storage.workspace import (
+    CalibrationRunContext,
+    create_session_context,
+    list_session_summaries,
+    list_session_summaries_from_project_root,
+    load_latest_summary,
+    load_latest_summary_from_index,
+    workspace_for_catalog,
+)
 
 
 def run() -> int:
@@ -17,6 +31,8 @@ def run() -> int:
         return run_cli()
     if "--interactive" in args:
         return run_interactive()
+    if "--gui-smoke" in args:
+        return run_gui()
     try:
         return run_gui()
     except Exception as exc:
@@ -81,12 +97,18 @@ def run_interactive() -> int:
 def run_gui() -> int:
     from catr_loss_calibrator.presentation.viewmodels import CalibrationViewModel, StepViewData
     from catr_loss_calibrator.project.config import ProjectConfig
-    from catr_loss_calibrator.storage.loss_file_policy import FEED_HORN_BANDS
+    from catr_loss_calibrator.storage.loss_file_policy import band_entries_from_config, default_feed_horn_from_config
 
-    from PySide6.QtCore import QRectF, Qt
-    from PySide6.QtGui import QAction, QBrush, QColor, QCursor, QFont, QPainter, QPixmap, QTextCursor
+    try:
+        import pyqtgraph as pg
+    except ImportError:
+        pg = None
+
+    from PySide6.QtCore import QUrl, QRectF, Qt
+    from PySide6.QtGui import QAction, QBrush, QColor, QCursor, QDesktopServices, QFont, QPainter, QPixmap, QTextCursor
     from PySide6.QtSvg import QSvgRenderer
     from PySide6.QtWidgets import (
+        QAbstractItemView,
         QApplication,
         QButtonGroup,
         QCheckBox,
@@ -99,6 +121,7 @@ def run_gui() -> int:
         QGridLayout,
         QGroupBox,
         QHBoxLayout,
+        QHeaderView,
         QLabel,
         QLineEdit,
         QListWidget,
@@ -112,6 +135,8 @@ def run_gui() -> int:
         QSplitter,
         QSpinBox,
         QTabWidget,
+        QTableWidget,
+        QTableWidgetItem,
         QTextEdit,
         QToolBar,
         QVBoxLayout,
@@ -205,6 +230,18 @@ def run_gui() -> int:
 
     def _plain_join(values: tuple[str, ...], *, empty: str = "无") -> str:
         return ", ".join(values) if values else empty
+
+    def _stage_display(value: Any) -> str:
+        text = str(value).strip()
+        labels = {
+            "initial": "初始校准",
+            "retest": "复测",
+            "after_repair": "维修后",
+            "after_change": "变更后",
+            "pre_delivery": "交付前",
+            "debug": "调试",
+        }
+        return labels.get(text, text)
 
     def _friendly_node_text(value: str) -> str:
         text = value.strip()
@@ -392,6 +429,7 @@ def run_gui() -> int:
     class LogPanel(QWidget):
         def __init__(self, parent: QWidget | None = None) -> None:
             super().__init__(parent)
+            self.setObjectName("logPanel")
             layout = QVBoxLayout(self)
             layout.setContentsMargins(0, 0, 0, 0)
             layout.setSpacing(2)
@@ -401,15 +439,15 @@ def run_gui() -> int:
             self.toolbar.setMovable(False)
 
             self.level_combo = QComboBox()
-            self.level_combo.addItems(["ALL", "INFO", "WARNING", "ERROR"])
-            self.level_combo.setMinimumWidth(96)
+            self.level_combo.addItems(["ALL", "INFO", "WARN", "ERROR"])
+            self.level_combo.setFixedWidth(82)
             self.toolbar.addWidget(QLabel("级别:"))
             self.toolbar.addWidget(self.level_combo)
 
             self.font_combo = QComboBox()
             self.font_combo.addItems([str(size) for size in range(8, 16)])
             self.font_combo.setCurrentText("10")
-            self.font_combo.setMaximumWidth(72)
+            self.font_combo.setFixedWidth(58)
             self.toolbar.addWidget(QLabel("字体:"))
             self.toolbar.addWidget(self.font_combo)
 
@@ -422,13 +460,26 @@ def run_gui() -> int:
             self.timestamp_action.setChecked(True)
             self.toolbar.addAction(self.timestamp_action)
 
-            self.search_edit = QLineEdit()
-            self.search_edit.setPlaceholderText("搜索...")
-            self.search_edit.setMaximumWidth(140)
-            self.toolbar.addWidget(self.search_edit)
+            self.copy_selection_action = QAction("复制选中", self)
+            self.toolbar.addAction(self.copy_selection_action)
 
-            self.clear_filter_action = QAction("清空筛选", self)
-            self.toolbar.addAction(self.clear_filter_action)
+            self.copy_all_action = QAction("复制全部", self)
+            self.toolbar.addAction(self.copy_all_action)
+
+            self.clear_log_action = QAction("清空LOG", self)
+            self.toolbar.addAction(self.clear_log_action)
+
+            for action, width in (
+                (self.wrap_action, 78),
+                (self.timestamp_action, 64),
+                (self.copy_selection_action, 72),
+                (self.copy_all_action, 68),
+                (self.clear_log_action, 68),
+            ):
+                button = self.toolbar.widgetForAction(action)
+                if button is not None:
+                    button.setMinimumWidth(width)
+                    button.setFixedHeight(30)
 
             self.text_edit = QTextEdit()
             self.text_edit.setObjectName("logText")
@@ -438,6 +489,8 @@ def run_gui() -> int:
 
             self.font_combo.currentTextChanged.connect(self._apply_font_size)
             self.wrap_action.toggled.connect(self._set_word_wrap)
+            self.copy_selection_action.triggered.connect(self.copy_selected_text)
+            self.copy_all_action.triggered.connect(self.copy_all_text)
 
             layout.addWidget(self.toolbar)
             layout.addWidget(self.text_edit)
@@ -445,19 +498,24 @@ def run_gui() -> int:
         def current_level(self) -> str:
             return self.level_combo.currentText()
 
-        def current_keyword(self) -> str:
-            return self.search_edit.text()
-
         def show_timestamp(self) -> bool:
             return self.timestamp_action.isChecked()
 
-        def clear_filters(self) -> None:
-            self.level_combo.setCurrentText("ALL")
-            self.search_edit.clear()
-
         def set_records(self, records: list[LogEntry], formatter: Any) -> None:
-            self.text_edit.setPlainText("\n".join(formatter(record, self.show_timestamp()) for record in records))
+            self.text_edit.setHtml("<br>".join(formatter(record, self.show_timestamp()) for record in records))
             self.text_edit.moveCursor(QTextCursor.MoveOperation.End)
+
+        def copy_selected_text(self) -> str:
+            text = self.text_edit.textCursor().selectedText().replace("\u2029", "\n")
+            if text:
+                QApplication.clipboard().setText(text)
+            return text
+
+        def copy_all_text(self) -> str:
+            text = self.text_edit.toPlainText()
+            if text:
+                QApplication.clipboard().setText(text)
+            return text
 
         def _apply_font_size(self, value: str) -> None:
             try:
@@ -539,6 +597,10 @@ def run_gui() -> int:
             self.btn_vna_configure: QPushButton | None = None
             self.btn_vna_trigger: QPushButton | None = None
             self.btn_vna_sample: QPushButton | None = None
+            self.signal_generator_settings_group: QGroupBox | None = None
+            self.btn_sg_configure: QPushButton | None = None
+            self.spectrum_analyzer_settings_group: QGroupBox | None = None
+            self.btn_sa_configure: QPushButton | None = None
 
             _style_button(self.btn_search_visa, role="secondary")
             _style_button(self.btn_connect, role="success")
@@ -562,7 +624,8 @@ def run_gui() -> int:
             button_row.addWidget(self.btn_connect)
             button_row.addWidget(self.btn_disconnect)
 
-            connection_form = QFormLayout()
+            connection_group = QGroupBox("资源连接")
+            connection_form = QFormLayout(connection_group)
             connection_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
             connection_form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
             connection_form.addRow("连接模式", mode_row)
@@ -571,11 +634,16 @@ def run_gui() -> int:
             connection_form.addRow("超时", self.timeout_input)
             connection_form.addRow("操作", button_row)
             connection_form.addRow("状态", self.connection_state)
-            layout.addLayout(connection_form)
+            layout.addWidget(connection_group)
             if device_key == "vna":
                 layout.addWidget(self._build_vna_settings_group())
+            elif device_key == "signal_generator":
+                layout.addWidget(self._build_signal_generator_settings_group())
+            elif device_key == "spectrum_analyzer":
+                layout.addWidget(self._build_spectrum_analyzer_settings_group())
 
-            command_form = QFormLayout()
+            command_group = QGroupBox("指令控制")
+            command_form = QFormLayout(command_group)
             command_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
             command_form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
             command_form.addRow("预设", self.preset_combo)
@@ -584,7 +652,8 @@ def run_gui() -> int:
             command_form.addRow("命令", self.command_input)
             command_form.addRow("操作", buttons)
             command_form.addRow("当前响应", self.response_view)
-            layout.addLayout(command_form)
+            layout.addWidget(command_group)
+            layout.addStretch(1)
             self._sync_current_command_label(self.preset_combo.currentText())
 
         def selected_command(self) -> str:
@@ -644,6 +713,10 @@ def run_gui() -> int:
             self.btn_send.setEnabled(state.is_connected)
             if self.vna_settings_group is not None:
                 self.vna_settings_group.setEnabled(state.is_connected)
+            if self.signal_generator_settings_group is not None:
+                self.signal_generator_settings_group.setEnabled(state.is_connected)
+            if self.spectrum_analyzer_settings_group is not None:
+                self.spectrum_analyzer_settings_group.setEnabled(state.is_connected)
 
         def connection_config(self) -> dict[str, Any]:
             return {
@@ -684,6 +757,26 @@ def run_gui() -> int:
                 "parameter": self.vna_parameter.currentText(),
             }
 
+        def signal_generator_settings(self) -> dict[str, Any]:
+            return {
+                "frequency_ghz": self.sg_frequency_ghz.value(),
+                "power_dbm": self.sg_power_dbm.value(),
+                "output_enabled": self.sg_output_enabled.isChecked(),
+            }
+
+        def spectrum_analyzer_settings(self) -> dict[str, Any]:
+            return {
+                "center_ghz": self.sa_center_ghz.value(),
+                "span_mhz": self.sa_span_mhz.value(),
+                "points": self.sa_points.value(),
+                "rbw_hz": self.sa_rbw_hz.value(),
+                "vbw_hz": self.sa_vbw_hz.value(),
+                "reference_level_dbm": self.sa_reference_level_dbm.value(),
+                "attenuation_db": self.sa_attenuation_db.value(),
+                "preamp_enabled": self.sa_preamp_enabled.isChecked(),
+                "continuous": self.sa_continuous_enabled.isChecked(),
+            }
+
         def _build_vna_settings_group(self) -> QGroupBox:
             self.vna_start_ghz = self._double_spin(10.0, 0.001, 110.0, 0.1, 3, " GHz")
             self.vna_stop_ghz = self._double_spin(17.0, 0.001, 110.0, 0.1, 3, " GHz")
@@ -721,7 +814,7 @@ def run_gui() -> int:
             step_layout.addWidget(self.vna_points_label)
             step_layout.addStretch(1)
 
-            group = QGroupBox("网分扫频配置")
+            group = QGroupBox("仪表配置")
             form = QFormLayout(group)
             form.addRow("起频", self.vna_start_ghz)
             form.addRow("止频", self.vna_stop_ghz)
@@ -733,6 +826,55 @@ def run_gui() -> int:
             form.addRow(button_row)
             self.vna_settings_group = group
             self._refresh_vna_points_label()
+            return group
+
+        def _build_signal_generator_settings_group(self) -> QGroupBox:
+            self.sg_frequency_ghz = self._double_spin(10.0, 0.001, 110.0, 0.1, 6, " GHz")
+            self.sg_power_dbm = self._double_spin(-10.0, -120.0, 30.0, 1.0, 1, " dBm")
+            self.sg_output_enabled = QCheckBox("输出 ON")
+            self.sg_output_enabled.setChecked(False)
+            self.btn_sg_configure = QPushButton("配置")
+            _style_button(self.btn_sg_configure, role="primary")
+
+            group = QGroupBox("仪表配置")
+            form = QFormLayout(group)
+            form.addRow("频率", self.sg_frequency_ghz)
+            form.addRow("功率", self.sg_power_dbm)
+            form.addRow("输出", self.sg_output_enabled)
+            form.addRow(self.btn_sg_configure)
+            self.signal_generator_settings_group = group
+            return group
+
+        def _build_spectrum_analyzer_settings_group(self) -> QGroupBox:
+            self.sa_center_ghz = self._double_spin(10.0, 0.001, 110.0, 0.1, 6, " GHz")
+            self.sa_span_mhz = self._double_spin(100.0, 0.001, 100_000.0, 10.0, 3, " MHz")
+            self.sa_points = QSpinBox()
+            self.sa_points.setRange(2, 100_001)
+            self.sa_points.setSingleStep(100)
+            self.sa_points.setValue(1001)
+            self.sa_rbw_hz = self._double_spin(1_000_000.0, 1.0, 100_000_000.0, 1000.0, 0, " Hz")
+            self.sa_vbw_hz = self._double_spin(1_000_000.0, 1.0, 100_000_000.0, 1000.0, 0, " Hz")
+            self.sa_reference_level_dbm = self._double_spin(0.0, -150.0, 60.0, 1.0, 1, " dBm")
+            self.sa_attenuation_db = self._double_spin(10.0, 0.0, 70.0, 1.0, 1, " dB")
+            self.sa_preamp_enabled = QCheckBox("前放 ON")
+            self.sa_continuous_enabled = QCheckBox("连续测量")
+            self.sa_continuous_enabled.setChecked(False)
+            self.btn_sa_configure = QPushButton("配置")
+            _style_button(self.btn_sa_configure, role="primary")
+
+            group = QGroupBox("仪表配置")
+            form = QFormLayout(group)
+            form.addRow("中心频率", self.sa_center_ghz)
+            form.addRow("Span", self.sa_span_mhz)
+            form.addRow("点数", self.sa_points)
+            form.addRow("RBW", self.sa_rbw_hz)
+            form.addRow("VBW", self.sa_vbw_hz)
+            form.addRow("参考电平", self.sa_reference_level_dbm)
+            form.addRow("衰减", self.sa_attenuation_db)
+            form.addRow("前置放大", self.sa_preamp_enabled)
+            form.addRow("连续测量", self.sa_continuous_enabled)
+            form.addRow(self.btn_sa_configure)
+            self.spectrum_analyzer_settings_group = group
             return group
 
         def _refresh_vna_points_label(self) -> None:
@@ -759,7 +901,6 @@ def run_gui() -> int:
         def __init__(self) -> None:
             super().__init__()
             self.setWindowTitle("通用路损校准控制台")
-            self.resize(1180, 780)
             self._current_step_view: StepViewData | None = None
             self._active_prompt_view: StepViewData | None = None
 
@@ -791,21 +932,41 @@ def run_gui() -> int:
             self.step_status = QLabel("状态：IDLE")
             self.step_progress = QProgressBar()
             self.step_progress.setRange(0, 100)
+            default_feed, default_horn = default_feed_horn_from_config(vm.catalog.band_config)
+            band_entries = band_entries_from_config(vm.catalog.band_config)
             self.feed_combo = QComboBox()
-            self.feed_combo.addItems(sorted({feed for feed, _horn in FEED_HORN_BANDS}))
-            self.feed_combo.setCurrentText(project_config.feed)
+            self.feed_combo.addItems(sorted({str(entry["feed"]) for entry in band_entries}))
+            self.feed_combo.setCurrentText(project_config.feed or default_feed)
             self.feed_combo.setMinimumContentsLength(8)
             self.feed_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
             self.feed_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             self.horn_combo = QComboBox()
-            self.horn_combo.addItems(sorted({horn for _feed, horn in FEED_HORN_BANDS}))
-            self.horn_combo.setCurrentText(project_config.horn)
+            self.horn_combo.addItems(sorted({str(entry["horn"]) for entry in band_entries}))
+            self.horn_combo.setCurrentText(project_config.horn or default_horn)
             self.horn_combo.setMinimumContentsLength(10)
             self.horn_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
             self.horn_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             self.horn_gain_file_input = QLineEdit()
             self.horn_gain_file_input.setPlaceholderText("选择标准增益喇叭增益文件")
             self.btn_browse_horn_gain = QPushButton("浏览")
+            self.project_code_input = QLineEdit("DEFAULT_PROJECT")
+            self.project_code_input.setPlaceholderText("项目代号 / 样机 / 任务")
+            self.project_code_input.setMinimumWidth(220)
+            self.calibration_stage_combo = QComboBox()
+            self.calibration_stage_combo.setEditable(True)
+            for label, code in (
+                ("初始校准", "initial"),
+                ("复测", "retest"),
+                ("维修后", "after_repair"),
+                ("变更后", "after_change"),
+                ("交付前", "pre_delivery"),
+                ("调试", "debug"),
+            ):
+                self.calibration_stage_combo.addItem(label, code)
+            self.calibration_stage_combo.setMinimumWidth(150)
+            self.run_label_input = QLineEdit("R01")
+            self.run_label_input.setPlaceholderText("R01")
+            self.run_label_input.setMinimumWidth(120)
             self.substep_list = QListWidget()
             self.substep_list.setMinimumWidth(220)
             self.substep_list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -825,18 +986,82 @@ def run_gui() -> int:
             self.global_log_panel = LogPanel()
             self.log_panels = [self.global_log_panel]
 
-            self.result_view = QPlainTextEdit()
-            self.result_view.setReadOnly(True)
-            self.result_view.setMaximumHeight(180)
-            self.result_view.setPlaceholderText("结果文件与状态详情")
             self.result_summary = QPlainTextEdit()
             self.result_summary.setReadOnly(True)
-            self.result_summary.setMaximumHeight(92)
+            self.result_summary.setMaximumHeight(118)
             self.result_summary.setPlaceholderText("运行摘要将在这里显示")
+            self.result_view_combo = QComboBox()
+            self.result_view_combo.addItem("当前Session", "current")
+            self.result_view_combo.addItem("最新成功", "latest")
+            self.result_view_combo.addItem("历史Session", "history")
+            self.result_view_combo.setFixedWidth(116)
+            self.result_history_combo = QComboBox()
+            self.result_history_combo.setEnabled(False)
+            self.result_history_combo.setMinimumContentsLength(26)
+            self.result_history_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+            self.result_history_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            self.result_workspace_input = QLineEdit()
+            self.result_workspace_input.setPlaceholderText("校准工作空间路径，留空则使用当前配置默认 workspace")
+            self.result_workspace_input.setMinimumWidth(320)
+            self.btn_result_browse_workspace = QPushButton("浏览Workspace")
+            self.btn_result_load_workspace = QPushButton("加载历史")
+            self.btn_result_open_history_dir = QPushButton("打开历史目录")
+            self.result_file_table = QTableWidget(0, 5)
+            self.result_file_table.setHorizontalHeaderLabels(["类型", "文件名", "大小", "修改时间", "路径"])
+            self.result_file_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+            self.result_file_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+            self.result_file_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+            self.result_file_table.verticalHeader().setVisible(False)
+            self.result_file_table.horizontalHeader().setStretchLastSection(True)
+            self.result_file_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+            self.result_file_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+            self.result_file_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+            self.result_file_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+            self.result_file_table.setMinimumHeight(190)
+            self.result_file_table.setAlternatingRowColors(True)
+            self.btn_result_refresh = QPushButton("刷新结果")
+            self.btn_result_copy_path = QPushButton("复制路径")
+            self.btn_result_open_dir = QPushButton("打开目录")
+            self.btn_result_open_session = QPushButton("打开Session")
+            self.btn_result_open_project = QPushButton("打开项目")
+            self.btn_result_open_workspace = QPushButton("打开Workspace")
+            self.btn_result_export_summary = QPushButton("导出摘要")
+            _style_button(self.btn_result_browse_workspace, role="secondary")
+            _style_button(self.btn_result_load_workspace, role="secondary")
+            _style_button(self.btn_result_open_history_dir, role="primary")
+            _style_button(self.btn_result_refresh, role="secondary")
+            _style_button(self.btn_result_copy_path, role="secondary")
+            _style_button(self.btn_result_open_dir, role="primary")
+            _style_button(self.btn_result_open_session, role="primary")
+            _style_button(self.btn_result_open_project, role="primary")
+            _style_button(self.btn_result_open_workspace, role="primary")
+            _style_button(self.btn_result_export_summary, role="success")
+            self.result_curve_status = QLabel("选择 CSV 结果文件后显示曲线")
+            self.result_curve_status.setWordWrap(True)
+            self.result_curve_column = QComboBox()
+            self.result_curve_column.setEnabled(False)
+            self.btn_result_curve_autorange = QPushButton("自适应")
+            self.btn_result_curve_autorange.setEnabled(False)
+            _style_button(self.btn_result_curve_autorange, role="secondary")
+            if pg is not None:
+                self.result_curve_plot = pg.PlotWidget()
+                self.result_curve_plot.setBackground("#ffffff")
+                self.result_curve_plot.showGrid(x=True, y=True, alpha=0.25)
+                self.result_curve_plot.setLabel("bottom", "频率", units="GHz")
+                self.result_curve_plot.setLabel("left", "幅度", units="dB")
+                self.result_curve_plot.setMinimumHeight(240)
+            else:
+                self.result_curve_plot = QPlainTextEdit()
+                self.result_curve_plot.setReadOnly(True)
+                self.result_curve_plot.setPlainText("未安装 pyqtgraph，无法显示曲线。")
+                self.result_curve_plot.setMinimumHeight(240)
             self.result_session = QPlainTextEdit()
             self.result_session.setReadOnly(True)
             self.result_session.setMaximumHeight(150)
             self.result_session.setPlaceholderText("会话与运行记录")
+            self._result_rows: list[dict[str, str]] = []
+            self._current_curve_data: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+            self._history_session_summaries: tuple[dict[str, object], ...] = ()
 
             command_presets = vm.device_command_presets()
             self.command_panels = [
@@ -882,6 +1107,8 @@ def run_gui() -> int:
             self.btn_disconnect = QPushButton("断开全部设备")
             self.btn_start = QPushButton("开始校准")
             self.btn_start.setFixedWidth(120)
+            self.btn_recalibrate = QPushButton("重新校准")
+            self.btn_recalibrate.setFixedWidth(120)
             self.btn_import_config = QPushButton("导入链路配置")
             self.btn_import_default_config = QPushButton("导入默认配置")
             self.inline_confirm_panel: QFrame | None = None
@@ -899,6 +1126,8 @@ def run_gui() -> int:
             _style_button(self.btn_connect, role="success")
             _style_button(self.btn_disconnect, role="danger")
             _style_button(self.btn_start, role="primary", state="idle")
+            _style_button(self.btn_recalibrate, role="warning", state="idle")
+            self.btn_recalibrate.setVisible(False)
             _style_button(self.btn_import_config, role="secondary")
             _style_button(self.btn_import_default_config, role="secondary")
             _style_button(self.btn_refresh, role="secondary")
@@ -920,7 +1149,7 @@ def run_gui() -> int:
             main_splitter.addWidget(self._build_global_log())
             main_splitter.setStretchFactor(0, 4)
             main_splitter.setStretchFactor(1, 1)
-            main_splitter.setSizes([800, 380])
+            main_splitter.setSizes([760, 480])
             main_splitter.setCollapsible(0, False)
             main_splitter.setCollapsible(1, False)
             root_layout.addWidget(main_splitter, 1)
@@ -936,6 +1165,19 @@ def run_gui() -> int:
             self.item_list.setCurrentRow(0)
             vm.refresh_overview()
             self._sync_overview()
+            self._apply_initial_window_size()
+
+        def _apply_initial_window_size(self) -> None:
+            target_width = 1180
+            target_height = 720
+            screen = QApplication.screenAt(QCursor.pos()) or QApplication.primaryScreen()
+            if screen is None:
+                self.resize(target_width, target_height)
+                return
+            available = screen.availableGeometry()
+            width = min(target_width, max(320, available.width() - 80))
+            height = min(target_height, max(320, available.height() - 80))
+            self.resize(width, height)
 
         def _center_on_screen(self) -> None:
             screen = QApplication.screenAt(QCursor.pos()) or QApplication.primaryScreen()
@@ -987,15 +1229,8 @@ def run_gui() -> int:
             center_stack = QWidget()
             center_stack_layout = QVBoxLayout(center_stack)
             center_stack_layout.setContentsMargins(0, 0, 0, 0)
-            config_row = QGroupBox("链路配置")
-            config_row_layout = QHBoxLayout(config_row)
-            config_row_layout.setContentsMargins(12, 8, 12, 8)
-            config_row_layout.setSpacing(8)
-            config_row_layout.addWidget(self.config_path_input, 1)
-            config_row_layout.addWidget(self.btn_import_config)
-            config_row_layout.addWidget(self.btn_import_default_config)
-            center_stack_layout.addWidget(config_row)
-            center_stack_layout.addWidget(self._build_band_config_group())
+            center_stack_layout.addWidget(self._build_link_config_group())
+            center_stack_layout.addWidget(self._build_run_context_group())
 
             center = QGroupBox("步骤执行")
             center_layout = QVBoxLayout(center)
@@ -1032,6 +1267,7 @@ def run_gui() -> int:
 
             button_row = QHBoxLayout()
             button_row.addWidget(self.btn_start)
+            button_row.addWidget(self.btn_recalibrate)
             button_row.addStretch(1)
             center_layout.addLayout(button_row)
             center_stack_layout.addWidget(center, 1)
@@ -1085,11 +1321,18 @@ def run_gui() -> int:
             self._set_inline_confirmation_idle(panel)
             return panel
 
-        def _build_band_config_group(self) -> QGroupBox:
-            group = QGroupBox("频段配置")
+        def _build_link_config_group(self) -> QGroupBox:
+            group = QGroupBox("链路配置")
             form = QFormLayout(group)
             form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
             form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
+
+            config_row = QHBoxLayout()
+            config_row.addWidget(QLabel("配置文件"))
+            config_row.addWidget(self.config_path_input, 1)
+            config_row.addWidget(self.btn_import_config)
+            config_row.addWidget(self.btn_import_default_config)
+            form.addRow(config_row)
 
             band_row = QHBoxLayout()
             band_row.addWidget(QLabel("馈源型号"))
@@ -1102,11 +1345,26 @@ def run_gui() -> int:
             form.addRow(band_row)
             return group
 
+        def _build_run_context_group(self) -> QGroupBox:
+            group = QGroupBox("校准批次")
+            row = QHBoxLayout(group)
+            row.setContentsMargins(12, 12, 12, 12)
+            row.setSpacing(10)
+            row.addWidget(QLabel("项目代号"))
+            row.addWidget(self.project_code_input, 2)
+            row.addWidget(QLabel("校准阶段"))
+            row.addWidget(self.calibration_stage_combo, 1)
+            row.addWidget(QLabel("批次/轮次"))
+            row.addWidget(self.run_label_input, 1)
+            return group
+
         def _build_command_page(self) -> QWidget:
             page = QWidget()
             layout = QVBoxLayout(page)
 
+            device_container = QWidget()
             device_grid = QGridLayout()
+            device_container.setLayout(device_grid)
             device_grid.setHorizontalSpacing(6)
             device_grid.setVerticalSpacing(8)
             for column, panel in enumerate(self.command_panels):
@@ -1114,14 +1372,19 @@ def run_gui() -> int:
                 device_grid.setColumnMinimumWidth(column, 0)
                 device_grid.setColumnStretch(column, 1)
 
-            layout.addLayout(device_grid)
+            device_scroll = QScrollArea()
+            device_scroll.setWidgetResizable(True)
+            device_scroll.setFrameShape(QFrame.Shape.NoFrame)
+            device_scroll.setMinimumWidth(0)
+            device_scroll.setWidget(device_container)
+            layout.addWidget(device_scroll, 1)
             layout.addWidget(self.btn_refresh)
             return page
 
         def _build_global_log(self) -> QWidget:
             box = QGroupBox("LOG")
-            box.setMinimumWidth(340)
-            box.setMaximumWidth(500)
+            box.setMinimumWidth(420)
+            box.setMaximumWidth(650)
             layout = QVBoxLayout(box)
             layout.addWidget(self.global_log_panel)
             return box
@@ -1131,8 +1394,37 @@ def run_gui() -> int:
             layout = QVBoxLayout(page)
             layout.addWidget(QLabel("运行摘要"))
             layout.addWidget(self.result_summary)
-            layout.addWidget(QLabel("最终输出与会话结果"))
-            layout.addWidget(self.result_view)
+            workspace_row = QHBoxLayout()
+            workspace_row.addWidget(QLabel("校准工作空间"))
+            workspace_row.addWidget(self.result_workspace_input, 1)
+            workspace_row.addWidget(self.btn_result_browse_workspace)
+            workspace_row.addWidget(self.btn_result_load_workspace)
+            workspace_row.addWidget(self.btn_result_open_history_dir)
+            layout.addLayout(workspace_row)
+            action_row = QHBoxLayout()
+            action_row.addWidget(QLabel("生成文件"))
+            action_row.addWidget(QLabel("结果视图"))
+            action_row.addWidget(self.result_view_combo)
+            action_row.addWidget(QLabel("历史"))
+            action_row.addWidget(self.result_history_combo, 1)
+            action_row.addStretch(1)
+            action_row.addWidget(self.btn_result_refresh)
+            action_row.addWidget(self.btn_result_copy_path)
+            action_row.addWidget(self.btn_result_open_dir)
+            action_row.addWidget(self.btn_result_open_session)
+            action_row.addWidget(self.btn_result_open_project)
+            action_row.addWidget(self.btn_result_open_workspace)
+            action_row.addWidget(self.btn_result_export_summary)
+            layout.addLayout(action_row)
+            layout.addWidget(self.result_file_table)
+            curve_row = QHBoxLayout()
+            curve_row.addWidget(QLabel("曲线预览"))
+            curve_row.addWidget(self.result_curve_column)
+            curve_row.addWidget(self.btn_result_curve_autorange)
+            curve_row.addStretch(1)
+            layout.addLayout(curve_row)
+            layout.addWidget(self.result_curve_status)
+            layout.addWidget(self.result_curve_plot)
             layout.addWidget(QLabel("会话记录"))
             layout.addWidget(self.result_session)
             return page
@@ -1143,11 +1435,28 @@ def run_gui() -> int:
             self.btn_connect.clicked.connect(self._connect_devices)
             self.btn_disconnect.clicked.connect(self._disconnect_devices)
             self.btn_start.clicked.connect(self._confirm_start_calibration)
+            self.btn_recalibrate.clicked.connect(lambda _checked=False: self._confirm_start_calibration(recalibrate=True))
             self.btn_import_config.clicked.connect(self._import_link_config)
             self.btn_import_default_config.clicked.connect(self._import_default_link_config)
             self.btn_refresh.clicked.connect(self._sync_overview)
             self.feed_combo.currentTextChanged.connect(self._sync_horn_options)
+            self.horn_combo.currentTextChanged.connect(lambda _text: self._apply_band_sweep_range())
             self.btn_browse_horn_gain.clicked.connect(self._browse_horn_gain_file)
+            self.btn_result_refresh.clicked.connect(self._sync_overview)
+            self.btn_result_browse_workspace.clicked.connect(self._browse_result_workspace)
+            self.btn_result_load_workspace.clicked.connect(self._load_result_workspace)
+            self.btn_result_open_history_dir.clicked.connect(self._open_history_sessions_dir)
+            self.btn_result_copy_path.clicked.connect(self._copy_selected_result_path)
+            self.btn_result_open_dir.clicked.connect(self._open_selected_result_dir)
+            self.btn_result_open_session.clicked.connect(lambda _checked=False: self._open_result_context_dir("session_root"))
+            self.btn_result_open_project.clicked.connect(lambda _checked=False: self._open_result_context_dir("project_root"))
+            self.btn_result_open_workspace.clicked.connect(lambda _checked=False: self._open_result_context_dir("workspace_root"))
+            self.btn_result_export_summary.clicked.connect(self._export_result_summary)
+            self.result_view_combo.currentIndexChanged.connect(lambda _index: self._sync_overview())
+            self.result_history_combo.currentIndexChanged.connect(lambda _index: self._sync_overview())
+            self.result_file_table.itemSelectionChanged.connect(self._sync_result_curve)
+            self.result_curve_column.currentTextChanged.connect(self._plot_selected_result_curve)
+            self.btn_result_curve_autorange.clicked.connect(self._autorange_result_curve)
             for panel in self.command_panels:
                 panel.btn_preset.clicked.connect(lambda _checked=False, command_panel=panel: self._fill_preset(command_panel))
                 panel.btn_send.clicked.connect(lambda _checked=False, command_panel=panel: self._send_command(command_panel))
@@ -1164,11 +1473,16 @@ def run_gui() -> int:
                     panel.btn_vna_configure.clicked.connect(lambda _checked=False, command_panel=panel: self._configure_vna(command_panel))
                     panel.btn_vna_trigger.clicked.connect(lambda _checked=False, command_panel=panel: self._trigger_vna(command_panel))
                     panel.btn_vna_sample.clicked.connect(lambda _checked=False, command_panel=panel: self._sample_vna(command_panel))
+                elif panel.device_key == "signal_generator":
+                    assert panel.btn_sg_configure is not None
+                    panel.btn_sg_configure.clicked.connect(lambda _checked=False, command_panel=panel: self._configure_signal_generator(command_panel))
+                elif panel.device_key == "spectrum_analyzer":
+                    assert panel.btn_sa_configure is not None
+                    panel.btn_sa_configure.clicked.connect(lambda _checked=False, command_panel=panel: self._configure_spectrum_analyzer(command_panel))
             for panel in self.log_panels:
                 panel.level_combo.currentTextChanged.connect(self._sync_logs)
-                panel.search_edit.textChanged.connect(self._sync_logs)
                 panel.timestamp_action.toggled.connect(self._sync_logs)
-                panel.clear_filter_action.triggered.connect(lambda _checked=False, log_panel=panel: self._clear_log_filters(log_panel))
+                panel.clear_log_action.triggered.connect(self._clear_logs)
 
             vm.selected_item_changed.connect(self._sync_item_detail)
             vm.selected_step_changed.connect(self._sync_step_list_colored)
@@ -1191,6 +1505,7 @@ def run_gui() -> int:
         def _sync_after_catalog_changed(self) -> None:
             self._sync_catalog_path_field()
             self._sync_command_presets()
+            self._sync_band_options()
             self._refresh_item_list()
             self._sync_device_connection_panels()
 
@@ -1281,6 +1596,15 @@ def run_gui() -> int:
             item.setFont(font)
             item.setToolTip(self._list_status_text(status))
 
+        @staticmethod
+        def _set_current_row_visible(list_widget: QListWidget, row: int) -> None:
+            if row < 0 or row >= list_widget.count():
+                return
+            list_widget.setCurrentRow(row)
+            item = list_widget.item(row)
+            if item is not None:
+                list_widget.scrollToItem(item, QAbstractItemView.ScrollHint.PositionAtCenter)
+
         def _sync_item_list(self) -> None:
             current_item_id = vm.selected_item.id if vm.catalog.items else ""
             self.item_list.blockSignals(True)
@@ -1296,7 +1620,7 @@ def run_gui() -> int:
                 if item.id == current_item_id:
                     current_row = index
             if vm.catalog.items:
-                self.item_list.setCurrentRow(current_row)
+                self._set_current_row_visible(self.item_list, current_row)
             self.item_list.blockSignals(False)
 
         def _sync_item_detail(self) -> None:
@@ -1340,7 +1664,7 @@ def run_gui() -> int:
                 self._apply_status_style(list_item, status)
                 self.step_list.addItem(list_item)
             if item.steps:
-                self.step_list.setCurrentRow(vm.selected_step_index)
+                self._set_current_row_visible(self.step_list, vm.selected_step_index)
             self.step_list.blockSignals(False)
             current_step = vm.selected_step
             if current_step:
@@ -1506,21 +1830,26 @@ def run_gui() -> int:
             if current_row < 0 and self.substep_list.count() > 0:
                 current_row = 0
             if current_row >= 0:
-                self.substep_list.setCurrentRow(current_row)
+                self._set_current_row_visible(self.substep_list, current_row)
             self.substep_list.blockSignals(False)
 
         def _sync_logs(self, *_args: Any) -> None:
             for panel in self.log_panels:
-                records = vm.filtered_logs(level=panel.current_level(), keyword=panel.current_keyword())
+                records = vm.filtered_logs(level=panel.current_level())
                 panel.set_records(records, self._format_log_entry)
+
+        def _clear_logs(self, *_args: Any) -> None:
+            vm.clear_logs()
 
         def _sync_overview(self, *_args: Any) -> None:
             overview = vm.overview
             if not overview:
                 return
-            self.result_summary.setPlainText(self._format_overview_summary(overview))
-            self.result_view.setPlainText(self._format_overview_detail(overview))
-            self.result_session.setPlainText(self._format_session_detail(overview))
+            self._sync_result_history_options()
+            result_overview = self._result_overview_for_view(overview)
+            self.result_summary.setPlainText(self._format_overview_summary(result_overview))
+            self._sync_result_files(result_overview)
+            self.result_session.setPlainText(self._format_session_detail(result_overview))
             link_box = "connected" if overview.get("link_box_connected") else "disconnected"
             vna = "connected" if overview.get("vna_connected") else "disconnected"
             sg = "connected" if overview.get("signal_generator_connected") else "disconnected"
@@ -1528,6 +1857,449 @@ def run_gui() -> int:
             self.connection_label.setText(f"网分: {vna} | 信号源: {sg} | 链路箱: {link_box} | 频谱仪: {sa}")
             self.status_label.setText(str(overview.get("status", "Ready")))
             self._sync_start_button_state(str(overview.get("status", "Ready")))
+
+        def _result_overview_for_view(self, overview: dict[str, Any]) -> dict[str, Any]:
+            mode = str(self.result_view_combo.currentData() or "current")
+            if mode == "current":
+                result = dict(overview)
+                result["result_view_label"] = "当前Session"
+                return result
+            if mode == "latest":
+                result = dict(overview)
+                latest_summary = self._latest_summary_for_selected_item()
+                result["run_summary"] = latest_summary
+                result["status"] = "Latest success" if latest_summary else "No latest success"
+                result["result_view_label"] = "最新成功"
+                return result
+            if mode == "history":
+                result = dict(overview)
+                history_summary = self._selected_history_summary()
+                result["run_summary"] = history_summary
+                result["status"] = "History session" if history_summary else "No history session"
+                result["result_view_label"] = "历史Session"
+                return result
+            result = dict(overview)
+            result["result_view_label"] = "当前Session"
+            return result
+
+        def _sync_result_history_options(self) -> None:
+            mode = str(self.result_view_combo.currentData() or "current")
+            current_manifest = str(self.result_history_combo.currentData() or "")
+            summaries = self._history_summaries_for_selected_item()
+            self._history_session_summaries = summaries
+            self.result_history_combo.blockSignals(True)
+            self.result_history_combo.clear()
+            selected_index = -1
+            for index, summary in enumerate(summaries):
+                manifest_file = str(summary.get("manifest_file", ""))
+                label = self._history_session_label(summary)
+                self.result_history_combo.addItem(label, manifest_file)
+                if manifest_file and manifest_file == current_manifest:
+                    selected_index = index
+            if summaries and selected_index >= 0:
+                self.result_history_combo.setCurrentIndex(selected_index)
+            elif summaries:
+                self.result_history_combo.setCurrentIndex(0)
+            else:
+                self.result_history_combo.addItem("无历史Session", "")
+            self.result_history_combo.setEnabled(mode == "history" and bool(summaries))
+            self.result_history_combo.blockSignals(False)
+
+        def _selected_history_summary(self) -> dict[str, object]:
+            manifest_file = str(self.result_history_combo.currentData() or "")
+            if manifest_file:
+                for summary in self._history_session_summaries:
+                    if str(summary.get("manifest_file", "")) == manifest_file:
+                        return summary
+            return self._history_session_summaries[0] if self._history_session_summaries else {}
+
+        def _history_summaries_for_selected_item(self) -> tuple[dict[str, object], ...]:
+            item = vm.selected_item
+            if item is None:
+                return ()
+            imported_workspace_root = self._result_workspace_root_from_input()
+            if imported_workspace_root is not None:
+                project_code = self._result_run_context().normalized().project_code
+                return list_session_summaries_from_project_root(
+                    project_root=imported_workspace_root / "projects" / project_code,
+                    item_id=item.id,
+                )
+            current_summary = vm.run_summary_for_item(item.id)
+            workspace_root = str(current_summary.get("workspace_root", "")).strip()
+            project_code = str(current_summary.get("project_code", "")).strip()
+            if workspace_root and project_code:
+                return list_session_summaries_from_project_root(
+                    project_root=Path(workspace_root) / "projects" / project_code,
+                    item_id=item.id,
+                )
+            workspace = workspace_for_catalog(vm.catalog)
+            return list_session_summaries(
+                workspace=workspace,
+                run=self._result_run_context(),
+                item_id=item.id,
+            )
+
+        def _result_workspace_root_from_input(self) -> Path | None:
+            text = self.result_workspace_input.text().strip()
+            return Path(text) if text else None
+
+        def _default_result_workspace_root(self) -> Path:
+            item = vm.selected_item
+            if item is not None:
+                current_summary = vm.run_summary_for_item(item.id)
+                workspace_root = str(current_summary.get("workspace_root", "")).strip()
+                if workspace_root:
+                    return Path(workspace_root)
+            return workspace_for_catalog(vm.catalog).workspace_root
+
+        def _browse_result_workspace(self) -> None:
+            start_path = str(self._result_workspace_root_from_input() or self._default_result_workspace_root())
+            selected = QFileDialog.getExistingDirectory(self, "选择校准工作空间目录", start_path)
+            if not selected:
+                return
+            self.result_workspace_input.setText(selected)
+            self._load_result_workspace()
+
+        def _load_result_workspace(self) -> None:
+            root = self._result_workspace_root_from_input()
+            if root is None:
+                self.result_curve_status.setText("未填写校准工作空间路径，使用当前配置默认 workspace。")
+                self._sync_overview()
+                return
+            if not root.exists():
+                self.result_curve_status.setText(f"校准工作空间不存在: {root}")
+                self._sync_overview()
+                return
+            self.result_curve_status.setText(f"已加载校准工作空间: {root}")
+            if str(self.result_view_combo.currentData() or "") == "current":
+                self.result_view_combo.setCurrentIndex(2)
+            else:
+                self._sync_overview()
+
+        def _open_history_sessions_dir(self) -> None:
+            root = self._result_workspace_root_from_input() or self._default_result_workspace_root()
+            project_code = self._result_run_context().normalized().project_code
+            path = root / "projects" / project_code / "sessions"
+            if not path.exists():
+                self.result_curve_status.setText(f"历史目录不存在: {path}")
+                return
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+            self.result_curve_status.setText(f"已打开历史目录: {path}")
+
+        def _history_session_label(self, summary: dict[str, object]) -> str:
+            finished = str(summary.get("finished_at") or summary.get("started_at") or "").replace("T", " ")
+            if "+" in finished:
+                finished = finished.split("+", 1)[0]
+            state = str(summary.get("state") or "-")
+            stage = _stage_display(str(summary.get("calibration_stage") or ""))
+            run_label = str(summary.get("run_label") or "")
+            session_id = str(summary.get("session_id") or "")
+            tail = f"{stage}/{run_label}" if stage or run_label else session_id
+            return f"{finished} | {state} | {tail}"
+
+        def _latest_summary_for_selected_item(self) -> dict[str, object]:
+            item = vm.selected_item
+            if item is None:
+                return {}
+            imported_workspace_root = self._result_workspace_root_from_input()
+            if imported_workspace_root is not None:
+                project_code = self._result_run_context().normalized().project_code
+                latest_path = imported_workspace_root / "projects" / project_code / "latest" / f"{item.id}.json"
+                return load_latest_summary_from_index(latest_path)
+            current_summary = vm.run_summary_for_item(item.id)
+            workspace_root = str(current_summary.get("workspace_root", "")).strip()
+            project_code = str(current_summary.get("project_code", "")).strip()
+            if workspace_root and project_code:
+                latest_path = Path(workspace_root) / "projects" / project_code / "latest" / f"{item.id}.json"
+                latest = load_latest_summary_from_index(latest_path)
+                if latest:
+                    return latest
+            workspace = workspace_for_catalog(vm.catalog)
+            return load_latest_summary(workspace=workspace, run=self._result_run_context(), item_id=item.id)
+
+        def _result_run_context(self) -> CalibrationRunContext:
+            stage_code = self.calibration_stage_combo.currentData()
+            return CalibrationRunContext(
+                project_code=self.project_code_input.text().strip() or "DEFAULT_PROJECT",
+                calibration_stage=str(stage_code or self.calibration_stage_combo.currentText()).strip() or "initial",
+                run_label=self.run_label_input.text().strip() or "R01",
+            )
+
+        def _sync_result_files(self, overview: dict[str, Any]) -> None:
+            selected_path = self._selected_result_path()
+            rows = self._result_rows_from_overview(overview)
+            self._result_rows = rows
+            self.result_file_table.blockSignals(True)
+            self.result_file_table.setRowCount(len(rows))
+            selected_row = -1
+            for row_index, row in enumerate(rows):
+                values = [row["kind"], row["name"], row["size"], row["modified"], row["path"]]
+                for column_index, value in enumerate(values):
+                    item = QTableWidgetItem(value)
+                    item.setData(Qt.ItemDataRole.UserRole, row["path"])
+                    if row["kind"] == "FINAL":
+                        item.setForeground(QBrush(QColor("#256d45")))
+                    elif row["kind"] == "RAW":
+                        item.setForeground(QBrush(QColor("#234f84")))
+                    elif row["kind"] == "METADATA":
+                        item.setForeground(QBrush(QColor("#695a2d")))
+                    self.result_file_table.setItem(row_index, column_index, item)
+                if row["path"] == selected_path:
+                    selected_row = row_index
+            self.result_file_table.blockSignals(False)
+            if rows:
+                self.result_file_table.selectRow(selected_row if selected_row >= 0 else 0)
+            else:
+                self.result_file_table.clearSelection()
+                self._clear_result_curve("当前校准项还没有生成文件。")
+
+        def _result_rows_from_overview(self, overview: dict[str, Any]) -> list[dict[str, str]]:
+            run_summary = overview.get("run_summary") or {}
+            if not isinstance(run_summary, dict):
+                return []
+            file_groups = (
+                ("FINAL", "loss_files"),
+                ("RAW", "raw_files"),
+                ("METADATA", "metadata_files"),
+            )
+            rows: list[dict[str, str]] = []
+            for kind, key in file_groups:
+                for raw_path in run_summary.get(key, ()) or ():
+                    path = Path(str(raw_path))
+                    exists = path.exists()
+                    stat = path.stat() if exists else None
+                    rows.append(
+                        {
+                            "kind": kind,
+                            "name": path.name,
+                            "size": self._format_file_size(stat.st_size) if stat else "缺失",
+                            "modified": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S") if stat else "",
+                            "path": str(path),
+                        }
+                    )
+            manifest_file = str(run_summary.get("manifest_file") or "").strip()
+            if manifest_file:
+                path = Path(manifest_file)
+                exists = path.exists()
+                stat = path.stat() if exists else None
+                rows.append(
+                    {
+                        "kind": "MANIFEST",
+                        "name": path.name,
+                        "size": self._format_file_size(stat.st_size) if stat else "缺失",
+                        "modified": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S") if stat else "",
+                        "path": str(path),
+                    }
+                )
+            return rows
+
+        @staticmethod
+        def _format_file_size(size: int) -> str:
+            if size < 1024:
+                return f"{size} B"
+            if size < 1024 * 1024:
+                return f"{size / 1024:.1f} KB"
+            return f"{size / (1024 * 1024):.1f} MB"
+
+        def _selected_result_path(self) -> str:
+            selected_rows = self.result_file_table.selectionModel().selectedRows()
+            if not selected_rows:
+                return ""
+            item = self.result_file_table.item(selected_rows[0].row(), 4)
+            return str(item.data(Qt.ItemDataRole.UserRole) or item.text()) if item is not None else ""
+
+        def _copy_selected_result_path(self, *_args: Any) -> None:
+            path = self._selected_result_path()
+            if not path:
+                self.result_curve_status.setText("请先选择一个结果文件。")
+                return
+            QApplication.clipboard().setText(path)
+            self.result_curve_status.setText(f"已复制路径: {path}")
+
+        def _open_selected_result_dir(self, *_args: Any) -> None:
+            path = self._selected_result_path()
+            if not path:
+                self.result_curve_status.setText("请先选择一个结果文件。")
+                return
+            directory = Path(path).parent
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(directory)))
+
+        def _open_result_context_dir(self, key: str, *_args: Any) -> None:
+            overview = self._result_overview_for_view(vm.overview)
+            run_summary = overview.get("run_summary") or {}
+            if not isinstance(run_summary, dict) or not run_summary:
+                self.result_curve_status.setText("当前没有可打开的校准文件空间。")
+                return
+            if key == "project_root":
+                session_root = str(run_summary.get("session_root") or "").strip()
+                path = Path(session_root).parents[1] if session_root and len(Path(session_root).parents) >= 2 else None
+            else:
+                raw_path = str(run_summary.get(key) or "").strip()
+                path = Path(raw_path) if raw_path else None
+            if path is None or not path.exists():
+                self.result_curve_status.setText(f"目录不存在: {path}")
+                return
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+            self.result_curve_status.setText(f"已打开目录: {path}")
+
+        def _export_result_summary(self, *_args: Any) -> None:
+            overview = self._result_overview_for_view(vm.overview)
+            default_name = f"{overview.get('item_id', 'calibration')}_result_summary.txt" if overview else "calibration_result_summary.txt"
+            path, _selected_filter = QFileDialog.getSaveFileName(
+                self,
+                "导出当前 session 输出摘要",
+                default_name,
+                "Text Files (*.txt);;All Files (*)",
+            )
+            if not path:
+                return
+            lines = [
+                self._format_overview_summary(overview),
+                "",
+                self._format_session_detail(overview),
+                "",
+                "generated_files:",
+            ]
+            for row in self._result_rows:
+                lines.append(f"{row['kind']}\t{row['name']}\t{row['size']}\t{row['modified']}\t{row['path']}")
+            try:
+                Path(path).write_text("\n".join(lines), encoding="utf-8")
+            except Exception as exc:
+                self.result_curve_status.setText(f"导出摘要失败: {exc}")
+                return
+            self.result_curve_status.setText(f"已导出摘要: {path}")
+
+        def _sync_result_curve(self, *_args: Any) -> None:
+            path_text = self._selected_result_path()
+            if not path_text:
+                self._clear_result_curve("请选择一个结果文件。")
+                return
+            path = Path(path_text)
+            if path.suffix.lower() != ".csv":
+                self._clear_result_curve(f"{path.name} 不是 CSV 文件，仅显示文件信息。")
+                return
+            try:
+                curve_data = self._load_csv_curve_data(path)
+            except Exception as exc:
+                self._clear_result_curve(f"读取曲线失败: {exc}")
+                return
+            self._current_curve_data = curve_data
+            self.result_curve_column.blockSignals(True)
+            self.result_curve_column.clear()
+            self.result_curve_column.addItems(tuple(curve_data.keys()))
+            self.result_curve_column.setEnabled(bool(curve_data))
+            self.btn_result_curve_autorange.setEnabled(bool(curve_data) and pg is not None)
+            self.result_curve_column.blockSignals(False)
+            if curve_data:
+                self._plot_selected_result_curve()
+            else:
+                self._clear_result_curve(f"{path.name} 没有可绘制的 dB 数据列。")
+
+        def _load_csv_curve_data(self, path: Path) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+            with path.open("r", encoding="utf-8-sig", newline="") as handle:
+                reader = csv.DictReader(handle)
+                rows = list(reader)
+                fieldnames = tuple(reader.fieldnames or ())
+            if not fieldnames:
+                raise ValueError("CSV 没有表头。")
+            freq_column = self._detect_frequency_column(fieldnames)
+            if not freq_column:
+                raise ValueError("未找到频率列。")
+            x_raw = np.asarray([self._to_float(row.get(freq_column)) for row in rows], dtype=float)
+            valid_x = np.isfinite(x_raw)
+            if not np.any(valid_x):
+                raise ValueError("频率列没有有效数字。")
+            x_ghz = self._frequency_to_ghz(freq_column, x_raw)
+            y_columns = self._detect_curve_columns(fieldnames, freq_column)
+            curves: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+            for column in y_columns:
+                y = np.asarray([self._to_float(row.get(column)) for row in rows], dtype=float)
+                valid = np.isfinite(x_ghz) & np.isfinite(y)
+                if np.any(valid):
+                    curves[column] = (x_ghz[valid], y[valid])
+            return curves
+
+        @staticmethod
+        def _detect_frequency_column(fieldnames: tuple[str, ...]) -> str:
+            normalized = {name.strip().lower(): name for name in fieldnames}
+            for candidate in ("freq_hz", "frequency_hz", "freq", "frequency", "freq_ghz", "frequency_ghz"):
+                if candidate in normalized:
+                    return normalized[candidate]
+            for name in fieldnames:
+                if "freq" in name.strip().lower():
+                    return name
+            return ""
+
+        @staticmethod
+        def _detect_curve_columns(fieldnames: tuple[str, ...], freq_column: str) -> list[str]:
+            priority = ("value_db", "raw_s21_db", "gain_db", "loss_db", "s21_db")
+            lower_to_name = {name.strip().lower(): name for name in fieldnames}
+            columns = [lower_to_name[name] for name in priority if name in lower_to_name and lower_to_name[name] != freq_column]
+            for name in fieldnames:
+                lower = name.strip().lower()
+                if name == freq_column or name in columns:
+                    continue
+                if lower.endswith("_db") or lower.endswith("_dbi") or "s21" in lower:
+                    columns.append(name)
+            return columns
+
+        @staticmethod
+        def _frequency_to_ghz(column: str, values: np.ndarray) -> np.ndarray:
+            lower = column.strip().lower()
+            if "ghz" in lower:
+                return values
+            if "mhz" in lower:
+                return values / 1000.0
+            return values / 1e9 if np.nanmax(values) > 1e6 else values
+
+        @staticmethod
+        def _to_float(value: Any) -> float:
+            try:
+                return float(str(value).strip())
+            except Exception:
+                return float("nan")
+
+        def _plot_selected_result_curve(self, *_args: Any) -> None:
+            column = self.result_curve_column.currentText()
+            if not column or column not in self._current_curve_data:
+                return
+            x_values, y_values = self._current_curve_data[column]
+            path = Path(self._selected_result_path())
+            self.result_curve_status.setText(f"{path.name} | {column} | {len(x_values)} 点")
+            if pg is None:
+                self.result_curve_plot.setPlainText(
+                    f"{path.name}\n{column}\n点数: {len(x_values)}\n"
+                    f"X(GHz): {x_values[0]:.6g} ... {x_values[-1]:.6g}\n"
+                    f"Y(dB): {np.nanmin(y_values):.3f} ... {np.nanmax(y_values):.3f}"
+                )
+                return
+            self.result_curve_plot.clear()
+            self.result_curve_plot.plot(x_values, y_values, pen=pg.mkPen("#2f6f9f", width=2), name=column)
+            self.result_curve_plot.setTitle(f"{path.name} - {column}")
+            self._autorange_result_curve()
+
+        def _autorange_result_curve(self, *_args: Any) -> None:
+            if not self._current_curve_data:
+                self.result_curve_status.setText("当前没有可自适应的曲线。")
+                return
+            if pg is None:
+                self.result_curve_status.setText("未安装 pyqtgraph，无法执行曲线自适应。")
+                return
+            self.result_curve_plot.enableAutoRange(axis="xy", enable=True)
+            self.result_curve_plot.autoRange(padding=0.08)
+
+        def _clear_result_curve(self, message: str) -> None:
+            self._current_curve_data = {}
+            self.result_curve_column.blockSignals(True)
+            self.result_curve_column.clear()
+            self.result_curve_column.setEnabled(False)
+            self.result_curve_column.blockSignals(False)
+            self.btn_result_curve_autorange.setEnabled(False)
+            self.result_curve_status.setText(message)
+            if pg is None:
+                self.result_curve_plot.setPlainText(message)
+            else:
+                self.result_curve_plot.clear()
 
         def _on_state_changed(self, state: str) -> None:
             self.step_status.setText(f"状态：{state}")
@@ -1539,10 +2311,36 @@ def run_gui() -> int:
         def _sync_command_response(self, response: str) -> None:
             self.status_label.setText(f"命令响应: {response}")
 
+        def _sync_band_options(self, preferred_feed: str | None = None, preferred_horn: str | None = None) -> None:
+            entries = band_entries_from_config(vm.catalog.band_config)
+            default_feed, default_horn = default_feed_horn_from_config(vm.catalog.band_config)
+            current_feed = (preferred_feed or self.feed_combo.currentText() or default_feed).strip().upper()
+            feeds = sorted({str(entry["feed"]) for entry in entries})
+            self.feed_combo.blockSignals(True)
+            self.feed_combo.clear()
+            self.feed_combo.addItems(feeds)
+            if current_feed in feeds:
+                self.feed_combo.setCurrentText(current_feed)
+            elif default_feed in feeds:
+                self.feed_combo.setCurrentText(default_feed)
+            elif feeds:
+                self.feed_combo.setCurrentIndex(0)
+            self.feed_combo.blockSignals(False)
+            self._sync_horn_options(self.feed_combo.currentText(), preferred_horn or default_horn)
+
         def _sync_horn_options(self, feed: str, preferred_horn: str | None = None) -> None:
-            _ = feed
-            current = preferred_horn or self.horn_combo.currentText()
-            horns = sorted({horn for _candidate_feed, horn in FEED_HORN_BANDS})
+            current = (preferred_horn or self.horn_combo.currentText()).strip().upper()
+            selected_feed = feed.strip().upper()
+            entries = band_entries_from_config(vm.catalog.band_config)
+            horns = sorted(
+                {
+                    str(entry["horn"])
+                    for entry in entries
+                    if str(entry["feed"]).strip().upper() == selected_feed
+                }
+            )
+            if not horns:
+                horns = sorted({str(entry["horn"]) for entry in entries})
             self.horn_combo.blockSignals(True)
             self.horn_combo.clear()
             self.horn_combo.addItems(horns)
@@ -1551,6 +2349,43 @@ def run_gui() -> int:
             elif horns:
                 self.horn_combo.setCurrentIndex(0)
             self.horn_combo.blockSignals(False)
+            self._apply_band_sweep_range()
+
+        def _apply_band_sweep_range(self) -> None:
+            entry = self._selected_band_entry()
+            if not entry:
+                return
+            self._apply_band_horn_gain_file(entry)
+            if "start_ghz" not in entry or "stop_ghz" not in entry:
+                return
+            for panel in self.command_panels:
+                if panel.device_key != "vna":
+                    continue
+                panel.vna_start_ghz.blockSignals(True)
+                panel.vna_stop_ghz.blockSignals(True)
+                panel.vna_start_ghz.setValue(float(entry["start_ghz"]))
+                panel.vna_stop_ghz.setValue(float(entry["stop_ghz"]))
+                panel.vna_start_ghz.blockSignals(False)
+                panel.vna_stop_ghz.blockSignals(False)
+                panel._refresh_vna_points_label()
+                return
+
+        def _apply_band_horn_gain_file(self, entry: dict[str, Any]) -> None:
+            horn_gain_file = str(entry.get("horn_gain_file", "")).strip()
+            if not horn_gain_file:
+                return
+            path = Path(horn_gain_file)
+            if not path.is_absolute() and vm.catalog.source_path:
+                path = Path(vm.catalog.source_path).parent / path
+            self.horn_gain_file_input.setText(str(path.resolve()))
+
+        def _selected_band_entry(self) -> dict[str, Any]:
+            feed = self.feed_combo.currentText().strip().upper()
+            horn = self.horn_combo.currentText().strip().upper()
+            for entry in band_entries_from_config(vm.catalog.band_config):
+                if str(entry["feed"]).strip().upper() == feed and str(entry["horn"]).strip().upper() == horn:
+                    return entry
+            return {}
 
         def _browse_horn_gain_file(self) -> None:
             path, _selected_filter = QFileDialog.getOpenFileName(
@@ -1719,7 +2554,7 @@ def run_gui() -> int:
             selected_action["value"] = action
             dialog.accept()
 
-        def _confirm_start_calibration(self) -> None:
+        def _confirm_start_calibration(self, recalibrate: bool = False) -> None:
             item = vm.selected_item
             if item is None:
                 self._show_modal_dialog(
@@ -1731,16 +2566,36 @@ def run_gui() -> int:
                     height=200,
                 )
                 return
-            vna_settings = self._vna_run_settings()
+            if recalibrate and vm.item_progress_state(item.id) not in {"done", "running"}:
+                recalibrate = False
+            try:
+                vna_settings = self._vna_run_settings()
+            except Exception as exc:
+                self._show_modal_dialog(
+                    title="喇叭增益文件错误",
+                    message=str(exc),
+                    buttons=(("确认", "ok", "center"),),
+                    default_action="ok",
+                    width=560,
+                    height=230,
+                )
+                return
+            horn_gain_message = (
+                f"\n喇叭增益: {Path(vna_settings['horn_gain_file']).name}"
+                if vna_settings.get("horn_gain_file")
+                else "\n喇叭增益: 未导入，Mock 计算使用 0 dB 默认值。"
+            )
             action = self._show_modal_dialog(
-                title="开始校准确认",
+                title="重新校准确认" if recalibrate else "开始校准确认",
                 message=(
-                    f"确认开始执行 {item.id} - {_friendly_text(item.name)}？\n\n"
+                    f"确认{'重新' if recalibrate else '开始'}执行 {item.id} - {_friendly_text(item.name)}？\n\n"
                     f"网分扫频: {vna_settings['start_ghz']:.3f} GHz 到 {vna_settings['stop_ghz']:.3f} GHz，"
                     f"{vna_settings['points']} 点，步进 {vna_settings['frequency_step_mhz']:.3f} MHz。\n"
-                    "步骤列表显示校准项，步骤执行区会逐个小步骤等待确认。"
+                    f"馈源/喇叭: {vna_settings['feed']} / {vna_settings['horn']}。"
+                    f"{horn_gain_message}\n"
+                    f"{'将覆盖当前校准项的运行状态，并按现有输出规则写入新文件。' if recalibrate else '步骤列表显示校准项，步骤执行区会逐个小步骤等待确认。'}"
                 ),
-                buttons=(("开始校准", "yes", "center"), ("取消", "cancel", "center")),
+                buttons=(("重新校准" if recalibrate else "开始校准", "yes", "center"), ("取消", "cancel", "center")),
                 default_action="yes",
                 width=520,
                 height=240,
@@ -1751,8 +2606,110 @@ def run_gui() -> int:
         def _vna_run_settings(self) -> dict[str, Any]:
             for panel in self.command_panels:
                 if panel.device_key == "vna":
-                    return panel.vna_settings()
-            return {}
+                    settings = panel.vna_settings()
+                    break
+            else:
+                settings = {}
+            settings["feed"] = self.feed_combo.currentText().strip()
+            settings["horn"] = self.horn_combo.currentText().strip()
+            settings["project_code"] = self.project_code_input.text().strip() or "DEFAULT_PROJECT"
+            stage_code = self.calibration_stage_combo.currentData()
+            settings["calibration_stage"] = str(stage_code or self.calibration_stage_combo.currentText()).strip() or "initial"
+            settings["run_label"] = self.run_label_input.text().strip() or "R01"
+            settings["operator"] = ""
+            settings["operator_note"] = ""
+            horn_gain_file = self.horn_gain_file_input.text().strip()
+            if horn_gain_file:
+                settings["horn_gain_file"] = horn_gain_file
+                settings["external_inputs"] = self._load_horn_gain_inputs(horn_gain_file, settings)
+            return settings
+
+        def _load_horn_gain_inputs(self, path_text: str, settings: dict[str, Any]) -> dict[str, Any]:
+            path = Path(path_text)
+            if not path.exists():
+                raise RuntimeError(f"喇叭增益文件不存在：{path}")
+            rows = self._read_numeric_gain_rows(path)
+            if not rows:
+                raise RuntimeError(f"喇叭增益文件没有可读取的数值行：{path}")
+
+            frequencies = np.asarray([row["freq_hz"] for row in rows], dtype=float)
+            if np.any(np.diff(frequencies) < 0):
+                order = np.argsort(frequencies)
+                frequencies = frequencies[order]
+                rows = [rows[int(index)] for index in order]
+            target = np.linspace(float(settings["start_ghz"]) * 1e9, float(settings["stop_ghz"]) * 1e9, int(settings["points"]))
+
+            def column_values(name: str, fallback: str = "gain_db") -> np.ndarray:
+                values = [row.get(name, row.get(fallback)) for row in rows]
+                if any(value is None for value in values):
+                    raise RuntimeError(f"喇叭增益文件缺少列：{name}")
+                return np.asarray(values, dtype=float)
+
+            gain_h = column_values("gain_h_db") if any("gain_h_db" in row for row in rows) else column_values("gain_db")
+            gain_v = column_values("gain_v_db") if any("gain_v_db" in row for row in rows) else gain_h
+            return {
+                "G_STD_HORN_H": np.interp(target, frequencies, gain_h),
+                "G_STD_HORN_V": np.interp(target, frequencies, gain_v),
+            }
+
+        def _read_numeric_gain_rows(self, path: Path) -> list[dict[str, float]]:
+            with path.open("r", encoding="utf-8-sig", newline="") as file:
+                sample = file.read(2048)
+                file.seek(0)
+                delimiter = "\t" if "\t" in sample and "," not in sample else ","
+                reader = csv.reader(file, delimiter=delimiter)
+                raw_rows = [[cell.strip() for cell in row] for row in reader if any(cell.strip() for cell in row)]
+            if not raw_rows:
+                return []
+
+            header = [cell.strip().lower() for cell in raw_rows[0]]
+            has_header = any(not self._is_float(cell) for cell in header)
+            data_rows = raw_rows[1:] if has_header else raw_rows
+            indexes = self._gain_column_indexes(header) if has_header else {"freq_hz": 0, "gain_db": 1}
+            rows: list[dict[str, float]] = []
+            for row in data_rows:
+                try:
+                    freq = float(row[indexes["freq_hz"]])
+                    if freq < 1e6:
+                        freq *= 1e9
+                    record = {"freq_hz": freq}
+                    for key in ("gain_db", "gain_h_db", "gain_v_db"):
+                        if key in indexes and indexes[key] < len(row):
+                            record[key] = float(row[indexes[key]])
+                    if "gain_db" not in record and "gain_h_db" in record:
+                        record["gain_db"] = record["gain_h_db"]
+                    rows.append(record)
+                except (ValueError, IndexError, KeyError):
+                    continue
+            return rows
+
+        @staticmethod
+        def _gain_column_indexes(header: list[str]) -> dict[str, int]:
+            aliases = {
+                "freq_hz": {"freq_hz", "frequency_hz", "freq", "frequency", "hz", "freq_ghz", "ghz"},
+                "gain_db": {"gain_db", "gain_dbi", "db", "dbi", "gain"},
+                "gain_h_db": {"gain_h_db", "gain_h_dbi", "h_gain_db", "h_gain_dbi", "g_std_horn_h"},
+                "gain_v_db": {"gain_v_db", "gain_v_dbi", "v_gain_db", "v_gain_dbi", "g_std_horn_v"},
+            }
+            result: dict[str, int] = {}
+            for index, column in enumerate(header):
+                normalized = column.strip().lower()
+                for key, names in aliases.items():
+                    if normalized in names:
+                        result[key] = index
+            if "freq_hz" not in result:
+                raise RuntimeError("喇叭增益文件缺少频率列。")
+            if not {"gain_db", "gain_h_db", "gain_v_db"} & set(result):
+                raise RuntimeError("喇叭增益文件缺少增益列。")
+            return result
+
+        @staticmethod
+        def _is_float(value: str) -> bool:
+            try:
+                float(value)
+                return True
+            except ValueError:
+                return False
 
         def _confirm_run_finished(self, summary: object) -> None:
             data = dict(summary) if isinstance(summary, dict) else {}
@@ -1776,7 +2733,9 @@ def run_gui() -> int:
 
         def _sync_start_button_state(self, state: str) -> None:
             normalized = str(state).upper()
-            if normalized in {"DONE"}:
+            selected_item = vm.selected_item
+            item_state = vm.item_progress_state(selected_item.id) if selected_item is not None else "pending"
+            if normalized in {"DONE", "CALIBRATION COMPLETED"} or item_state == "done":
                 button_state = "done"
             elif normalized in {"FAILED", "CANCELLED", "ERROR"} or normalized.startswith("ERROR"):
                 button_state = "error"
@@ -1785,11 +2744,12 @@ def run_gui() -> int:
             else:
                 button_state = "running"
             _style_button(self.btn_start, role="primary", state=button_state)
-            self.btn_start.setEnabled(button_state in {"idle", "done", "error"})
-
-        def _clear_log_filters(self, panel: LogPanel) -> None:
-            panel.clear_filters()
-            self._sync_logs()
+            _style_button(self.btn_recalibrate, role="warning", state=button_state)
+            can_start = button_state == "idle" and item_state != "done" and selected_item is not None
+            can_recalibrate = button_state in {"done", "error"} and selected_item is not None
+            self.btn_start.setEnabled(can_start)
+            self.btn_recalibrate.setEnabled(can_recalibrate)
+            self.btn_recalibrate.setVisible(item_state == "done" or button_state == "error")
 
         def _fill_preset(self, panel: DeviceCommandPanel) -> None:
             panel.command_input.setText(panel.selected_command())
@@ -1823,6 +2783,22 @@ def run_gui() -> int:
                 response = vm.sample_vna(panel.vna_settings())
             except Exception as exc:
                 self._show_modal_dialog(title="网分采样失败", message=str(exc), buttons=(("确定", "ok", "center"),), default_action="ok", width=500, height=220)
+                return
+            panel.set_response(response)
+
+        def _configure_signal_generator(self, panel: DeviceCommandPanel) -> None:
+            try:
+                response = vm.configure_signal_generator(panel.signal_generator_settings())
+            except Exception as exc:
+                self._show_modal_dialog(title="信号源配置失败", message=str(exc), buttons=(("确定", "ok", "center"),), default_action="ok", width=500, height=220)
+                return
+            panel.set_response(response)
+
+        def _configure_spectrum_analyzer(self, panel: DeviceCommandPanel) -> None:
+            try:
+                response = vm.configure_spectrum_analyzer(panel.spectrum_analyzer_settings())
+            except Exception as exc:
+                self._show_modal_dialog(title="频谱仪配置失败", message=str(exc), buttons=(("确定", "ok", "center"),), default_action="ok", width=500, height=220)
                 return
             panel.set_response(response)
 
@@ -1889,18 +2865,47 @@ def run_gui() -> int:
                 panel.set_resource_options(resources, state.resource)
 
         def _format_log_entry(self, record: LogEntry, show_timestamp: bool = True) -> str:
-            prefix = f"{record.timestamp} " if show_timestamp else ""
-            return f"{prefix}[{record.level}] {record.source}/{record.name} - {record.message}"
+            palette = {
+                "INFO": ("#2563eb", "#1f2937"),
+                "WARNING": ("#b45309", "#78350f"),
+                "WARN": ("#b45309", "#78350f"),
+                "ERROR": ("#dc2626", "#7f1d1d"),
+            }
+            level_color, text_color = palette.get(record.level.upper(), ("#475569", "#1f2937"))
+            prefix = f"{html.escape(record.timestamp)} " if show_timestamp else ""
+            level = html.escape(record.level)
+            source = html.escape(record.source)
+            name = html.escape(record.name)
+            message = html.escape(record.message)
+            return (
+                f"<span style='color:#64748b;'>{prefix}</span>"
+                f"<span style='color:{level_color};font-weight:700;'>[{level}]</span> "
+                f"<span style='color:#475569;'>{source}/{name}</span>"
+                f"<span style='color:#94a3b8;'> - </span>"
+                f"<span style='color:{text_color};'>{message}</span>"
+            )
 
         def _format_overview_summary(self, overview: dict[str, Any]) -> str:
             run_summary = overview.get("run_summary") or {}
+            raw_count = len(run_summary.get("raw_files", ())) if isinstance(run_summary, dict) else 0
+            loss_count = len(run_summary.get("loss_files", ())) if isinstance(run_summary, dict) else 0
+            metadata_count = len(run_summary.get("metadata_files", ())) if isinstance(run_summary, dict) else 0
+            manifest_count = 1 if isinstance(run_summary, dict) and run_summary.get("manifest_file") else 0
+            project_code = run_summary.get("project_code", "") if isinstance(run_summary, dict) else ""
+            calibration_stage = run_summary.get("calibration_stage", "") if isinstance(run_summary, dict) else ""
+            run_label = run_summary.get("run_label", "") if isinstance(run_summary, dict) else ""
+            session_id = run_summary.get("session_id", "") if isinstance(run_summary, dict) else ""
             lines = [
+                f"视图: {overview.get('result_view_label', '当前Session')}",
                 f"项目: {_friendly_text(overview.get('item_name', ''))}",
+                f"文件空间: {project_code or '-'} / {_stage_display(calibration_stage) or '-'} / {run_label or '-'}",
+                f"session: {session_id or '-'}",
                 f"当前步骤: {overview.get('selected_step_id', '')}",
                 f"状态: {overview.get('status', '')}",
                 f"校准步数: {overview.get('steps', '')}",
                 f"连接: {'OK' if self._all_command_devices_connected(overview) else '待连接'}",
-                f"已完成步骤: {run_summary.get('completed_steps', 0) if isinstance(run_summary, dict) else 0}",
+                f"已完成子步骤: {run_summary.get('completed_steps', 0) if isinstance(run_summary, dict) else 0}",
+                f"文件: final {loss_count} / raw {raw_count} / metadata {metadata_count} / manifest {manifest_count}",
                 f"最后事件: {_friendly_text(run_summary.get('last_event', '') if isinstance(run_summary, dict) else '')}",
             ]
             return "\n".join(lines)
@@ -1932,10 +2937,30 @@ def run_gui() -> int:
                 f"selected_step_id: {overview.get('selected_step_id', '')}",
             ]
             if isinstance(run_summary, dict) and run_summary:
+                lines.append(f"workspace_id: {run_summary.get('workspace_id', '')}")
+                lines.append(f"workspace_root: {run_summary.get('workspace_root', '')}")
+                lines.append(f"config_hash: {run_summary.get('config_hash', '')}")
+                lines.append(f"config_source_path: {run_summary.get('config_source_path', '')}")
+                lines.append(f"project_code: {run_summary.get('project_code', '')}")
+                stage = str(run_summary.get("calibration_stage", ""))
+                lines.append(f"calibration_stage: {_stage_display(stage)} ({stage})" if stage else "calibration_stage: ")
+                lines.append(f"run_label: {run_summary.get('run_label', '')}")
+                lines.append(f"operator: {run_summary.get('operator', '')}")
+                lines.append(f"operator_note: {run_summary.get('operator_note', '')}")
+                lines.append(f"session_id: {run_summary.get('session_id', '')}")
+                lines.append(f"session_root: {run_summary.get('session_root', '')}")
                 lines.append(f"completed_steps: {run_summary.get('completed_steps', '')}")
+                lines.append(f"completed_big_steps: {run_summary.get('completed_big_steps', '')}")
                 lines.append(f"last_event: {_friendly_text(run_summary.get('last_event', ''))}")
                 lines.append(f"link_box_connected: {run_summary.get('link_box_connected', '')}")
                 lines.append(f"vna_connected: {run_summary.get('vna_connected', '')}")
+                lines.append(f"output_root: {run_summary.get('output_root', '')}")
+                lines.append(f"final_files: {len(run_summary.get('loss_files', ()) or ())}")
+                lines.append(f"raw_files: {len(run_summary.get('raw_files', ()) or ())}")
+                lines.append(f"metadata_files: {len(run_summary.get('metadata_files', ()) or ())}")
+                lines.append(f"manifest_file: {run_summary.get('manifest_file', '')}")
+                if run_summary.get("latest_index_file"):
+                    lines.append(f"latest_index_file: {run_summary.get('latest_index_file', '')}")
             return "\n".join(lines)
 
         def _all_command_devices_connected(self, overview: dict[str, Any]) -> bool:
@@ -1954,6 +2979,112 @@ def run_gui() -> int:
     app.setStyleSheet(style_text)
 
     window = MainWindow()
+    if "--gui-smoke" in set(sys.argv[1:]):
+        vm.load_default_catalog()
+        vm.connect_mock_devices()
+        window._sync_after_catalog_changed()
+        window._sync_device_connection_panels()
+        window._sync_logs()
+        window._sync_start_button_state("READY")
+        initial_button_ok = window.btn_start.isEnabled() and window.btn_recalibrate.isHidden()
+        window._sync_start_button_state("WAIT_MANUAL_CONFIRM")
+        running_button_ok = not window.btn_start.isEnabled() and not window.btn_recalibrate.isEnabled()
+        run_summary: dict[str, object] = {}
+        latest_result_rows_ok = False
+        latest_result_detail_ok = False
+        history_result_rows_ok = False
+        history_result_detail_ok = False
+        if vm.selected_item is not None:
+            with TemporaryDirectory() as tmpdir:
+                window.project_code_input.setText("SMOKE_PROJECT")
+                workspace = workspace_for_catalog(vm.catalog, Path(tmpdir))
+                session = create_session_context(
+                    workspace=workspace,
+                    run=CalibrationRunContext(
+                        project_code="SMOKE_PROJECT",
+                        calibration_stage="initial",
+                        run_label="R01",
+                    ),
+                    item_id=vm.selected_item.id,
+                )
+                runner = MockCalibrationRunner(
+                    vm.selected_item,
+                    vm._mock_vna,
+                    vm._mock_link_box,
+                    session.session_root,
+                    vna_settings={"points": 3},
+                    session_context=session,
+                )
+                runner.run()
+                run_summary = runner.overview()
+                item_id = str(run_summary.get("item_id", ""))
+                if item_id:
+                    vm._run_summaries_by_item[item_id] = run_summary
+                    vm._run_status_by_item[item_id] = "Calibration completed"
+                    vm.status_text_update("Calibration completed")
+                    vm.refresh_overview()
+                window._sync_overview()
+                window.result_view_combo.setCurrentIndex(1)
+                window._sync_overview()
+                latest_result_rows_ok = window.result_file_table.rowCount() >= 4
+                latest_result_detail_ok = "latest_index_file:" in window.result_session.toPlainText()
+                window.result_workspace_input.setText(str(workspace.workspace_root))
+                window.result_view_combo.setCurrentIndex(2)
+                window._sync_overview()
+                history_result_rows_ok = window.result_file_table.rowCount() >= 4
+                history_result_detail_ok = "session_id:" in window.result_session.toPlainText()
+                window.result_view_combo.setCurrentIndex(0)
+                window._sync_overview()
+        app.processEvents()
+        sg_panel = next(panel for panel in window.command_panels if panel.device_key == "signal_generator")
+        sa_panel = next(panel for panel in window.command_panels if panel.device_key == "spectrum_analyzer")
+        vna_panel = next(panel for panel in window.command_panels if panel.device_key == "vna")
+        screen = QApplication.primaryScreen()
+        available = screen.availableGeometry() if screen is not None else None
+        grouped_panel_titles_ok = all(
+            {"资源连接", "仪表配置", "指令控制"}.issubset(
+                {group.title() for group in panel.findChildren(QGroupBox)}
+            )
+            for panel in (vna_panel, sg_panel, sa_panel)
+        )
+        checks = {
+            "tabs": window.tabs.count() >= 3,
+            "items": window.item_list.count() == len(vm.catalog.items),
+            "steps": window.step_list.count() == len(vm.selected_item.steps) if vm.selected_item is not None else False,
+            "logs": window.global_log_panel.copy_all_text() != "",
+            "connection_label": window.connection_label.text() != "",
+            "raw_files": bool(run_summary.get("raw_files")),
+            "loss_files": bool(run_summary.get("loss_files")),
+            "metadata_files": bool(run_summary.get("metadata_files")),
+            "manifest_file": bool(run_summary.get("manifest_file")),
+            "default_horn_gain_file": bool(window.horn_gain_file_input.text()) and Path(window.horn_gain_file_input.text()).exists(),
+            "result_rows": window.result_file_table.rowCount() >= 4,
+            "latest_result_rows": latest_result_rows_ok,
+            "latest_result_detail": latest_result_detail_ok,
+            "history_result_rows": history_result_rows_ok,
+            "history_result_detail": history_result_detail_ok,
+            "session_detail": "workspace_id:" in window.result_session.toPlainText(),
+            "completed_status": vm.overview.get("status") == "Calibration completed",
+            "initial_buttons": initial_button_ok,
+            "running_buttons": running_button_ok,
+            "done_start_disabled": not window.btn_start.isEnabled(),
+            "done_recalibrate_visible": not window.btn_recalibrate.isHidden(),
+            "done_recalibrate_enabled": window.btn_recalibrate.isEnabled(),
+            "signal_generator_settings": sg_panel.signal_generator_settings_group is not None and sg_panel.signal_generator_settings_group.isEnabled(),
+            "spectrum_analyzer_settings": sa_panel.spectrum_analyzer_settings_group is not None and sa_panel.spectrum_analyzer_settings_group.isEnabled(),
+            "device_panel_group_titles": grouped_panel_titles_ok,
+            "command_page_scroll": bool(window.command_page.findChildren(QScrollArea)),
+            "initial_size_in_screen": (
+                available is None
+                or (window.width() <= available.width() and window.height() <= available.height())
+            ),
+        }
+        window.close()
+        failed = [name for name, passed in checks.items() if not passed]
+        if failed:
+            print("GUI smoke failed checks: " + ", ".join(failed))
+            return 1
+        return 0
     window._center_on_screen()
     window.show()
     return app.exec()

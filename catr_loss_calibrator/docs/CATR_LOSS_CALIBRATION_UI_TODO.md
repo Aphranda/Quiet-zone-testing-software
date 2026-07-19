@@ -4,7 +4,7 @@ Status: Active
 Domain: CATR_LOSS_CALIBRATOR
 Canonical: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_TODO.md`
 Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_DESIGN.md`, `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_SOFTWARE_DESIGN.md`, `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_DEVELOPMENT_TODO.md`
-更新时间：2026-07-18
+更新时间：2026-07-19
 
 本文档只跟踪 UI 实现待办，不讨论公式、不讨论校准业务模型本身。UI 目标是为普通操作人员提供一套基于 PySide6 + MVVM 的步骤式校准界面：第一页完成仪表配置，中间执行校准，结果页查看输出，右侧 LOG 始终可见。
 
@@ -59,8 +59,14 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_DESIGN.md`, `catr_l
 - [x] UI-18 网分卡片提供扫频配置、配置、触发和采样操作。
 - [x] UI-19 网分默认步进为 `10 MHz`。
 - [x] UI-20 网分点数显示在步进后方，并随起止频和步进自动刷新。
-- [ ] UI-21 真实信号源命令集按目标型号补齐常用预设。
-- [ ] UI-22 真实频谱仪命令集按目标型号补齐常用预设。
+- [x] UI-21 真实信号源命令集按目标型号补齐常用预设。
+- [x] UI-22 真实频谱仪命令集按目标型号补齐常用预设。
+- [x] UI-82 信号源卡片增加结构化基础配置区，支持频率、功率、输出开关和一键配置。
+- [x] UI-83 频谱仪卡片增加结构化基础配置区，支持中心频率、Span、点数、RBW、VBW、参考电平、衰减、前置放大、连续测量和一键配置。
+- [x] UI-84 信号源卡片不保留常用 SCPI 快捷按钮，统一通过手动命令输入框和基础配置按钮发送 SCPI。
+- [x] UI-85 频谱仪卡片不保留常用 SCPI 快捷按钮，统一通过手动命令输入框和基础配置按钮发送 SCPI。
+- [x] UI-86 网分、信号源、频谱仪卡片按竖向三区展示：资源连接、仪表配置、指令控制。
+- [x] UI-87 主窗口初始尺寸按当前屏幕可用区域自适应，仪表配置页设备卡片区域支持滚动，避免启动时超出屏幕。
 
 ### P1 验收
 
@@ -70,6 +76,10 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_DESIGN.md`, `catr_l
 - Real 模式可搜索 VISA 资源。
 - 未连接时允许改配置，已连接时锁定关键连接配置。
 - 不进入校准流程也能验证四类设备命令。
+- 信号源和频谱仪除手动命令外，也能通过基础配置区完成 Mock 配置并显示响应。
+- 信号源和频谱仪可以通过手动命令输入框发送任意 SCPI，命令和响应进入 LOG。
+- 网分、信号源和频谱仪卡片内的连接、配置和指令发送区域有清晰分组，不混在同一个表单里。
+- 在 1366x768 或更小的可用桌面区域中启动时，主窗口不应因仪表卡片最小尺寸被撑出屏幕。
 
 ## P2 - 校准执行页
 
@@ -114,24 +124,32 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_DESIGN.md`, `catr_l
 ## P3 - 结果页、LOG 与运行闭环
 
 - [x] UI-43 LOG 作为公共资源放在 tab 外部，右侧常驻显示。
-- [x] UI-44 LOG 支持级别筛选、关键字搜索、字体大小、自动换行和时间戳开关。
+- [x] UI-44 LOG 支持级别筛选、字体大小、自动换行、时间戳开关和清空 LOG。
 - [x] UI-45 删除历史命令页面功能，命令追踪统一进入实时 LOG。
 - [x] UI-46 建立结果页，显示运行摘要、最终输出与会话记录。
 - [x] UI-47 结果页拆分为运行摘要、文件与状态、会话记录三块。
 - [x] UI-48 顶部品牌区增加正式 LOGO / 品牌位，不再只是普通标题。
 - [x] UI-49 UI 中显示当前设备连接健康状态和最后一次命令结果。
 - [x] UI-50 UI 中显示当前校准项总步数、已完成步数和剩余步数。
-- [ ] UI-51 完成一轮 Mock 校准的完整 UI 流程闭环验证。
-- [ ] UI-52 结果页支持复制路径和打开所在目录。
-- [ ] UI-53 结果页支持导出当前 session 的输出摘要。
-- [ ] UI-54 LOG 支持复制选中内容或全部内容。
+- [x] UI-51 完成一轮 Mock 校准的完整 UI 流程闭环验证。
+- [x] UI-52 结果页支持复制路径和打开所在目录。
+- [x] UI-53 结果页支持导出当前 session 的输出摘要。
+- [x] UI-54 LOG 支持复制选中内容或全部内容。
+- [x] UI-77 runner / ViewModel 向结果页暴露本次运行生成的 raw、final/loss、metadata 文件清单，避免结果页扫描历史目录混入旧文件。
+- [x] UI-78 结果页使用文件表格展示生成结果，字段包含类型、文件名、大小、修改时间和完整路径，并能随当前校准项切换刷新。
+- [x] UI-79 结果页支持 CSV 曲线预览，默认以 `freq_hz` 为 X 轴、`value_db` / `raw_s21_db` / `gain_db` / `loss_db` / `s21_db` 等 dB 列为 Y 轴，metadata JSON 只显示文件信息。
+- [x] UI-80 结果页曲线预览支持一键自适应当前曲线范围。
+- [x] UI-81 校准执行推进时，校准项、步骤和细分步骤列表自动滚动，让当前选中项保持可见。
+- [x] UI-88 结果页支持导入校准工作空间路径、打开历史目录，并切换查看历史 session。
 
 ### P3 验收
 
 - 操作人员在任意页签都能看到 LOG。
 - 运行结束后，结果页能直接看到会话级概要。
 - 结果页能明确区分 raw、metadata 和 final。
+- 选中 raw 或 final CSV 后能看到频率-GHz / dB 曲线预览。
 - 命令发送与设备响应能在 LOG 中实时追踪。
+- 关闭软件后重新打开，加载同一链路配置并导入 workspace 路径后，可以选择历史 session 查看文件和曲线。
 
 ## P4 - 后续优化
 
@@ -142,11 +160,11 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_UI_DESIGN.md`, `catr_l
 - [ ] UI-59 增加步骤搜索和校准项过滤能力。
 - [ ] UI-60 增加导出当前页面视图或操作摘要的能力。
 - [ ] UI-61 为真实硬件接入增加独立设备管理 service / adapter。
-- [ ] UI-62 清理 ViewModel 中不再展示的历史命令残留状态。
-- [ ] UI-63 补充 UI 启动和主要交互的自动化测试。
-- [ ] UI-64 将校准执行页按钮状态严格绑定到 state machine。
+- [x] UI-62 清理 ViewModel 中不再展示的历史命令残留状态。
+- [x] UI-63 补充 UI 启动和主要交互的自动化测试。
+- [x] UI-64 将校准执行页按钮状态严格绑定到 state machine。
 - [ ] UI-65 支持暂停 / 继续等现场操作动作。
-- [ ] UI-66 在非法操作时进行拦截并给出明确提示。
+- [x] UI-66 在非法操作时进行拦截并给出明确提示。
 
 ### P4 验收
 

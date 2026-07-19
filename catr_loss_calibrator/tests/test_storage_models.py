@@ -23,6 +23,7 @@ def test_trace_record_from_sparameter_preserves_source_metadata() -> None:
     assert record.source_cal == "LINK-CAL-001"
     assert record.source_step == "CAL001-H"
     assert record.parameter == "S21"
+    assert record.output_role == "raw_s21"
 
 
 def test_save_loss_record_requires_file_identifiers() -> None:
@@ -46,6 +47,8 @@ def test_save_loss_record_requires_file_identifiers() -> None:
         path = Path(tmpdir) / "loss.csv"
         save_loss_record(path, record)
         assert path.exists()
+        content = path.read_text(encoding="utf-8-sig")
+        assert "output_role" in content
 
 
 def test_write_metadata_serializes_dataclass_records() -> None:

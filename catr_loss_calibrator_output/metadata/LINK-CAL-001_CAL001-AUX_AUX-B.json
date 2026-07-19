@@ -10,15 +10,34 @@
   "link_commands": [],
   "manual_confirmation": true,
   "input_files": [
-    "LINK-CAL-001_CAL001-AUX_AUX-B.raw"
+    "catr_loss_calibrator_output\\raw\\LINK-CAL-001_CAL001-AUX_AUX-B.csv"
   ],
   "input_hashes": [
-    "mock"
+    "59c38287ca132310ecc512521e42a0e61f6431e00e892416286d33ebf1ffeadf"
+  ],
+  "input_roles": [
+    "raw_s21"
   ],
   "output_files": [
-    "L_AUX_B"
+    "catr_loss_calibrator_output\\loss\\L_AUX_B_10_15G_F10_17G_H10_15G.csv"
   ],
-  "output_hashes": [],
+  "output_hashes": [
+    "9f0696f866df4a4a2674832d2df9118cb6080da808bc0eb7fc9495dac3d25205"
+  ],
+  "output_roles": [
+    "final"
+  ],
+  "run_uid": "",
+  "workspace_id": "",
+  "workspace_root": "",
+  "session_root": "",
+  "config_hash": "",
+  "config_source_path": "",
+  "project_code": "",
+  "calibration_stage": "",
+  "run_label": "",
+  "operator": "",
+  "operator_note": "",
   "formula_version": "v1",
   "profile_version": "lcd74000f:v1",
   "note": "mock-runner:测量 AUX-B 辅助线"

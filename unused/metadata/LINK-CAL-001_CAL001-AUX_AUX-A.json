@@ -10,15 +10,34 @@
   "link_commands": [],
   "manual_confirmation": true,
   "input_files": [
-    "LINK-CAL-001_CAL001-AUX_AUX-A.raw"
+    "unused\\raw\\LINK-CAL-001_CAL001-AUX_AUX-A.csv"
   ],
   "input_hashes": [
-    "mock"
+    "b1c14c69dec782d1d3a2e855fd78b85c7eed321ee04e8bbfcae5552b9fb7e761"
+  ],
+  "input_roles": [
+    "raw_s21"
   ],
   "output_files": [
-    "L_AUX_A"
+    "unused\\loss\\L_AUX_A_10_15G_F10_17G_H10_15G.csv"
   ],
-  "output_hashes": [],
+  "output_hashes": [
+    "2dfa54cf60d9b3e8f1239592d1c1e218a5d4a71a1d1cb47497ea4437165ee378"
+  ],
+  "output_roles": [
+    "final"
+  ],
+  "run_uid": "",
+  "workspace_id": "",
+  "workspace_root": "",
+  "session_root": "",
+  "config_hash": "",
+  "config_source_path": "",
+  "project_code": "",
+  "calibration_stage": "",
+  "run_label": "",
+  "operator": "",
+  "operator_note": "",
   "formula_version": "v1",
   "profile_version": "lcd74000f:v1",
   "note": "mock-runner:测量 AUX-A 辅助线"

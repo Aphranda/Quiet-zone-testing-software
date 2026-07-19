@@ -10,15 +10,17 @@
   "link_commands": [],
   "manual_confirmation": true,
   "input_files": [
-    "LINK-CAL-002_CAL002-AUX-D_S21_AUX_D.raw"
+    "catr_loss_calibrator_output\\raw\\LINK-CAL-002_CAL002-AUX-D_S21_AUX_D.csv"
   ],
   "input_hashes": [
-    "mock"
+    "ced97e2dc184b84378752d9404b66124b07d3d39d6c5eb165dff7dc56d5ba29b"
   ],
   "output_files": [
-    "L_AUX_D"
+    "catr_loss_calibrator_output\\loss\\L_AUX_D_10_15G_F10_17G_H10_15G.csv"
   ],
-  "output_hashes": [],
+  "output_hashes": [
+    "38cc94c95796c83eff3840789fbe6269d0f6fc4827661fe5bdec982e29ce6224"
+  ],
   "formula_version": "v1",
   "profile_version": "lcd74000f:v1",
   "note": "mock-runner:S21_AUX_D"
