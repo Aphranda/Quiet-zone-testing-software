@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import html
 import json
 import re
@@ -13,7 +14,7 @@ from typing import Any
 import numpy as np
 
 from catr_loss_calibrator.calibration.config_loader import load_calibration_catalog
-from catr_loss_calibrator.calibration.mock_runner import MockCalibrationRunner
+from catr_loss_calibrator.calibration.calibration_runner import CalibrationRunner
 from catr_loss_calibrator.hardware.mock import MockLinkBox, MockVna
 from catr_loss_calibrator.runtime_resources import default_output_root, initialize_runtime_files, runtime_default_config_path
 from catr_loss_calibrator.storage.resume import CurveQuality, analyze_curve_csv
@@ -56,7 +57,7 @@ def run_cli() -> int:
     for item in catalog.items:
         print(f"- {item.id}: {item.name} ({len(item.steps)} steps)")
     first_item = catalog.items[0]
-    runner = MockCalibrationRunner(first_item, MockVna(), MockLinkBox(), default_output_root() / "cli")
+    runner = CalibrationRunner(first_item, MockVna(), MockLinkBox(), default_output_root() / "cli")
     runner.link_box.connect()
     runner.vna.connect()
     print("Runner overview before run:")
@@ -91,7 +92,7 @@ def run_interactive() -> int:
         action = input("Continue / Skip / Retry / Cancel ? [c/s/r/x]: ").strip().lower()
         return {"c": "continue", "s": "skip", "r": "retry", "x": "cancel"}.get(action, "continue")
 
-    runner = MockCalibrationRunner(item, MockVna(), MockLinkBox(), default_output_root() / "interactive", confirm_step=confirm)
+    runner = CalibrationRunner(item, MockVna(), MockLinkBox(), default_output_root() / "interactive", confirm_step=confirm)
     runner.link_box.connect()
     runner.vna.connect()
     print("Runner overview before run:")
@@ -569,18 +570,20 @@ def run_gui() -> int:
             self.mode_group.addButton(self.real_check)
             self.resource_input = QComboBox()
             self.resource_input.setEditable(True)
-            self.resource_input.addItems(list(resource_options))
             self.resource_input.setMinimumWidth(0)
             self.resource_input.setMinimumContentsLength(8)
             self.resource_input.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
             self.resource_input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             self.model_input = QComboBox()
             self.model_input.setEditable(True)
-            self.model_input.addItems(list(model_options))
             self.model_input.setMinimumWidth(0)
             self.model_input.setMinimumContentsLength(8)
             self.model_input.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
             self.model_input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            self._set_combo_options(self.resource_input, resource_options, resource_options[0] if resource_options else "")
+            self._set_combo_options(self.model_input, model_options, model_options[0] if model_options else "")
+            self.resource_input.currentTextChanged.connect(lambda text: self._sync_combo_tooltip(self.resource_input, text))
+            self.model_input.currentTextChanged.connect(self._on_model_changed)
             self.timeout_input = QSpinBox()
             self.timeout_input.setRange(1, 120_000)
             self.timeout_input.setValue(10_000)
@@ -698,6 +701,26 @@ def run_gui() -> int:
         def set_model_options(self, options: tuple[str, ...], selected: str | None = None) -> None:
             self._set_combo_options(self.model_input, options, selected or self.model_input.currentText())
 
+        def select_matching_resource_for_model(self) -> bool:
+            if self.mock_check.isChecked():
+                return False
+            model = self.model_input.currentText().strip()
+            if not model:
+                return False
+            current = self.resource_input.currentText().strip()
+            if self._resource_matches_model(current, model):
+                return False
+            for index in range(self.resource_input.count()):
+                resource = self.resource_input.itemText(index).strip()
+                if self._resource_matches_model(resource, model):
+                    self.resource_input.setCurrentText(resource)
+                    return True
+            return False
+
+        def _on_model_changed(self, text: str) -> None:
+            self._sync_combo_tooltip(self.model_input, text)
+            self.select_matching_resource_for_model()
+
         def _sync_current_command_label(self, command: str) -> None:
             selected = self.presets.get(command.strip(), command.strip())
             if self.device_key != "link_box":
@@ -755,9 +778,33 @@ def run_gui() -> int:
             combo.blockSignals(True)
             combo.clear()
             combo.addItems(values)
+            for index, text in enumerate(values):
+                combo.setItemData(index, text, Qt.ItemDataRole.ToolTipRole)
             if current:
                 combo.setCurrentText(current)
             combo.blockSignals(False)
+            DeviceCommandPanel._sync_combo_tooltip(combo, combo.currentText())
+
+        @staticmethod
+        def _sync_combo_tooltip(combo: QComboBox, text: str) -> None:
+            tooltip = str(text).strip()
+            combo.setToolTip(tooltip)
+            line_edit = combo.lineEdit()
+            if line_edit is not None:
+                line_edit.setToolTip(tooltip)
+
+        @staticmethod
+        def _resource_matches_model(resource: str, model: str) -> bool:
+            model_key = DeviceCommandPanel._match_key(model)
+            if len(model_key) < 3 or model_key == "MOCK":
+                return False
+            resource_key = DeviceCommandPanel._match_key(resource)
+            return bool(resource_key and model_key in resource_key)
+
+        @staticmethod
+        def _match_key(text: str) -> str:
+            return re.sub(r"[^A-Z0-9]", "", str(text).upper()).replace("MOCK", "")
+
 
         def vna_settings(self) -> dict[str, Any]:
             return {
@@ -2891,7 +2938,11 @@ def run_gui() -> int:
                 self.saved_curve_status.setText("请先选择一个细分步骤。")
                 return
             try:
-                summary = vm.run_single_substep(detail_step.step_id, detail_step.substep_id, self._vna_run_settings())
+                summary = vm.run_single_substep(
+                    detail_step.step_id,
+                    detail_step.substep_id,
+                    self._history_conditioned_vna_run_settings(),
+                )
             except Exception as exc:
                 self._show_modal_dialog(
                     title="重测当前细分步骤失败",
@@ -2912,6 +2963,16 @@ def run_gui() -> int:
             refreshed_step = self._step_view_for_substep_row(self.substep_list.currentRow()) or detail_step
             self._sync_saved_step_curve(refreshed_step)
             self._sync_overview()
+
+        def _history_conditioned_vna_run_settings(self) -> dict[str, Any]:
+            settings = self._vna_run_settings()
+            history_settings = self._history_data_summary.get("measurement_settings") if self._history_data_summary else None
+            if not isinstance(history_settings, dict):
+                return settings
+            for key in ("start_hz", "stop_hz", "points", "power_dbm", "if_bandwidth_hz", "parameter", "feed", "horn"):
+                if key in history_settings and str(history_settings[key]).strip():
+                    settings[key] = history_settings[key]
+            return settings
 
         def _generate_resume_results(self) -> None:
             if not self._history_data_summary:
@@ -2936,11 +2997,14 @@ def run_gui() -> int:
             self._history_data_summary = self._merged_history_summary_with_current(summary)
             self._curve_quality_cache.clear()
             state = str(summary.get("state") or "")
+            warnings = tuple(str(value) for value in summary.get("resume_compatibility_warnings", ()) or ())
+            warning_text = f"\n异常提醒: {len(warnings)} 项; " + "; ".join(warnings[:3]) if warnings else ""
             self.history_data_status.setText(f"续测结果: {state}")
             self.saved_curve_status.setText(
                 f"续测结果已生成: {state}\n"
                 f"raw: {len(summary.get('raw_files', ()) or ())}; "
                 f"final/loss: {len(summary.get('loss_files', ()) or ())}"
+                f"{warning_text}"
             )
             self._sync_substep_list(self._current_step_view)
             self._sync_item_list()
@@ -3419,6 +3483,7 @@ def run_gui() -> int:
             if horn_gain_file:
                 settings["horn_gain_file"] = horn_gain_file
                 settings["external_inputs"] = self._load_horn_gain_inputs(horn_gain_file, settings)
+                settings["horn_gain_sha256"] = hashlib.sha256(Path(horn_gain_file).read_bytes()).hexdigest()
             return settings
 
         def _load_horn_gain_inputs(self, path_text: str, settings: dict[str, Any]) -> dict[str, Any]:
@@ -3435,6 +3500,15 @@ def run_gui() -> int:
                 frequencies = frequencies[order]
                 rows = [rows[int(index)] for index in order]
             target = np.linspace(float(settings["start_ghz"]) * 1e9, float(settings["stop_ghz"]) * 1e9, int(settings["points"]))
+            horn_gain_warnings = list(settings.get("horn_gain_warnings", ()) or ())
+            if len(frequencies) < 2:
+                horn_gain_warnings.append("喇叭增益文件少于 2 个频率点。")
+            if np.any(np.diff(frequencies) <= 0):
+                horn_gain_warnings.append("喇叭增益文件频率列不是严格递增或存在重复频点。")
+            if float(target[0]) < float(frequencies[0]) or float(target[-1]) > float(frequencies[-1]):
+                horn_gain_warnings.append("喇叭增益文件频率范围未覆盖当前扫频范围，已按端点外推提醒处理。")
+            if horn_gain_warnings:
+                settings["horn_gain_warnings"] = tuple(horn_gain_warnings)
 
             def column_values(name: str, fallback: str = "gain_db") -> np.ndarray:
                 values = [row.get(name, row.get(fallback)) for row in rows]
@@ -3644,6 +3718,7 @@ def run_gui() -> int:
                 self._show_modal_dialog(title="VISA 资源搜索", message="未发现 VISA 资源。", buttons=(("确定", "ok", "center"),), default_action="ok", width=480, height=210)
                 return
             panel.set_resource_options(resources, resources[0])
+            panel.select_matching_resource_for_model()
 
         def _on_mock_mode_changed(self, panel: DeviceCommandPanel) -> None:
             if panel.mock_check.isChecked():
@@ -3657,6 +3732,7 @@ def run_gui() -> int:
                     return
                 if resources:
                     panel.set_resource_options(resources, resources[0])
+                    panel.select_matching_resource_for_model()
 
         def _sync_device_connection_panels(self) -> None:
             for panel in self.command_panels:
@@ -3753,6 +3829,17 @@ def run_gui() -> int:
                 lines.append(f"session_root: {run_summary.get('session_root', '')}")
                 lines.append(f"completed_steps: {run_summary.get('completed_steps', '')}")
                 lines.append(f"completed_big_steps: {run_summary.get('completed_big_steps', '')}")
+                if "publishable" in run_summary:
+                    lines.append(f"publishable: {run_summary.get('publishable', '')}")
+                if run_summary.get("publish_blockers"):
+                    lines.append(f"publish_blockers: {', '.join(str(value) for value in run_summary.get('publish_blockers', ()) or ())}")
+                if run_summary.get("measurement_warnings"):
+                    lines.append(f"measurement_warnings: {', '.join(str(value) for value in run_summary.get('measurement_warnings', ()) or ())}")
+                if run_summary.get("resume_compatibility_warnings"):
+                    lines.append(
+                        "resume_compatibility_warnings: "
+                        + ", ".join(str(value) for value in run_summary.get("resume_compatibility_warnings", ()) or ())
+                    )
                 lines.append(f"last_event: {_friendly_text(run_summary.get('last_event', ''))}")
                 lines.append(f"link_box_connected: {run_summary.get('link_box_connected', '')}")
                 lines.append(f"vna_connected: {run_summary.get('vna_connected', '')}")
@@ -3816,7 +3903,7 @@ def run_gui() -> int:
                     ),
                     item_id=vm.selected_item.id,
                 )
-                runner = MockCalibrationRunner(
+                runner = CalibrationRunner(
                     vm.selected_item,
                     vm._mock_vna,
                     vm._mock_link_box,

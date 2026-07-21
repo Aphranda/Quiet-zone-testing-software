@@ -4,7 +4,7 @@ Status: Active
 Domain: CATR_LOSS_CALIBRATOR
 Canonical: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_DEVELOPMENT_TODO.md`
 Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_SOFTWARE_DESIGN.md`, `catr_loss_calibrator/docs/CATR_CHAMBER_CALIBRATION_TEST_PLAN.html`, `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_TASK_PROGRESS.md`, `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_FILE_MANAGEMENT_PLAN.md`
-更新时间：2026-07-19
+更新时间：2026-07-20
 
 本文档跟踪 `catr_loss_calibrator` 独立软件的开发任务。任务按 P0-P5 优先级排列，优先保证“架构边界正确、校准流程可跑、数据可追溯”，再逐步完善 UI、真实硬件和长期可靠性。
 
@@ -149,10 +149,14 @@ Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_SOFTWARE_DESIGN.md`, `
 - [ ] P5-16 建立历史导入与细分步骤续测状态模型：区分 `VALID_HISTORY`、`VALID_CURRENT`、`MISSING`、`STALE_CONFIG`、`BROKEN_FILE`、`NO_CURVE`、`SUSPECT_CURVE`、`REMEASURE_REQUIRED`、`SKIPPED_NOT_MEASURED`。
 - [ ] P5-17 实现从 workspace/session/latest 导入历史结果后，对每个细分步骤建立状态索引和状态原因。（已完成 raw 文件匹配、读取状态和人工判定结果索引；配置/hash 校验待接入。）
 - [ ] P5-18 支持点击任意细分步骤独立测试或重测，不必从第一个步骤顺序执行到目标步骤。（已完成“重测当前”单细分步骤执行并生成新 session 文件；后续补异步进度和真实硬件长耗时防阻塞。）
-- [ ] P5-19 实现历史数据沿用规则：只有 config、频段、馈源、喇叭、点数、hash、步骤身份校验通过且人工判定可沿用的数据才能计入正式完成。（已完成人工沿用判定记录、步骤身份匹配和复算计入；config/hash 校验待接入。）
-- [ ] P5-20 修改 session 完成判定：含 `MISSING` 或 `SKIPPED_NOT_MEASURED` 时只能为 `PARTIAL`，不得更新 latest；历史沿用加本次补测完整时标记 `RESUMED_DONE`。（已完成复算 session 的 `PARTIAL/RESUMED_DONE` 和 latest 更新规则；`SKIPPED_NOT_MEASURED` 待接入。）
+- [ ] P5-19 实现历史数据沿用规则：只有 config、频段、馈源、喇叭、起止频、点数、功率、IFBW、S 参数、raw 频轴和步骤身份校验通过且人工判定可沿用的数据才能计入正式完成。（已完成人工沿用判定记录、步骤身份匹配、复算计入、基础测量条件校验；曲线 hash 与完整仪表快照校验待接入。）
+- [ ] P5-20 修改 session 完成判定：含 `MISSING` 或 `SKIPPED_NOT_MEASURED` 时只能为 `PARTIAL`，不得更新 latest；历史沿用加本次补测完整时标记 `RESUMED_DONE`。（已完成复算 session 的 `PARTIAL/RESUMED_DONE`、latest 更新规则、runner 发布闸门和 skip 不计完成；UI 提示文案待细化。）
 - [ ] P5-21 实现只复算模式：基于当前 session raw 与有效历史 raw 重新生成 final/loss，不重新采样。（已完成“生成/更新结果”第一版。）
 - [ ] P5-22 建立曲线读取检查与人工质量判定：软件按曲线存在性、CSV 可读性、点数/频率轴、NaN/Inf 等客观状态提示；是否沿用或重测由操作员人工判定。（已完成读取检查和 UI 人工判定控件；持久化待接入。）
+- [ ] P5-23 建立 latest 发布闸门：只有所有必需细分步骤都有有效 raw、所有 final 输出齐全、没有 skip/失败/取消时，才允许写入 latest；单步重测 session 必须可识别但不可发布。
+- [ ] P5-24 建立标准喇叭增益异常提醒：正式校准中 `G_STD_HORN_H/V` 缺失、文件不匹配或 hash 不一致时不中断测试流程，但必须在 session/metadata/UI 中提示并追溯；0 dB 默认值必须明确标记。（已完成 session/metadata 测量条件标记、hash 记录和结果详情提示；结构化 UI 提示待细化。）
+- [ ] P5-25 建立频率插值边界提醒：喇叭增益和历史 raw 重采样前检查频率严格递增、覆盖目标频段和外推情况；异常不中断测试流程，但必须写入 warning 并供操作员确认。（已完成续测 warning、喇叭增益导入 warning、runner 插值兜底和结果详情提示；报告展示待接入。）
+- [ ] P5-26 梳理真实仪表执行边界：将生产执行器从 `MockCalibrationRunner` 命名中拆出，并明确 SG/SA 参与的校准步骤是否需要真实仪表闭环。（已完成生产入口改用 `CalibrationRunner`，保留 `MockCalibrationRunner` 兼容旧测试/集成；SG/SA 闭环待梳理。）
 - [ ] P5-04 建立长期稳定性测试，覆盖多频段、多喇叭、多校准项循环执行。
 - [ ] P5-05 建立版本管理：公式版本、profile 版本、报告版本、软件版本。
 - [ ] P5-06 与 `CATR_CHAMBER_CALIBRATION_TEST_PLAN.html` 保持同步，文档变更后更新 catalog、公式和测试。（这是通用软件，JSON配置与文档相同）

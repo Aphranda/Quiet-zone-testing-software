@@ -12,7 +12,7 @@ from PySide6.QtCore import QObject, QThread, Signal
 
 from catr_loss_calibrator.calibration.config_loader import load_calibration_catalog
 from catr_loss_calibrator.calibration.models import CalibrationCatalog, CalibrationStep, CalibrationSubStep
-from catr_loss_calibrator.calibration.mock_runner import MockCalibrationRunner
+from catr_loss_calibrator.calibration.calibration_runner import CalibrationRunner
 from catr_loss_calibrator.calibration.state_machine import CalibrationState
 from catr_loss_calibrator.hardware.mock import MockLinkBox, MockScpiInstrument, MockVna
 from catr_loss_calibrator.hardware.link_box.lcd74000f import Lcd74000fLinkBox
@@ -108,7 +108,7 @@ class CalibrationRunWorker(QThread):
     finished_summary = Signal(object)
     error_occurred = Signal(str)
 
-    def __init__(self, runner: MockCalibrationRunner) -> None:
+    def __init__(self, runner: CalibrationRunner) -> None:
         super().__init__()
         self._runner = runner
         self._action_lock = threading.Condition()
@@ -587,7 +587,7 @@ class CalibrationViewModel(QObject):
             operator_note=str(settings.get("operator_note") or ""),
         )
         session_context = create_session_context(workspace=workspace, run=run_context, item_id=item.id)
-        runner = MockCalibrationRunner(
+        runner = CalibrationRunner(
             item=item,
             vna=self._mock_vna,
             link_box=self._mock_link_box,
@@ -638,7 +638,7 @@ class CalibrationViewModel(QObject):
             operator_note=f"single-substep-retest:{step_id}:{substep_id}",
         )
         session_context = create_session_context(workspace=workspace, run=run_context, item_id=item.id)
-        runner = MockCalibrationRunner(
+        runner = CalibrationRunner(
             item=item,
             vna=self._mock_vna,
             link_box=self._mock_link_box,
@@ -698,7 +698,7 @@ class CalibrationViewModel(QObject):
             operator_note="resume-generate-results",
         )
         session_context = create_session_context(workspace=workspace, run=run_context, item_id=item.id)
-        runner = MockCalibrationRunner(
+        runner = CalibrationRunner(
             item=item,
             vna=self._mock_vna,
             link_box=self._mock_link_box,
@@ -717,6 +717,7 @@ class CalibrationViewModel(QObject):
             if str(judgment) == "accept"
         } | current_retested
         required_keys = self._required_substep_keys(item)
+        compatibility_warnings = self._resume_compatibility_warnings(history_summary, runner)
         loaded_keys: set[str] = set()
         loaded_records: list[TraceRecord] = []
         reused_files: list[str] = []
@@ -737,6 +738,9 @@ class CalibrationViewModel(QObject):
                 invalid_files.append(str(path))
                 substep_status[key] = {"status": "BROKEN_FILE", "reason": str(exc), "raw_file": str(path)}
                 continue
+            record_warnings = self._record_sweep_warnings(record, runner)
+            if key not in current_retested:
+                record_warnings = tuple(compatibility_warnings) + record_warnings
             runner._records[record.parameter] = record
             runner._track_path(runner._raw_paths, path)
             loaded_keys.add(key)
@@ -749,7 +753,13 @@ class CalibrationViewModel(QObject):
                 reused_files.append(str(path))
                 status = "VALID_HISTORY"
                 reason = "人工判定沿用历史数据"
-            substep_status[key] = {"status": status, "reason": reason, "raw_file": str(path), "parameter": record.parameter}
+            substep_status[key] = {
+                "status": status,
+                "reason": reason,
+                "raw_file": str(path),
+                "parameter": record.parameter,
+                **({"warnings": record_warnings} if record_warnings else {}),
+            }
         for key in sorted(required_keys - set(substep_status)):
             if key in raw_by_key:
                 judgment = str(manual_judgments.get(key) or "")
@@ -781,6 +791,8 @@ class CalibrationViewModel(QObject):
                 "reused_files": tuple(reused_files),
                 "new_files": tuple(new_files),
                 "invalid_files": tuple(invalid_files),
+                "resume_compatibility_blockers": (),
+                "resume_compatibility_warnings": compatibility_warnings,
             },
         )
         latest_path = write_latest_index(session_context, manifest_path) if state == "RESUMED_DONE" else None
@@ -816,6 +828,8 @@ class CalibrationViewModel(QObject):
                 "reused_files": tuple(reused_files),
                 "new_files": tuple(new_files),
                 "invalid_files": tuple(invalid_files),
+                "resume_compatibility_blockers": (),
+                "resume_compatibility_warnings": compatibility_warnings,
             }
         )
         self._run_summaries_by_item[item.id] = summary
@@ -831,6 +845,58 @@ class CalibrationViewModel(QObject):
             for step in item.steps
             for substep in self._substeps_for_step(step)
         }
+
+    @staticmethod
+    def _resume_compatibility_warnings(history_summary: dict[str, object], runner: CalibrationRunner) -> tuple[str, ...]:
+        warnings: list[str] = []
+        current_config_hash = str(runner.session_context.workspace.config_hash if runner.session_context else "").strip()
+        history_config_hash = str(history_summary.get("config_hash") or "").strip()
+        if current_config_hash and history_config_hash and current_config_hash != history_config_hash:
+            warnings.append("config_hash mismatch")
+
+        history_settings = history_summary.get("measurement_settings")
+        if isinstance(history_settings, dict):
+            current_settings = runner._measurement_settings_summary()
+            for key in ("start_hz", "stop_hz", "power_dbm", "if_bandwidth_hz"):
+                if key not in history_settings:
+                    warnings.append(f"{key} missing")
+                    continue
+                if not np.isclose(float(history_settings[key]), float(current_settings[key])):
+                    warnings.append(f"{key} mismatch")
+            for key in ("points", "parameter", "feed", "horn"):
+                if key not in history_settings:
+                    warnings.append(f"{key} missing")
+                    continue
+                if str(history_settings[key]).strip().upper() != str(current_settings[key]).strip().upper():
+                    warnings.append(f"{key} mismatch")
+            history_hash = str(history_settings.get("horn_gain_sha256") or "").strip()
+            current_hash = str(current_settings.get("horn_gain_sha256") or "").strip()
+            history_file = str(history_settings.get("horn_gain_file") or "").strip()
+            current_file = str(current_settings.get("horn_gain_file") or "").strip()
+            if history_hash and current_hash and history_hash != current_hash:
+                warnings.append("horn_gain_sha256 changed")
+            elif (history_file or current_file) and not (history_hash and current_hash):
+                warnings.append("horn_gain_sha256 missing")
+            if history_file and current_file and Path(history_file).name != Path(current_file).name:
+                warnings.append("horn_gain_file changed")
+        else:
+            warnings.append("measurement_settings missing")
+        return tuple(warnings)
+
+    @staticmethod
+    def _record_sweep_warnings(record: TraceRecord, runner: CalibrationRunner) -> tuple[str, ...]:
+        settings = runner._measurement_settings_summary()
+        points = int(settings["points"])
+        target = np.linspace(float(settings["start_hz"]), float(settings["stop_hz"]), points)
+        frequency = np.asarray(record.frequency_hz, dtype=float)
+        warnings: list[str] = []
+        if len(frequency) != points:
+            warnings.append("points mismatch")
+        elif not np.allclose(frequency, target):
+            warnings.append("frequency axis mismatch")
+        if len(frequency) >= 2 and np.any(np.diff(frequency) <= 0):
+            warnings.append("frequency axis is not strictly increasing")
+        return tuple(warnings)
 
     def _resume_raw_paths_by_substep(self, item, history_summary: dict[str, object]) -> dict[str, Path]:
         paths: dict[str, Path] = {}

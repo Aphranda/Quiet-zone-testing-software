@@ -50,6 +50,11 @@ class ChangingReadVna(MockVna):
         )
 
 
+class RealLikeVna(MockVna):
+    def __init__(self) -> None:
+        super().__init__(resource="TCPIP0::127.0.0.1::inst0::INSTR", model="E5080B")
+
+
 def test_state_machine_enforces_order() -> None:
     machine = CalibrationStateMachine()
     assert machine.transition(CalibrationState.WAIT_MANUAL_CONFIRM) == CalibrationState.WAIT_MANUAL_CONFIRM
@@ -119,6 +124,8 @@ def test_mock_runner_writes_artifacts_inside_session_workspace() -> None:
         assert overview["workspace_id"] == workspace.workspace_id
         assert overview["session_id"] == session.session_id
         assert overview["session_root"] == str(session.session_root)
+        assert overview["publishable"] is True
+        assert overview["publish_blockers"] == ()
         assert overview["project_code"] == "PROJECT1"
         assert overview["calibration_stage"] == "after_repair"
         assert overview["run_label"] == "R02"
@@ -281,6 +288,80 @@ def test_mock_runner_creates_final_loss_files() -> None:
         overview = runner.overview()
         assert str(h_path) in overview["loss_files"]
         assert all(Path(path).exists() for path in overview["loss_files"])
+
+
+def test_non_mock_runner_records_missing_standard_horn_gain_without_stopping() -> None:
+    item = default_calibration_catalog().get("LINK-CAL-001")
+    with TemporaryDirectory() as tmpdir:
+        runner = MockCalibrationRunner(item, RealLikeVna(), MockLinkBox(), Path(tmpdir), vna_settings={"points": 3})
+        runner.link_box.connect()
+        runner.vna.connect()
+        runner.run()
+
+        overview = runner.overview()
+        assert overview["measurement_settings"]["horn_gain_status"] == "missing_default_zero"
+        assert "standard horn gain missing; using 0 dB default" in overview["measurement_warnings"]
+
+
+def test_runner_writes_measurement_warnings_to_metadata_and_manifest() -> None:
+    catalog = default_calibration_catalog()
+    item = catalog.get("LINK-CAL-001")
+    with TemporaryDirectory() as tmpdir:
+        workspace = workspace_for_catalog(catalog, Path(tmpdir))
+        session = create_session_context(
+            workspace=workspace,
+            run=CalibrationRunContext(project_code="PROJECT1", calibration_stage="initial", run_label="R01"),
+            item_id=item.id,
+        )
+        runner = MockCalibrationRunner(
+            item,
+            MockVna(),
+            MockLinkBox(),
+            session.session_root,
+            vna_settings={"points": 3, "horn_gain_warnings": ("horn gain file changed",)},
+            session_context=session,
+        )
+        runner.link_box.connect()
+        runner.vna.connect()
+        runner.run()
+
+        overview = runner.overview()
+        manifest = json.loads(Path(str(overview["manifest_file"])).read_text(encoding="utf-8"))
+        metadata = json.loads(Path(str(overview["metadata_files"][0])).read_text(encoding="utf-8"))
+        assert "horn gain file changed" in manifest["measurement_warnings"]
+        assert "horn gain file changed" in metadata["measurement_warnings"]
+        assert metadata["measurement_settings"]["points"] == 3
+
+
+def test_runner_records_horn_gain_hash_in_measurement_settings() -> None:
+    item = default_calibration_catalog().get("LINK-CAL-001")
+    runner = MockCalibrationRunner(
+        item,
+        MockVna(),
+        MockLinkBox(),
+        Path("unused"),
+        vna_settings={
+            "points": 3,
+            "horn_gain_file": "horn.csv",
+            "horn_gain_sha256": "abc123",
+        },
+    )
+
+    settings = runner.overview()["measurement_settings"]
+
+    assert settings["horn_gain_file"] == "horn.csv"
+    assert settings["horn_gain_sha256"] == "abc123"
+
+
+def test_runner_interpolation_allows_extrapolation_for_operator_review_flow() -> None:
+    values = MockCalibrationRunner._interpolate_value(
+        "S21_AUX_A",
+        np.array([1.0, 2.0, 3.0]),
+        np.array([1.5, 2.0, 2.5]),
+        np.array([-1.0, -2.0, -3.0]),
+    )
+
+    assert np.allclose(values, np.array([-1.0, -2.0, -3.0]))
 
 
 def test_mock_runner_uses_project_band_config_for_loss_filenames() -> None:
@@ -601,6 +682,41 @@ def test_saved_prompt_next_skips_without_double_counting_substep() -> None:
     assert "skip:CAL001-AUX:AUX-A" in events
     assert overview["completed_steps"] == 1
     assert overview["completed_substep_ids"] == ("CAL001-AUX:AUX-A",)
+    assert overview["skipped_substep_ids"] == ("CAL001-AUX:AUX-A",)
+    assert overview["publishable"] is False
+    assert "skipped_substeps" in overview["publish_blockers"]
+
+
+def test_skipped_session_does_not_publish_latest() -> None:
+    catalog = default_calibration_catalog()
+    item = catalog.get("LINK-CAL-001")
+    actions = iter(["skip"] + ["continue"] * 32)
+
+    def confirm(step, substep, phase, index, total, substep_index, substep_total):
+        _ = step, substep, phase, index, total, substep_index, substep_total
+        return next(actions)
+
+    with TemporaryDirectory() as tmpdir:
+        workspace = workspace_for_catalog(catalog, Path(tmpdir))
+        run_context = CalibrationRunContext(project_code="PROJECT1", calibration_stage="initial", run_label="R01")
+        session = create_session_context(workspace=workspace, run=run_context, item_id=item.id)
+        runner = MockCalibrationRunner(
+            item,
+            MockVna(),
+            MockLinkBox(),
+            session.session_root,
+            confirm_step=confirm,
+            vna_settings={"points": 3},
+            session_context=session,
+        )
+        runner.link_box.connect()
+        runner.vna.connect()
+        runner.run()
+        overview = runner.overview()
+
+        assert overview["publishable"] is False
+        assert overview["latest_index_file"] == ""
+        assert load_latest_summary(workspace=workspace, run=run_context, item_id=item.id) == {}
 
 
 def test_runner_orders_polarized_substeps_v_before_h() -> None:

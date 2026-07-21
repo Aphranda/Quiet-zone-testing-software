@@ -150,6 +150,8 @@ def test_viewmodel_can_retest_single_substep(tmp_path: Path, monkeypatch: pytest
 
     assert summary["item_id"] == vm.selected_item.id
     assert f"{step.id}:{substep.id}" in summary["completed_substep_ids"]
+    assert summary["publishable"] is False
+    assert summary["latest_index_file"] == ""
     assert summary["raw_files"]
     assert summary["metadata_files"]
     assert all(Path(path).exists() for path in summary["raw_files"])
@@ -185,6 +187,7 @@ def test_viewmodel_generates_resumed_done_from_accepted_history(tmp_path: Path, 
     assert manifest["resume_source"]["item_id"] == item.id
     assert manifest["reused_files"]
     assert manifest["substep_status"]
+    assert manifest["resume_compatibility_blockers"] == []
     assert {record["status"] for record in manifest["substep_status"].values()} == {"VALID_HISTORY"}
 
 
@@ -209,6 +212,70 @@ def test_viewmodel_generates_partial_when_history_not_accepted(tmp_path: Path, m
     manifest = json.loads(Path(summary["manifest_file"]).read_text(encoding="utf-8"))
     assert manifest["state"] == "PARTIAL"
     assert manifest["reused_files"] == []
+
+
+def test_viewmodel_warns_resume_when_measurement_settings_differ(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _app = QCoreApplication.instance() or QCoreApplication([])
+    monkeypatch.setattr(
+        "catr_loss_calibrator.presentation.viewmodels.DEFAULT_OUTPUT_ROOT",
+        tmp_path,
+    )
+    vm = default_loaded_viewmodel()
+    item = vm.selected_item
+    historical_runner = MockCalibrationRunner(item, MockVna(), MockLinkBox(), tmp_path / "history", vna_settings={"points": 3})
+    historical_runner.link_box.connect()
+    historical_runner.vna.connect()
+    historical_runner.run()
+    judgments = {
+        f"{step.id}:{substep.id}": "accept"
+        for step in item.steps
+        for substep in vm._substeps_for_step(step)
+    }
+
+    summary = vm.generate_resume_results(
+        historical_runner.overview(),
+        judgments,
+        {"points": 4, "project_code": "UNIT", "run_label": "R01"},
+    )
+
+    assert summary["state"] == "RESUMED_DONE"
+    assert summary["latest_index_file"]
+    assert "points mismatch" in summary["resume_compatibility_warnings"]
+    assert summary["resume_compatibility_blockers"] == ()
+    assert {record["status"] for record in summary["substep_status"].values()} == {"VALID_HISTORY"}
+    assert all("warnings" in record for record in summary["substep_status"].values())
+
+
+def test_viewmodel_warns_accepted_legacy_history_without_measurement_settings(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _app = QCoreApplication.instance() or QCoreApplication([])
+    monkeypatch.setattr(
+        "catr_loss_calibrator.presentation.viewmodels.DEFAULT_OUTPUT_ROOT",
+        tmp_path,
+    )
+    vm = default_loaded_viewmodel()
+    item = vm.selected_item
+    historical_runner = MockCalibrationRunner(item, MockVna(), MockLinkBox(), tmp_path / "history", vna_settings={"points": 3})
+    historical_runner.link_box.connect()
+    historical_runner.vna.connect()
+    historical_runner.run()
+    history_summary = dict(historical_runner.overview())
+    history_summary.pop("measurement_settings", None)
+    judgments = {
+        f"{step.id}:{substep.id}": "accept"
+        for step in item.steps
+        for substep in vm._substeps_for_step(step)
+    }
+
+    summary = vm.generate_resume_results(history_summary, judgments, {"points": 3, "project_code": "UNIT", "run_label": "R01"})
+
+    assert summary["state"] == "RESUMED_DONE"
+    assert summary["latest_index_file"]
+    assert "measurement_settings missing" in summary["resume_compatibility_warnings"]
+    assert summary["resume_compatibility_blockers"] == ()
+    assert {record["status"] for record in summary["substep_status"].values()} == {"VALID_HISTORY"}
 
 
 def test_worker_formats_link_events_for_log_panel() -> None:

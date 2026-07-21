@@ -65,10 +65,15 @@ def test_write_metadata_serializes_dataclass_records() -> None:
             manual_confirmation=True,
             input_files=("in.csv",),
             input_hashes=("abc",),
+            measurement_settings={"points": 3},
+            measurement_warnings=("standard horn gain missing; using 0 dB default",),
         )
         write_metadata(path, record)
         assert path.exists()
-        assert "\"session_id\": \"S001\"" in path.read_text(encoding="utf-8")
+        content = path.read_text(encoding="utf-8")
+        assert "\"session_id\": \"S001\"" in content
+        assert "measurement_settings" in content
+        assert "standard horn gain missing" in content
 
 
 def test_save_loss_record_with_policy_builds_filename_from_feed_and_horn() -> None:

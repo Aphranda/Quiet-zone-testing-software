@@ -4,7 +4,7 @@ Status: Active
 Domain: CATR_LOSS_CALIBRATOR  
 Canonical: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_TASK_PROGRESS.md`  
 Related: `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_DEVELOPMENT_TODO.md`, `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_SOFTWARE_DESIGN.md`  
-Last updated: 2026-07-19
+Last updated: 2026-07-20
 
 本文档记录 `catr_loss_calibrator` 的正式开发任务进度。每完成一个正式任务后，在“任务记录”章节顶部追加记录，说明任务目标、完成内容、验证结果、剩余工作和下一步计划。
 
@@ -48,6 +48,38 @@ Last updated: 2026-07-19
 ```
 
 ## 任务记录
+
+### CATR-CAL-TASK-20260720-001 - 续测发布闸门与测量条件一致性修复
+
+- 状态：进行中
+- 日期：2026-07-20
+- 任务目标：
+  - 将独立评审发现的 latest 发布、skip 完成判定、历史导入重测条件一致性、喇叭增益和插值边界风险纳入 TODO。
+  - 先修复会污染 latest 或混用不同测量条件 raw 的高风险路径。
+- 完成内容：
+  - `MockCalibrationRunner` 增加 `publishable`、`publish_blockers`、`skipped_substep_ids` 和 `measurement_settings`。
+  - `skip` 不再计入 `completed_substep_ids`；存在 skip、缺 raw 或缺 final 时不写 latest。
+  - 单步重测 session 仍写入 `session_manifest.json` 供识别和后续合成，但不发布 latest。
+  - 历史导入生成续测结果时检查 config hash、频段/馈源/喇叭、起止频、点数、功率、IFBW、S 参数和 raw 频轴；异常写入 warning，不阻断测试流程。
+  - 标准喇叭增益缺失时继续测试并标记 `horn_gain_status=missing_default_zero`；喇叭增益导入和内部重采样异常进入 warning/追溯信息。
+  - 每步 metadata、session manifest、历史 summary 和结果详情文本都带出 measurement/resume warning，便于现场识别异常但不中断测试。
+  - 将生产执行器名称拆为 `CalibrationRunner`，presentation 层改用正式执行器导入；`MockCalibrationRunner` 保留为兼容旧测试/旧集成的别名。
+- 验证结果：
+  - `d:/Microsoft/uv-venvs/catr-loss-calibrator/Scripts/python.exe -m pytest`：129 passed。
+  - `d:/Microsoft/uv-venvs/catr-loss-calibrator/Scripts/python.exe -m py_compile src\catr_loss_calibrator\calibration\__init__.py src\catr_loss_calibrator\calibration\calibration_runner.py src\catr_loss_calibrator\calibration\mock_runner.py src\catr_loss_calibrator\presentation\main.py src\catr_loss_calibrator\presentation\viewmodels.py`：通过。
+- 还需完成：
+  - 将 warning 从结果详情文本进一步升级为结构化 UI 列/图标。
+  - 喇叭增益曲线 hash 在报告导出中进一步展开。
+  - SG/SA 是否纳入真实执行闭环仍需结合现场校准方案确认。
+  - UI 对 `publish_blockers` 和测量条件不一致的可读提示。
+- 关联文件：
+  - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/mock_runner.py`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/viewmodels.py`
+  - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_DEVELOPMENT_TODO.md`
+  - `catr_loss_calibrator/tests/test_mock_runner.py`
+  - `catr_loss_calibrator/tests/test_presentation_viewmodels.py`
+- 下一步：
+  - 跑通相关测试并补齐失败用例。
 
 ### CATR-CAL-TASK-20260719-050 - 历史导入续测与曲线质量方案登记
 

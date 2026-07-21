@@ -27,6 +27,24 @@
   "output_roles": [
     "final"
   ],
+  "measurement_settings": {
+    "start_hz": 12000000000.0,
+    "stop_hz": 12200000000.0,
+    "points": 21,
+    "power_dbm": -7.5,
+    "if_bandwidth_hz": 2000.0,
+    "parameter": "S21",
+    "continuous_sweep": false,
+    "feed": "F10_17G",
+    "horn": "H10_15G",
+    "horn_gain_file": "",
+    "horn_gain_sha256": "",
+    "horn_gain_warnings": [],
+    "horn_gain_status": "missing_default_zero"
+  },
+  "measurement_warnings": [
+    "standard horn gain missing; using 0 dB default"
+  ],
   "run_uid": "",
   "workspace_id": "",
   "workspace_root": "",

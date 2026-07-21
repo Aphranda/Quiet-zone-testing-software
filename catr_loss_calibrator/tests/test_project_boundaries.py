@@ -2,6 +2,8 @@ from pathlib import Path
 import tomllib
 
 from catr_loss_calibrator.calibration.config_loader import DEFAULT_CONFIG_PATH
+from catr_loss_calibrator.calibration.calibration_runner import CalibrationRunner
+from catr_loss_calibrator.calibration.mock_runner import MockCalibrationRunner
 from catr_loss_calibrator.runtime_resources import resolve_data_file
 
 
@@ -16,6 +18,19 @@ def test_catr_loss_calibrator_has_no_legacy_runtime_imports() -> None:
             if forbidden in text:
                 offenders.append(str(path))
     assert offenders == []
+
+
+def test_presentation_uses_production_calibration_runner_name() -> None:
+    base = Path(__file__).resolve().parents[1]
+    presentation_root = base / "src" / "catr_loss_calibrator" / "presentation"
+    offenders = [
+        str(path)
+        for path in presentation_root.rglob("*.py")
+        if "MockCalibrationRunner" in path.read_text(encoding="utf-8")
+    ]
+
+    assert offenders == []
+    assert issubclass(MockCalibrationRunner, CalibrationRunner)
 
 
 def test_package_data_includes_gui_and_default_calibration_resources() -> None:

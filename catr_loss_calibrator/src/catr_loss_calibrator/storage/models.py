@@ -35,6 +35,8 @@ class MetadataRecord:
     output_files: tuple[str, ...] = ()
     output_hashes: tuple[str, ...] = ()
     output_roles: tuple[str, ...] = ()
+    measurement_settings: dict[str, Any] | None = None
+    measurement_warnings: tuple[str, ...] = ()
     run_uid: str = ""
     workspace_id: str = ""
     workspace_root: str = ""

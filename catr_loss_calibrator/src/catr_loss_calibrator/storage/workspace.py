@@ -483,6 +483,13 @@ def _summary_from_manifest(manifest: dict[str, Any]) -> dict[str, object]:
         "reused_files": tuple(str(path) for path in manifest.get("reused_files", ()) or ()),
         "new_files": tuple(str(path) for path in manifest.get("new_files", ()) or ()),
         "invalid_files": tuple(str(path) for path in manifest.get("invalid_files", ()) or ()),
+        "skipped_substep_ids": tuple(str(value) for value in manifest.get("skipped_substep_ids", ()) or ()),
+        "publishable": bool(manifest.get("publishable", False)),
+        "publish_blockers": tuple(str(value) for value in manifest.get("publish_blockers", ()) or ()),
+        "measurement_settings": manifest.get("measurement_settings", {}) if isinstance(manifest.get("measurement_settings", {}), dict) else {},
+        "measurement_warnings": tuple(str(value) for value in manifest.get("measurement_warnings", ()) or ()),
+        "resume_compatibility_blockers": tuple(str(value) for value in manifest.get("resume_compatibility_blockers", ()) or ()),
+        "resume_compatibility_warnings": tuple(str(value) for value in manifest.get("resume_compatibility_warnings", ()) or ()),
     }
 
 

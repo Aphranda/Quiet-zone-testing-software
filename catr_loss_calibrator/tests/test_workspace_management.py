@@ -105,6 +105,13 @@ def test_write_session_manifest_records_workspace_project_and_files(tmp_path: Pa
         loss_files=("loss/b.csv",),
         metadata_files=("metadata/c.json",),
         last_event="done:LINK-CAL-001",
+        extra_fields={
+            "publishable": False,
+            "publish_blockers": ("skipped_substeps",),
+            "measurement_settings": {"points": 3},
+            "measurement_warnings": ("standard horn gain missing; using 0 dB default",),
+            "resume_compatibility_warnings": ("points mismatch",),
+        },
     )
 
     payload = json.loads(path.read_text(encoding="utf-8"))
@@ -118,6 +125,12 @@ def test_write_session_manifest_records_workspace_project_and_files(tmp_path: Pa
     assert payload["raw_files"] == ["raw/a.csv"]
     assert payload["loss_files"] == ["loss/b.csv"]
     assert payload["metadata_files"] == ["metadata/c.json"]
+    summary = list_session_summaries(workspace=workspace, run=CalibrationRunContext(project_code="PROJECT1", calibration_stage="initial", run_label="R01"), item_id="LINK-CAL-001")[0]
+    assert summary["publishable"] is False
+    assert summary["publish_blockers"] == ("skipped_substeps",)
+    assert summary["measurement_settings"] == {"points": 3}
+    assert summary["measurement_warnings"] == ("standard horn gain missing; using 0 dB default",)
+    assert summary["resume_compatibility_warnings"] == ("points mismatch",)
 
 
 def test_latest_index_points_to_successful_manifest(tmp_path: Path) -> None:

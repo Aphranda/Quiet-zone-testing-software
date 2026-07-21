@@ -10,15 +10,52 @@
   "link_commands": [],
   "manual_confirmation": true,
   "input_files": [
-    "LINK-CAL-001_CAL001-AUX_AUX-A.raw"
+    "unused\\raw\\LINK-CAL-001_CAL001-AUX_AUX-A.csv"
   ],
   "input_hashes": [
-    "mock"
+    "b1c14c69dec782d1d3a2e855fd78b85c7eed321ee04e8bbfcae5552b9fb7e761"
+  ],
+  "input_roles": [
+    "raw_s21"
   ],
   "output_files": [
-    "L_AUX_A"
+    "unused\\loss\\L_AUX_A_10_15G_F10_17G_H10_15G.csv"
   ],
-  "output_hashes": [],
+  "output_hashes": [
+    "2dfa54cf60d9b3e8f1239592d1c1e218a5d4a71a1d1cb47497ea4437165ee378"
+  ],
+  "output_roles": [
+    "final"
+  ],
+  "measurement_settings": {
+    "start_hz": 12000000000.0,
+    "stop_hz": 12200000000.0,
+    "points": 21,
+    "power_dbm": -7.5,
+    "if_bandwidth_hz": 2000.0,
+    "parameter": "S21",
+    "continuous_sweep": false,
+    "feed": "F10_17G",
+    "horn": "H10_15G",
+    "horn_gain_file": "",
+    "horn_gain_sha256": "",
+    "horn_gain_warnings": [],
+    "horn_gain_status": "missing_default_zero"
+  },
+  "measurement_warnings": [
+    "standard horn gain missing; using 0 dB default"
+  ],
+  "run_uid": "",
+  "workspace_id": "",
+  "workspace_root": "",
+  "session_root": "",
+  "config_hash": "",
+  "config_source_path": "",
+  "project_code": "",
+  "calibration_stage": "",
+  "run_label": "",
+  "operator": "",
+  "operator_note": "",
   "formula_version": "v1",
   "profile_version": "lcd74000f:v1",
   "note": "mock-runner:测量 AUX-A 辅助线"

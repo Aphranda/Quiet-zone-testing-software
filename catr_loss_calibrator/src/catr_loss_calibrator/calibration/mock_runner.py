@@ -33,7 +33,7 @@ from catr_loss_calibrator.storage.workspace import SessionContext, write_latest_
 
 
 @dataclass
-class MockCalibrationRunner:
+class CalibrationRunner:
     item: CalibrationItem
     vna: Vna
     link_box: LinkBox
@@ -55,6 +55,7 @@ class MockCalibrationRunner:
     _manifest_path: Path | None = field(default=None, init=False, repr=False)
     _latest_index_path: Path | None = field(default=None, init=False, repr=False)
     _failure: CalibrationFailure | None = field(default=None, init=False, repr=False)
+    _skipped_substeps: set[str] = field(default_factory=set, init=False, repr=False)
 
     def run(self) -> list[str]:
         self._ensure_ready()
@@ -83,6 +84,7 @@ class MockCalibrationRunner:
                         self._write_session_manifest()
                         return self.events
                     if action == "skip":
+                        self._skipped_substeps.add(f"{step.id}:{substep.id}")
                         self._record_event(f"skip:{step.id}:{substep.id}")
                         break
 
@@ -110,6 +112,7 @@ class MockCalibrationRunner:
                         self._record_event(f"retry:{step.id}:{substep.id}")
                         continue
                     if done_action == "skip":
+                        self._skipped_substeps.add(f"{step.id}:{substep.id}")
                         self._record_event(f"skip:{step.id}:{substep.id}")
                     break
         self.state_machine.transition(CalibrationState.DONE)
@@ -134,6 +137,11 @@ class MockCalibrationRunner:
             "completed_big_steps": len(completed_step_ids),
             "completed_step_ids": completed_step_ids,
             "completed_substep_ids": tuple(sorted(completed_substep_ids)),
+            "skipped_substep_ids": tuple(sorted(self._skipped_substeps)),
+            "publishable": self._is_publishable(),
+            "publish_blockers": self._publish_blockers(),
+            "measurement_settings": self._measurement_settings_summary(),
+            "measurement_warnings": self._measurement_warnings(),
             "link_box_connected": self.link_box.is_connected,
             "vna_connected": self.vna.is_connected,
             "last_event": self.events[-1] if self.events else "",
@@ -154,7 +162,7 @@ class MockCalibrationRunner:
             for substep in self._substeps_for(step):
                 substep_key = f"{step.id}:{substep.id}"
                 raw_file = f"{self.item.id}_{step.id}_{self._safe_token(substep.id)}.csv"
-                if f"raw:{raw_file}" in event_set or f"skip:{substep_key}" in event_set:
+                if f"raw:{raw_file}" in event_set:
                     completed.add(substep_key)
         return completed
 
@@ -364,7 +372,7 @@ class MockCalibrationRunner:
             record = self._records[name]
             if len(record.frequency_hz) == len(frequency_hz) and np.allclose(record.frequency_hz, frequency_hz):
                 return np.asarray(record.value_db, dtype=float)
-            return np.interp(frequency_hz, record.frequency_hz, record.value_db)
+            return self._interpolate_value(name, frequency_hz, record.frequency_hz, record.value_db)
 
         external_inputs = dict(self.vna_settings.get("external_inputs") or {})
         aliases = {
@@ -380,6 +388,25 @@ class MockCalibrationRunner:
         if name in {"G_STD_HORN_H", "G_STD_HORN_V"}:
             return np.zeros_like(frequency_hz, dtype=float)
         return None
+
+    @staticmethod
+    def _interpolate_value(name: str, target_hz: np.ndarray, source_hz: np.ndarray, source_value: np.ndarray) -> np.ndarray:
+        _ = name
+        source_frequency = np.asarray(source_hz, dtype=float)
+        source_db = np.asarray(source_value, dtype=float)
+        target_frequency = np.asarray(target_hz, dtype=float)
+        valid = np.isfinite(source_frequency) & np.isfinite(source_db)
+        source_frequency = source_frequency[valid]
+        source_db = source_db[valid]
+        if len(source_frequency) == 0:
+            raise ValueError("At least one finite source point is required for interpolation.")
+        order = np.argsort(source_frequency)
+        source_frequency = source_frequency[order]
+        source_db = source_db[order]
+        unique_frequency, unique_indices = np.unique(source_frequency, return_index=True)
+        source_frequency = unique_frequency
+        source_db = source_db[unique_indices]
+        return np.interp(target_frequency, source_frequency, source_db)
 
     @staticmethod
     def _coerce_input(value: Any, frequency_hz: np.ndarray) -> np.ndarray:
@@ -415,6 +442,8 @@ class MockCalibrationRunner:
             output_files=tuple(str(path) for path in output_paths),
             output_hashes=tuple(_sha256(path) for path in output_paths),
             output_roles=tuple(OutputRole.FINAL.value for _path in output_paths),
+            measurement_settings=self._measurement_settings_summary(),
+            measurement_warnings=self._measurement_warnings(),
             **self._metadata_session_fields(),
             formula_version="v1",
             profile_version="lcd74000f:v1",
@@ -498,6 +527,7 @@ class MockCalibrationRunner:
         if self.session_context is None:
             return
         failure = self._failure_overview()
+        publishable = self._is_publishable()
         self._manifest_path = write_session_manifest(
             self.session_context,
             state=self.state_machine.state.value,
@@ -506,8 +536,15 @@ class MockCalibrationRunner:
             metadata_files=tuple(str(path) for path in self._metadata_paths),
             last_event=self.events[-1] if self.events else "",
             failure=failure or None,
+            extra_fields={
+                "skipped_substep_ids": tuple(sorted(self._skipped_substeps)),
+                "publishable": publishable,
+                "publish_blockers": self._publish_blockers(),
+                "measurement_settings": self._measurement_settings_summary(),
+                "measurement_warnings": self._measurement_warnings(),
+            },
         )
-        if self.state_machine.state == CalibrationState.DONE:
+        if self.state_machine.state == CalibrationState.DONE and publishable:
             self._latest_index_path = write_latest_index(self.session_context, self._manifest_path)
 
     def _record_event(self, event: str) -> None:
@@ -567,6 +604,69 @@ class MockCalibrationRunner:
         if not self.vna.is_connected:
             raise RuntimeError("VNA must be connected before running calibration.")
 
+    def _is_publishable(self) -> bool:
+        return not self._publish_blockers()
+
+    def _publish_blockers(self) -> tuple[str, ...]:
+        blockers: list[str] = []
+        if self._skipped_substeps:
+            blockers.append("skipped_substeps")
+        missing_raw = self._missing_raw_substeps()
+        if missing_raw:
+            blockers.append("missing_raw:" + ",".join(missing_raw))
+        missing_final = self._missing_final_outputs()
+        if missing_final:
+            blockers.append("missing_final:" + ",".join(missing_final))
+        return tuple(blockers)
+
+    def _missing_raw_substeps(self) -> tuple[str, ...]:
+        missing: list[str] = []
+        for step in self.item.steps:
+            for substep in self._substeps_for(step):
+                raw_parameter = substep.raw_output or (step.raw_outputs[0] if step.raw_outputs else "")
+                if not raw_parameter or raw_parameter not in self._records:
+                    missing.append(f"{step.id}:{substep.id}")
+        return tuple(missing)
+
+    def _missing_final_outputs(self) -> tuple[str, ...]:
+        expected = {
+            output
+            for item_step in self.item.steps
+            for output in (*item_step.final_outputs, *(sub.final_output for sub in item_step.substeps if sub.final_output))
+            if output and "/" not in output
+        }
+        return tuple(sorted(output for output in expected if output not in self._output_paths))
+
+    def _measurement_settings_summary(self) -> dict[str, object]:
+        settings = self._normalized_vna_settings()
+        return {
+            "start_hz": settings["start_hz"],
+            "stop_hz": settings["stop_hz"],
+            "points": settings["points"],
+            "power_dbm": settings["power_dbm"],
+            "if_bandwidth_hz": settings["if_bandwidth_hz"],
+            "parameter": settings["parameter"],
+            "continuous_sweep": settings["continuous_sweep"],
+            "feed": self.feed.strip().upper(),
+            "horn": self.horn.strip().upper(),
+            "horn_gain_file": str(self.vna_settings.get("horn_gain_file") or ""),
+            "horn_gain_sha256": str(self.vna_settings.get("horn_gain_sha256") or ""),
+            "horn_gain_warnings": tuple(str(value) for value in self.vna_settings.get("horn_gain_warnings", ()) or ()),
+            "horn_gain_status": self._horn_gain_status(),
+        }
+
+    def _measurement_warnings(self) -> tuple[str, ...]:
+        warnings = [str(value) for value in self.vna_settings.get("horn_gain_warnings", ()) or ()]
+        if self._horn_gain_status() == "missing_default_zero":
+            warnings.append("standard horn gain missing; using 0 dB default")
+        return tuple(dict.fromkeys(warnings))
+
+    def _horn_gain_status(self) -> str:
+        external_inputs = dict(self.vna_settings.get("external_inputs") or {})
+        has_h = any(key in external_inputs or key in self.vna_settings for key in ("G_STD_HORN_H", "horn_gain_h_dbi", "horn_gain_db"))
+        has_v = any(key in external_inputs or key in self.vna_settings for key in ("G_STD_HORN_V", "horn_gain_v_dbi", "horn_gain_db"))
+        return "provided" if has_h and has_v else "missing_default_zero"
+
 
 def _save_trace_like_csv(path: Path, parameter: str, frequency_hz, value_db, source_cal: str, output_role: str) -> None:
     from catr_loss_calibrator.storage.csv_storage import save_loss_csv
@@ -586,3 +686,7 @@ def _save_trace_like_csv(path: Path, parameter: str, frequency_hz, value_db, sou
 
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+class MockCalibrationRunner(CalibrationRunner):
+    """Backward-compatible name for tests and older integrations."""
