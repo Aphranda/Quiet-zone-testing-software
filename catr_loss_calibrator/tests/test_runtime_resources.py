@@ -34,7 +34,7 @@ def test_initialize_runtime_files_copies_default_config_and_horn_gain_csv(tmp_pa
 
     assert paths.default_user_config_path.exists()
     assert (paths.user_resources_dir / "10_15G_horn_gain_10MHz.csv").exists()
-    assert (paths.user_resources_dir / "14P5_22G_horn_gain_10MHz_fabricated.csv").exists()
+    assert (paths.user_resources_dir / "14P5_22G_horn_gain_10MHz.csv").exists()
     assert (paths.user_resources_dir / "21P7_33G_horn_gain_10MHz.csv").exists()
     assert paths.default_output_root.exists()
     assert runtime_default_config_path(env) == paths.default_user_config_path
@@ -44,3 +44,22 @@ def test_initialize_runtime_files_copies_default_config_and_horn_gain_csv(tmp_pa
     resolved = resolve_data_file(horn_gain_file, source_path=paths.default_user_config_path)
 
     assert resolved == (paths.user_resources_dir / "10_15G_horn_gain_10MHz.csv").resolve()
+
+
+def test_initialize_runtime_files_migrates_legacy_14p5_horn_gain_reference(tmp_path: Path) -> None:
+    env = {
+        "CATR_LOSS_CALIBRATOR_HOME": str(tmp_path / "appdata"),
+        "CATR_LOSS_CALIBRATOR_OUTPUT": str(tmp_path / "calibrations"),
+    }
+    paths = initialize_runtime_files(runtime_paths(env))
+    legacy_config = paths.default_user_config_path.read_text(encoding="utf-8").replace(
+        "14P5_22G_horn_gain_10MHz.csv",
+        "14P5_22G_horn_gain_10MHz_fabricated.csv",
+    )
+    paths.default_user_config_path.write_text(legacy_config, encoding="utf-8")
+
+    initialize_runtime_files(runtime_paths(env))
+
+    migrated = paths.default_user_config_path.read_text(encoding="utf-8")
+    assert "14P5_22G_horn_gain_10MHz.csv" in migrated
+    assert "14P5_22G_horn_gain_10MHz_fabricated.csv" not in migrated

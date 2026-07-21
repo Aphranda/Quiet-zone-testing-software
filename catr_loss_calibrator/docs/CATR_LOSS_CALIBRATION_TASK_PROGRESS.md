@@ -530,20 +530,20 @@ Last updated: 2026-07-20
   - `band_config.feed_horn_bands[]` 支持 `horn_gain_file` 字段。
   - UI 选择馈源/喇叭组合时，会按当前 JSON 文件所在目录解析相对路径并填入“喇叭增益文件”输入框。
   - 内置 CATR JSON 为 10-15G、14.5-22G、21.7-33G 组合配置了默认喇叭增益 CSV 引用。
-  - 新增 `14P5_22G_horn_gain_10MHz_fabricated.csv`，作为 14.5-22G 的工程占位曲线，10 MHz 步进，线性 17.8 dB 到 20.9 dB。
+  - 新增 `14P5_22G_horn_gain_10MHz.csv`，由 14.5-22G 标准喇叭增益图表识别后按 10 MHz 步进线性插值生成。
   - JSON 规范文档补充 `horn_gain_file` 字段说明，明确曲线点保存在 CSV 中，不写入主 JSON。
   - GUI smoke 增加默认喇叭增益文件自动带出且存在的检查。
 - 验证结果：
   - 通过完整测试：`D:\Microsoft\uv-venvs\catr-loss-calibrator\Scripts\python.exe -m pytest catr_loss_calibrator\tests`，共 96 项。
   - 仅完成 Mock/导入验证，未做真实硬件验证。
 - 还需完成：
-  - 14.5-22G 当前为 fabricated 占位数据；真实校准前应替换为标准喇叭证书或图像识别后的正式曲线。
+  - 若后续拿到标准喇叭原始证书数据，可再用证书原始点替换当前图表识别曲线。
 - 关联文件：
   - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/config_loader.py`
   - `catr_loss_calibrator/src/catr_loss_calibrator/calibration/configs/catr_chamber_loss_calibration.json`
   - `catr_loss_calibrator/src/catr_loss_calibrator/storage/loss_file_policy.py`
   - `catr_loss_calibrator/src/catr_loss_calibrator/presentation/main.py`
-  - `catr_loss_calibrator/resources/14P5_22G_horn_gain_10MHz_fabricated.csv`
+  - `catr_loss_calibrator/src/catr_loss_calibrator/resources/14P5_22G_horn_gain_10MHz.csv`
   - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_LINK_CONFIG_JSON.md`
   - `catr_loss_calibrator/docs/CATR_LOSS_CALIBRATION_TASK_PROGRESS.md`
   - `catr_loss_calibrator/tests/test_calibration_catalog.py`

@@ -14,6 +14,9 @@ PACKAGE_ROOT = Path(__file__).resolve().parent
 PACKAGE_DEFAULT_CONFIG_PATH = PACKAGE_ROOT / "calibration" / "configs" / "catr_chamber_loss_calibration.json"
 PACKAGE_RESOURCES_DIR = PACKAGE_ROOT / "resources"
 PACKAGE_STYLE_DIR = PACKAGE_ROOT / "style"
+LEGACY_RESOURCE_FILENAMES = {
+    "14P5_22G_horn_gain_10MHz_fabricated.csv": "14P5_22G_horn_gain_10MHz.csv",
+}
 
 
 @dataclass(frozen=True)
@@ -69,6 +72,7 @@ def initialize_runtime_files(
     _copy_if_needed(PACKAGE_DEFAULT_CONFIG_PATH, paths.default_user_config_path, overwrite=overwrite)
     for source in sorted(PACKAGE_RESOURCES_DIR.glob("*.csv")):
         _copy_if_needed(source, paths.user_resources_dir / source.name, overwrite=overwrite)
+    _migrate_legacy_resource_names(paths.default_user_config_path)
     return paths
 
 
@@ -109,6 +113,18 @@ def _copy_if_needed(source: Path, target: Path, *, overwrite: bool) -> None:
         return
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, target)
+
+
+def _migrate_legacy_resource_names(config_path: Path) -> None:
+    if not config_path.exists():
+        return
+
+    text = config_path.read_text(encoding="utf-8")
+    migrated = text
+    for legacy_name, current_name in LEGACY_RESOURCE_FILENAMES.items():
+        migrated = migrated.replace(legacy_name, current_name)
+    if migrated != text:
+        config_path.write_text(migrated, encoding="utf-8")
 
 
 def _user_app_data_dir(env: Mapping[str, str]) -> Path:

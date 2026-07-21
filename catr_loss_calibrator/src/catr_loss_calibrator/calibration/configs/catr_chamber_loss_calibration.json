@@ -21,7 +21,7 @@
         "band": "14P5_17G",
         "start_ghz": 14.5,
         "stop_ghz": 17.0,
-        "horn_gain_file": "../../resources/14P5_22G_horn_gain_10MHz_fabricated.csv"
+        "horn_gain_file": "../../resources/14P5_22G_horn_gain_10MHz.csv"
       },
       {
         "feed": "F17_31G",
@@ -29,7 +29,7 @@
         "band": "17_22G",
         "start_ghz": 17.0,
         "stop_ghz": 22.0,
-        "horn_gain_file": "../../resources/14P5_22G_horn_gain_10MHz_fabricated.csv"
+        "horn_gain_file": "../../resources/14P5_22G_horn_gain_10MHz.csv"
       },
       {
         "feed": "F17_31G",
