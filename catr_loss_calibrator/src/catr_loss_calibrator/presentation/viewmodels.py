@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import threading
 import csv
+import re
+import threading
 from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,6 +27,8 @@ from catr_loss_calibrator.storage.workspace import (
     CalibrationRunContext,
     DEFAULT_OUTPUT_ROOT,
     create_session_context,
+    SessionContext,
+    WorkspaceContext,
     write_latest_index,
     write_session_manifest,
     write_workspace_manifest,
@@ -52,6 +55,7 @@ class StepViewData:
     final_outputs: tuple[str, ...]
     required_inputs: tuple[str, ...]
     notes: str
+    measurement_parameter: str = "S21"
     substep_id: str = ""
     substep_name: str = ""
     substep_index: int = 0
@@ -82,6 +86,8 @@ class DeviceConnectionViewData:
     use_mock: bool
     timeout_ms: int
     is_connected: bool
+    ip_address: str = ""
+    tcp_port: int | None = None
 
 
 @dataclass(frozen=True)
@@ -97,6 +103,7 @@ class SubStepViewData:
     final_output: str
     required_inputs: tuple[str, ...]
     notes: str
+    measurement_parameter: str = "S21"
     path_template: str = ""
     path: dict[str, Any] | None = None
 
@@ -148,6 +155,7 @@ class CalibrationRunWorker(QThread):
             final_outputs=((substep.final_output,) if substep.final_output else step.final_outputs),
             required_inputs=substep.required_inputs or step.required_inputs,
             notes=substep.notes or step.notes,
+            measurement_parameter=(substep.parameter or "S21").strip().upper(),
             substep_id=substep.id,
             substep_name=substep.name,
             substep_index=substep_index,
@@ -487,16 +495,31 @@ class CalibrationViewModel(QObject):
         model: str,
         use_mock: bool,
         timeout_ms: int,
+        ip_address: str = "",
+        tcp_port: int | None = None,
     ) -> DeviceConnectionViewData:
         current = self._device_configs[device]
+        resource_text = resource.strip() or current.resource
+        config_ip_address = current.ip_address
+        config_tcp_port = current.tcp_port
+        if device == "link_box":
+            parsed_ip, parsed_port = self._link_box_ip_port_from_resource(resource_text)
+            config_ip_address = (ip_address.strip() or parsed_ip or current.ip_address).strip()
+            config_tcp_port = int(tcp_port or parsed_port or current.tcp_port or 7)
+            if config_ip_address:
+                resource_text = f"{config_ip_address}:{config_tcp_port}"
         config = InstrumentConnectionConfig(
-            resource=resource.strip() or current.resource,
+            resource=resource_text,
             model=model.strip() or current.model,
             use_mock=use_mock,
             timeout_ms=max(1, int(timeout_ms)),
+            ip_address=config_ip_address,
+            tcp_port=config_tcp_port,
         )
+        if not config.use_mock and device == "link_box" and not config.ip_address:
+            raise RuntimeError("真实连接模式下请填写链路箱 IP 地址和端口。")
         if not config.use_mock and config.resource.upper().startswith("MOCK"):
-            raise RuntimeError("真实连接模式下不能使用 MOCK 资源，请先搜索并选择 VISA 资源。")
+            raise RuntimeError("真实连接模式下不能使用 MOCK 资源。")
         instrument, _ = self._command_device(device)
         if instrument.is_connected:
             raise RuntimeError("请先断开设备，再修改连接配置。")
@@ -533,6 +556,8 @@ class CalibrationViewModel(QObject):
             use_mock=config.use_mock,
             timeout_ms=config.timeout_ms,
             is_connected=instrument.is_connected,
+            ip_address=config.ip_address,
+            tcp_port=config.tcp_port,
         )
 
     def device_model_options(self, device: str) -> tuple[str, ...]:
@@ -615,7 +640,13 @@ class CalibrationViewModel(QObject):
         self.refresh_overview()
         worker.start()
 
-    def run_single_substep(self, step_id: str, substep_id: str, vna_settings: dict[str, Any] | None = None) -> dict[str, object]:
+    def run_single_substep(
+        self,
+        step_id: str,
+        substep_id: str,
+        vna_settings: dict[str, Any] | None = None,
+        history_summary: dict[str, object] | None = None,
+    ) -> dict[str, object]:
         settings = dict(vna_settings or {})
         if self._worker and self._worker.isRunning():
             raise RuntimeError("校准运行中，不能单独重测细分步骤。")
@@ -628,16 +659,24 @@ class CalibrationViewModel(QObject):
         substep = next((candidate for candidate in self._substeps_for_step(step) if candidate.id == substep_id), None)
         if substep is None:
             raise RuntimeError(f"未找到细分步骤: {step_id}/{substep_id}")
-        workspace = workspace_for_catalog(self.catalog, DEFAULT_OUTPUT_ROOT)
-        write_workspace_manifest(workspace, self.catalog)
-        run_context = CalibrationRunContext(
-            project_code=str(settings.get("project_code") or "DEFAULT_PROJECT"),
-            calibration_stage=str(settings.get("calibration_stage") or "initial"),
-            run_label=f"{settings.get('run_label') or 'R01'}_RETEST",
-            operator=str(settings.get("operator") or ""),
-            operator_note=f"single-substep-retest:{step_id}:{substep_id}",
-        )
-        session_context = create_session_context(workspace=workspace, run=run_context, item_id=item.id)
+        if history_summary:
+            session_context = self._session_context_from_history_summary(
+                history_summary,
+                settings=settings,
+                item_id=item.id,
+                operator_note=f"single-substep-retest:{step_id}:{substep_id}",
+            )
+        else:
+            workspace = workspace_for_catalog(self.catalog, DEFAULT_OUTPUT_ROOT)
+            write_workspace_manifest(workspace, self.catalog)
+            run_context = CalibrationRunContext(
+                project_code=str(settings.get("project_code") or "DEFAULT_PROJECT"),
+                calibration_stage=str(settings.get("calibration_stage") or "initial"),
+                run_label=f"{settings.get('run_label') or 'R01'}_RETEST",
+                operator=str(settings.get("operator") or ""),
+                operator_note=f"single-substep-retest:{step_id}:{substep_id}",
+            )
+            session_context = create_session_context(workspace=workspace, run=run_context, item_id=item.id)
         runner = CalibrationRunner(
             item=item,
             vna=self._mock_vna,
@@ -655,18 +694,28 @@ class CalibrationViewModel(QObject):
         runner._run_substep(step, substep)
         runner.state_machine.transition(CalibrationState.DONE)
         runner._record_event(f"single_done:{step_id}:{substep_id}")
-        runner._write_session_manifest()
-        summary = runner.overview()
+        if history_summary:
+            summary = self._write_in_place_history_manifest(
+                runner,
+                history_summary,
+                state="RESUMED_DONE",
+                last_event=f"single_substep_retest:{step_id}:{substep_id}",
+                current_retested_substep_ids=(f"{step_id}:{substep_id}",),
+            )
+        else:
+            runner._write_session_manifest()
+            summary = runner.overview()
         existing = dict(self._run_summaries_by_item.get(item.id, {}))
         completed = set(str(value) for value in existing.get("completed_substep_ids", ()) or ())
         completed.add(f"{step_id}:{substep_id}")
         completed_steps = set(str(value) for value in existing.get("completed_step_ids", ()) or ())
         if all(f"{step.id}:{candidate.id}" in completed for candidate in self._substeps_for_step(step)):
             completed_steps.add(step_id)
-        summary["completed_substep_ids"] = tuple(sorted(completed))
-        summary["completed_step_ids"] = tuple(sorted(completed_steps))
-        summary["completed_steps"] = len(completed)
-        summary["completed_big_steps"] = len(completed_steps)
+        if not history_summary:
+            summary["completed_substep_ids"] = tuple(sorted(completed))
+            summary["completed_step_ids"] = tuple(sorted(completed_steps))
+            summary["completed_steps"] = len(completed)
+            summary["completed_big_steps"] = len(completed_steps)
         summary["active_step_id"] = step_id
         summary["active_substep_id"] = substep_id
         self._run_summaries_by_item[item.id] = summary
@@ -688,16 +737,12 @@ class CalibrationViewModel(QObject):
         item = self.selected_item
         if item is None:
             raise RuntimeError("请先导入链路配置或导入默认配置。")
-        workspace = workspace_for_catalog(self.catalog, DEFAULT_OUTPUT_ROOT)
-        write_workspace_manifest(workspace, self.catalog)
-        run_context = CalibrationRunContext(
-            project_code=str(settings.get("project_code") or "DEFAULT_PROJECT"),
-            calibration_stage=str(settings.get("calibration_stage") or "initial"),
-            run_label=f"{settings.get('run_label') or 'R01'}_RESUME",
-            operator=str(settings.get("operator") or ""),
+        session_context = self._session_context_from_history_summary(
+            history_summary,
+            settings=settings,
+            item_id=item.id,
             operator_note="resume-generate-results",
         )
-        session_context = create_session_context(workspace=workspace, run=run_context, item_id=item.id)
         runner = CalibrationRunner(
             item=item,
             vna=self._mock_vna,
@@ -781,18 +826,20 @@ class CalibrationViewModel(QObject):
             metadata_files=tuple(str(path) for path in history_summary.get("metadata_files", ()) or ()),
             last_event=f"resume_generate:{state}",
             extra_fields={
-                "resume_source": {
-                    "workspace_root": str(history_summary.get("workspace_root") or ""),
-                    "session_id": str(history_summary.get("session_id") or ""),
-                    "manifest_file": str(history_summary.get("manifest_file") or ""),
-                    "item_id": str(history_summary.get("item_id") or ""),
-                },
+                "resume_source": self._resume_source_fields(history_summary),
                 "substep_status": substep_status,
                 "reused_files": tuple(reused_files),
                 "new_files": tuple(new_files),
                 "invalid_files": tuple(invalid_files),
+                "current_retested_substep_ids": tuple(sorted(current_retested)),
                 "resume_compatibility_blockers": (),
                 "resume_compatibility_warnings": compatibility_warnings,
+                "completed_substep_ids": tuple(sorted(loaded_keys)),
+                "completed_step_ids": tuple(
+                    step.id
+                    for step in item.steps
+                    if all(f"{step.id}:{substep.id}" in loaded_keys for substep in self._substeps_for_step(step))
+                ),
             },
         )
         latest_path = write_latest_index(session_context, manifest_path) if state == "RESUMED_DONE" else None
@@ -818,16 +865,12 @@ class CalibrationViewModel(QObject):
                     if all(f"{step.id}:{substep.id}" in loaded_keys for substep in self._substeps_for_step(step))
                 ),
                 "resume_source_session_id": str(history_summary.get("session_id") or ""),
-                "resume_source": {
-                    "workspace_root": str(history_summary.get("workspace_root") or ""),
-                    "session_id": str(history_summary.get("session_id") or ""),
-                    "manifest_file": str(history_summary.get("manifest_file") or ""),
-                    "item_id": str(history_summary.get("item_id") or ""),
-                },
+                "resume_source": self._resume_source_fields(history_summary),
                 "substep_status": substep_status,
                 "reused_files": tuple(reused_files),
                 "new_files": tuple(new_files),
                 "invalid_files": tuple(invalid_files),
+                "current_retested_substep_ids": tuple(sorted(current_retested)),
                 "resume_compatibility_blockers": (),
                 "resume_compatibility_warnings": compatibility_warnings,
             }
@@ -838,6 +881,162 @@ class CalibrationViewModel(QObject):
         self._append_log("INFO", "runner", item.name, f"续测结果已生成: {state}")
         self.refresh_overview()
         return summary
+
+    def _session_context_from_history_summary(
+        self,
+        history_summary: dict[str, object],
+        *,
+        settings: dict[str, Any],
+        item_id: str,
+        operator_note: str,
+    ) -> SessionContext:
+        if str(history_summary.get("state") or "").strip().upper() == "LEGACY_READONLY":
+            raise RuntimeError("旧版输出目录是只读历史数据，不能在原目录重测更新。请先导入 workspace/session 格式数据。")
+        session_root = Path(str(history_summary.get("session_root") or ""))
+        workspace_root = Path(str(history_summary.get("workspace_root") or ""))
+        session_id = str(history_summary.get("session_id") or "").strip()
+        if not session_id or not session_root or not workspace_root:
+            raise RuntimeError("历史数据缺少 session_root/workspace_root/session_id，不能原地更新。")
+        if not session_root.exists():
+            raise RuntimeError(f"历史 session 目录不存在，不能原地更新: {session_root}")
+        if str(history_summary.get("item_id") or item_id) != item_id:
+            raise RuntimeError("导入的历史数据与当前校准项不一致，不能原地更新。")
+
+        workspace = WorkspaceContext(
+            output_base=Path(str(history_summary.get("output_base") or DEFAULT_OUTPUT_ROOT)),
+            config_name=str(history_summary.get("config_name") or self.catalog.name or ""),
+            config_display_name=str(history_summary.get("config_display_name") or self.catalog.display_name or ""),
+            config_source_path=str(history_summary.get("config_source_path") or self.catalog.source_path or ""),
+            config_hash=str(history_summary.get("config_hash") or ""),
+            workspace_id=str(history_summary.get("workspace_id") or workspace_root.name),
+            workspace_root=workspace_root,
+        )
+        run_context = CalibrationRunContext(
+            project_code=str(history_summary.get("project_code") or settings.get("project_code") or "DEFAULT_PROJECT"),
+            calibration_stage=str(history_summary.get("calibration_stage") or settings.get("calibration_stage") or "initial"),
+            run_label=str(history_summary.get("run_label") or settings.get("run_label") or "R01"),
+            operator=str(settings.get("operator") or history_summary.get("operator") or ""),
+            operator_note=operator_note,
+        )
+        return SessionContext(
+            run_uid=str(history_summary.get("run_uid") or session_id),
+            session_id=session_id,
+            session_root=session_root,
+            workspace=workspace,
+            run=run_context.normalized(),
+            item_id=item_id,
+            started_at=str(history_summary.get("started_at") or datetime.now(timezone.utc).isoformat(timespec="seconds")),
+        )
+
+    def _write_in_place_history_manifest(
+        self,
+        runner: CalibrationRunner,
+        history_summary: dict[str, object],
+        *,
+        state: str,
+        last_event: str,
+        current_retested_substep_ids: tuple[str, ...] = (),
+    ) -> dict[str, object]:
+        session_context = runner.session_context
+        if session_context is None:
+            raise RuntimeError("缺少历史 session 上下文，不能原地更新。")
+        item = runner.item
+        raw_files = self._replace_paths_by_filename(
+            history_summary.get("raw_files", ()) or (),
+            tuple(str(path) for path in runner._raw_paths),
+        )
+        loss_files = self._replace_paths_by_filename(
+            history_summary.get("loss_files", ()) or (),
+            tuple(str(path) for path in runner._output_paths.values()),
+        )
+        metadata_files = self._replace_paths_by_filename(
+            history_summary.get("metadata_files", ()) or (),
+            tuple(str(path) for path in runner._metadata_paths),
+        )
+        completed_substep_ids = self._completed_substep_ids_from_raw_files(item, raw_files)
+        completed_step_ids = tuple(
+            step.id
+            for step in item.steps
+            if all(f"{step.id}:{substep.id}" in completed_substep_ids for substep in self._substeps_for_step(step))
+        )
+        required_keys = self._required_substep_keys(item)
+        publish_state = state if required_keys <= completed_substep_ids else "PARTIAL"
+        retested = {
+            str(key)
+            for key in history_summary.get("current_retested_substep_ids", ()) or ()
+        } | {str(key) for key in current_retested_substep_ids}
+        manifest_path = write_session_manifest(
+            session_context,
+            state=publish_state,
+            raw_files=raw_files,
+            loss_files=loss_files,
+            metadata_files=metadata_files,
+            last_event=last_event,
+            extra_fields={
+                "resume_source": self._resume_source_fields(history_summary),
+                "current_retested_substep_ids": tuple(sorted(retested)),
+                "completed_substep_ids": tuple(sorted(completed_substep_ids)),
+                "completed_step_ids": completed_step_ids,
+                "publishable": publish_state == "RESUMED_DONE",
+                "publish_blockers": () if publish_state == "RESUMED_DONE" else ("missing accepted/retested substeps",),
+                "measurement_settings": runner._measurement_settings_summary(),
+                "measurement_warnings": runner._measurement_warnings(),
+            },
+        )
+        latest_path = write_latest_index(session_context, manifest_path) if publish_state == "RESUMED_DONE" else None
+        summary = runner.overview()
+        summary.update(
+            {
+                "state": publish_state,
+                "raw_files": raw_files,
+                "loss_files": loss_files,
+                "metadata_files": metadata_files,
+                "manifest_file": str(manifest_path),
+                "latest_index_file": str(latest_path) if latest_path else "",
+                "completed_substep_ids": tuple(sorted(completed_substep_ids)),
+                "completed_step_ids": completed_step_ids,
+                "completed_steps": len(completed_substep_ids),
+                "completed_big_steps": len(completed_step_ids),
+                "current_retested_substep_ids": tuple(sorted(retested)),
+                "resume_source": self._resume_source_fields(history_summary),
+                "last_event": last_event,
+            }
+        )
+        return summary
+
+    @staticmethod
+    def _replace_paths_by_filename(existing_paths: Any, replacement_paths: tuple[str, ...]) -> tuple[str, ...]:
+        replacements = {Path(path).name: str(path) for path in replacement_paths if str(path)}
+        result: list[str] = []
+        seen_names: set[str] = set()
+        for raw_path in existing_paths:
+            path_text = str(raw_path)
+            name = Path(path_text).name
+            result.append(replacements.get(name, path_text))
+            seen_names.add(name)
+        for name, path_text in replacements.items():
+            if name not in seen_names:
+                result.append(path_text)
+        return tuple(result)
+
+    def _completed_substep_ids_from_raw_files(self, item, raw_files: tuple[str, ...]) -> set[str]:
+        raw_names = {Path(path).name for path in raw_files}
+        completed: set[str] = set()
+        for step in item.steps:
+            for substep in self._substeps_for_step(step):
+                expected_name = f"{item.id}_{step.id}_{self._safe_token(substep.id)}.csv"
+                if expected_name in raw_names:
+                    completed.add(f"{step.id}:{substep.id}")
+        return completed
+
+    @staticmethod
+    def _resume_source_fields(history_summary: dict[str, object]) -> dict[str, str]:
+        return {
+            "workspace_root": str(history_summary.get("workspace_root") or ""),
+            "session_id": str(history_summary.get("session_id") or ""),
+            "manifest_file": str(history_summary.get("manifest_file") or ""),
+            "item_id": str(history_summary.get("item_id") or ""),
+        }
 
     def _required_substep_keys(self, item) -> set[str]:
         return {
@@ -857,7 +1056,7 @@ class CalibrationViewModel(QObject):
         history_settings = history_summary.get("measurement_settings")
         if isinstance(history_settings, dict):
             current_settings = runner._measurement_settings_summary()
-            for key in ("start_hz", "stop_hz", "power_dbm", "if_bandwidth_hz"):
+            for key in ("start_hz", "stop_hz", "if_bandwidth_hz"):
                 if key not in history_settings:
                     warnings.append(f"{key} missing")
                     continue
@@ -1119,9 +1318,9 @@ class CalibrationViewModel(QObject):
                 "设置起频": "SENS:FREQ:STAR 10GHz",
                 "设置止频": "SENS:FREQ:STOP 17GHz",
                 "设置点数": "SENS:SWE:POIN 71",
-                "设置功率": "SOUR:POW -10",
-                "N5245B 端口1功率": "SOUR1:POW1:LEV:IMM:AMPL -10",
-                "N5245B 端口2功率": "SOUR1:POW2:LEV:IMM:AMPL -10",
+                "设置功率": "SOUR:POW -30",
+                "N5245B 端口1功率": "SOUR1:POW1:LEV:IMM:AMPL -30",
+                "N5245B 端口2功率": "SOUR1:POW2:LEV:IMM:AMPL -30",
                 "设置 IFBW": "SENS:BAND:RES 1000",
                 "配置 S21": "CALC1:PAR:DEF:EXT 'CH1_SPARAM','S21'",
                 "选择轨迹": "CALC1:PAR:SEL 'CH1_SPARAM'",
@@ -1328,7 +1527,13 @@ class CalibrationViewModel(QObject):
             return (
                 MockLinkBox(resource=config.resource, model=config.model)
                 if config.use_mock
-                else Lcd74000fLinkBox(resource=config.resource, model=config.model, timeout_ms=config.timeout_ms)
+                else Lcd74000fLinkBox(
+                    resource=config.resource,
+                    model=config.model,
+                    timeout_ms=config.timeout_ms,
+                    ip_address=config.ip_address,
+                    tcp_port=config.tcp_port,
+                )
             )
         if device == "signal_generator":
             return (
@@ -1343,6 +1548,17 @@ class CalibrationViewModel(QObject):
                 else PyVisaScpiInstrument(resource=config.resource, model=config.model, timeout_ms=config.timeout_ms)
             )
         raise ValueError(f"Unknown command device: {device}")
+
+    @staticmethod
+    def _link_box_ip_port_from_resource(resource: str) -> tuple[str, int | None]:
+        text = resource.strip()
+        tcpip_match = re.match(r"^TCPIP\d*::(?P<host>.+)::(?P<port>\d+)::SOCKET$", text, flags=re.IGNORECASE)
+        if tcpip_match is not None:
+            return tcpip_match.group("host"), int(tcpip_match.group("port"))
+        host_port_match = re.match(r"^(?P<host>[^:\s]+):(?P<port>\d+)$", text)
+        if host_port_match is not None:
+            return host_port_match.group("host"), int(host_port_match.group("port"))
+        return "", None
 
     def _on_prompt_ready(self, prompt: StepViewData) -> None:
         self._update_run_progress(prompt)
@@ -1470,6 +1686,7 @@ class CalibrationViewModel(QObject):
             final_outputs=step.final_outputs,
             required_inputs=step.required_inputs,
             notes=step.notes,
+            measurement_parameter="S21",
             substep_total=len(substeps),
             item_total_substeps=item_total_substeps,
             item_completed_substeps=item_completed_substeps,
@@ -1491,6 +1708,7 @@ class CalibrationViewModel(QObject):
                 final_output=substep.final_output,
                 required_inputs=substep.required_inputs,
                 notes=substep.notes,
+                measurement_parameter=(substep.parameter or "S21").strip().upper(),
                 path_template=substep.path_template or step.path_template,
                 path=substep.path or step.path,
             )

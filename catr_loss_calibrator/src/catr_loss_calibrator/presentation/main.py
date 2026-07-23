@@ -16,6 +16,7 @@ import numpy as np
 from catr_loss_calibrator.calibration.config_loader import load_calibration_catalog
 from catr_loss_calibrator.calibration.calibration_runner import CalibrationRunner
 from catr_loss_calibrator.hardware.mock import MockLinkBox, MockVna
+from catr_loss_calibrator.project.config import DEFAULT_VNA_POWER_DBM
 from catr_loss_calibrator.runtime_resources import default_output_root, initialize_runtime_files, runtime_default_config_path
 from catr_loss_calibrator.storage.resume import CurveQuality, analyze_curve_csv
 from catr_loss_calibrator.storage.workspace import (
@@ -619,6 +620,15 @@ def run_gui() -> int:
             self.btn_sg_configure: QPushButton | None = None
             self.spectrum_analyzer_settings_group: QGroupBox | None = None
             self.btn_sa_configure: QPushButton | None = None
+            self.link_box_ip_input: QLineEdit | None = None
+            self.link_box_port_input: QSpinBox | None = None
+            if device_key == "link_box":
+                self.link_box_ip_input = QLineEdit()
+                self.link_box_ip_input.setPlaceholderText("192.168.1.113")
+                self.link_box_ip_input.setText("192.168.1.113")
+                self.link_box_port_input = QSpinBox()
+                self.link_box_port_input.setRange(1, 65535)
+                self.link_box_port_input.setValue(7)
 
             _style_button(self.btn_search_visa, role="secondary")
             _style_button(self.btn_connect, role="success")
@@ -633,6 +643,7 @@ def run_gui() -> int:
             resource_row = QHBoxLayout()
             resource_row.addWidget(self.resource_input, 1)
             resource_row.addWidget(self.btn_search_visa)
+            self.btn_search_visa.setVisible(device_key != "link_box")
 
             mode_row = QHBoxLayout()
             mode_row.addWidget(self.mock_check)
@@ -647,7 +658,11 @@ def run_gui() -> int:
             connection_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
             connection_form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
             connection_form.addRow("连接模式", mode_row)
-            connection_form.addRow("资源地址", resource_row)
+            if device_key == "link_box":
+                connection_form.addRow("IP地址", self.link_box_ip_input)
+                connection_form.addRow("端口", self.link_box_port_input)
+            else:
+                connection_form.addRow("资源地址", resource_row)
             connection_form.addRow("型号", self.model_input)
             connection_form.addRow("超时", self.timeout_input)
             connection_form.addRow("操作", button_row)
@@ -733,6 +748,10 @@ def run_gui() -> int:
         def set_connection_state(self, state: Any) -> None:
             self.set_resource_options((state.resource,), state.resource)
             self.set_model_options((state.model,), state.model)
+            if self.device_key == "link_box" and self.link_box_ip_input is not None and self.link_box_port_input is not None:
+                ip_address, tcp_port = self._link_box_ip_port_from_state(state)
+                self.link_box_ip_input.setText(ip_address)
+                self.link_box_port_input.setValue(tcp_port)
             self.mock_check.setChecked(state.use_mock)
             self.real_check.setChecked(not state.use_mock)
             self.timeout_input.setValue(state.timeout_ms)
@@ -742,7 +761,11 @@ def run_gui() -> int:
             self.mock_check.setEnabled(not state.is_connected)
             self.real_check.setEnabled(not state.is_connected)
             self.timeout_input.setEnabled(not state.is_connected)
-            self.btn_search_visa.setEnabled(not state.is_connected and not state.use_mock)
+            self.btn_search_visa.setEnabled(not state.is_connected and not state.use_mock and self.device_key != "link_box")
+            if self.link_box_ip_input is not None:
+                self.link_box_ip_input.setEnabled(not state.is_connected)
+            if self.link_box_port_input is not None:
+                self.link_box_port_input.setEnabled(not state.is_connected)
             self.btn_connect.setEnabled(not state.is_connected)
             self.btn_disconnect.setEnabled(state.is_connected)
             self.preset_combo.setEnabled(state.is_connected)
@@ -757,12 +780,34 @@ def run_gui() -> int:
                 self.spectrum_analyzer_settings_group.setEnabled(state.is_connected)
 
         def connection_config(self) -> dict[str, Any]:
+            if self.device_key == "link_box" and self.link_box_ip_input is not None and self.link_box_port_input is not None:
+                ip_address = self.link_box_ip_input.text().strip()
+                tcp_port = self.link_box_port_input.value()
+                return {
+                    "resource": f"{ip_address}:{tcp_port}" if ip_address else "",
+                    "model": self.model_input.currentText(),
+                    "use_mock": self.mock_check.isChecked(),
+                    "timeout_ms": self.timeout_input.value(),
+                    "ip_address": ip_address,
+                    "tcp_port": tcp_port,
+                }
             return {
                 "resource": self.resource_input.currentText(),
                 "model": self.model_input.currentText(),
                 "use_mock": self.mock_check.isChecked(),
                 "timeout_ms": self.timeout_input.value(),
             }
+
+        @staticmethod
+        def _link_box_ip_port_from_state(state: Any) -> tuple[str, int]:
+            ip_address = str(getattr(state, "ip_address", "") or "").strip()
+            tcp_port = getattr(state, "tcp_port", None)
+            if not ip_address:
+                match = re.match(r"^(?P<host>[^:\s]+):(?P<port>\d+)$", str(getattr(state, "resource", "") or "").strip())
+                if match is not None:
+                    ip_address = match.group("host")
+                    tcp_port = int(match.group("port"))
+            return ip_address or "192.168.1.113", int(tcp_port or 7)
 
         @staticmethod
         def _set_combo_options(combo: QComboBox, options: tuple[str, ...], selected: str) -> None:
@@ -843,7 +888,7 @@ def run_gui() -> int:
             self.vna_step_mhz = self._double_spin(10.0, 0.001, 1_000_000.0, 1.0, 3, " MHz")
             self.vna_step_mhz.setMaximumWidth(150)
             self.vna_points_label = QLabel()
-            self.vna_power_dbm = self._double_spin(-10.0, -90.0, 30.0, 1.0, 1, " dBm")
+            self.vna_power_dbm = self._double_spin(DEFAULT_VNA_POWER_DBM, -90.0, 30.0, 1.0, 1, " dBm")
             self.vna_ifbw_hz = self._double_spin(1000.0, 1.0, 10_000_000.0, 100.0, 0, " Hz")
             self.vna_sweep_mode = QComboBox()
             self.vna_sweep_mode.addItem("Hold", "hold")
@@ -2016,10 +2061,11 @@ def run_gui() -> int:
             self.path_view.setHtml(_format_path_html(step))
             command_lines = list(step.link_commands)
             command_text = "\n".join(f"{index}. {command}" for index, command in enumerate(command_lines, start=1))
+            measurement_text = f"测量 S 参数: {step.measurement_parameter or 'S21'}"
             if step.manual_instruction:
                 step_label = f"STEP{step.substep_index}" if step.substep_index else "当前步骤"
                 command_text = (command_text + "\n\n" if command_text else "") + f"{step_label} 操作说明:\n{step.manual_instruction}"
-            self.command_view.setPlainText(command_text or "无链路命令")
+            self.command_view.setPlainText(f"{measurement_text}\n{command_text}" if command_text else f"{measurement_text}\n无链路命令")
             phase_text = ""
             if step.confirm_phase == "start":
                 phase_text = "确认阶段: 开始前确认\n"
@@ -2027,6 +2073,7 @@ def run_gui() -> int:
                 phase_text = "确认阶段: 数据保存完成确认\n"
             self.detail_view.setPlainText(
                 phase_text
+                + f"测量 S 参数: {step.measurement_parameter or 'S21'}\n"
                 + f"输入端口: {_friendly_node_text(step.input_port)}\n"
                 f"输出端口: {_friendly_node_text(step.output_port)}\n"
                 f"原始输出: {_plain_join(step.raw_outputs)}\n"
@@ -2066,6 +2113,7 @@ def run_gui() -> int:
                 final_outputs=((substep.final_output,) if substep.final_output else base.final_outputs),
                 required_inputs=substep.required_inputs or base.required_inputs,
                 notes=substep.notes or base.notes,
+                measurement_parameter=substep.measurement_parameter or base.measurement_parameter,
                 substep_id=substep.id,
                 substep_name=substep.name,
                 substep_index=row + 1,
@@ -2665,6 +2713,7 @@ def run_gui() -> int:
             if activate:
                 self.step_detail_stack.setCurrentIndex(1)
             self._current_curve_step_key = self._step_key(step)
+            self._saved_curve_measurement_parameter = step.measurement_parameter or "S21"
             path = self._curve_path_for_step(step)
             self._saved_curve_path = path
             if path is None:
@@ -2871,19 +2920,21 @@ def run_gui() -> int:
             quality = self._curve_quality(path) if path.exists() else None
             quality_text = f"读取状态: {quality.label}; {quality.reason}" if quality is not None else "读取状态: 未知"
             judgment_text = self._manual_curve_judgment_text(self._manual_curve_judgments.get(self._current_curve_step_key, ""))
+            measurement_parameter = getattr(self, "_saved_curve_measurement_parameter", "S21")
             self.saved_curve_status.setText(
-                f"{path.name} | {column} | {len(x_values)} 点\n{quality_text}\n人工判断: {judgment_text}"
+                f"{path.name} | {column} | {len(x_values)} 点 | 测量 {measurement_parameter}\n"
+                f"{quality_text}\n人工判断: {judgment_text}"
             )
             if pg is None:
                 self.saved_curve_plot.setPlainText(
-                    f"{path.name}\n{column}\n点数: {len(x_values)}\n"
+                    f"{path.name}\n{column}\n测量: {measurement_parameter}\n点数: {len(x_values)}\n"
                     f"X(GHz): {x_values[0]:.6g} ... {x_values[-1]:.6g}\n"
                     f"Y(dB): {np.nanmin(y_values):.3f} ... {np.nanmax(y_values):.3f}"
                 )
                 return
             self.saved_curve_plot.clear()
             self.saved_curve_plot.plot(x_values, y_values, pen=pg.mkPen("#2f6f9f", width=2), name=column)
-            self.saved_curve_plot.setTitle(f"{path.name} - {column}")
+            self.saved_curve_plot.setTitle(f"{path.name} - {column} - 测量 {measurement_parameter}")
             self.saved_curve_plot.enableAutoRange(axis="xy", enable=True)
 
         def _autorange_saved_step_curve(self, *_args: Any) -> None:
@@ -2899,6 +2950,7 @@ def run_gui() -> int:
         def _clear_saved_step_curve(self, message: str) -> None:
             self._saved_curve_data = {}
             self._saved_curve_path = None
+            self._saved_curve_measurement_parameter = "S21"
             self.saved_curve_column.blockSignals(True)
             self.saved_curve_column.clear()
             self.saved_curve_column.setEnabled(False)
@@ -2942,6 +2994,7 @@ def run_gui() -> int:
                     detail_step.step_id,
                     detail_step.substep_id,
                     self._history_conditioned_vna_run_settings(),
+                    history_summary=self._history_data_summary or None,
                 )
             except Exception as exc:
                 self._show_modal_dialog(
@@ -2969,7 +3022,7 @@ def run_gui() -> int:
             history_settings = self._history_data_summary.get("measurement_settings") if self._history_data_summary else None
             if not isinstance(history_settings, dict):
                 return settings
-            for key in ("start_hz", "stop_hz", "points", "power_dbm", "if_bandwidth_hz", "parameter", "feed", "horn"):
+            for key in ("start_hz", "stop_hz", "points", "if_bandwidth_hz", "parameter", "feed", "horn"):
                 if key in history_settings and str(history_settings[key]).strip():
                     settings[key] = history_settings[key]
             return settings
@@ -3014,6 +3067,8 @@ def run_gui() -> int:
 
         def _merged_history_summary_with_current(self, current_summary: dict[str, object]) -> dict[str, object]:
             if not self._history_data_summary:
+                return current_summary
+            if str(current_summary.get("session_id") or "") == str(self._history_data_summary.get("session_id") or ""):
                 return current_summary
             merged = dict(self._history_data_summary)
             for key in ("raw_files", "loss_files", "metadata_files"):
@@ -3092,16 +3147,32 @@ def run_gui() -> int:
 
         @staticmethod
         def _detect_curve_columns(fieldnames: tuple[str, ...], freq_column: str) -> list[str]:
-            priority = ("value_db", "raw_s21_db", "gain_db", "loss_db", "s21_db")
+            priority = ("value_db", "raw_s21_db", "raw_s12_db", "gain_db", "loss_db", "s21_db", "s12_db", "s11_db", "s22_db")
             lower_to_name = {name.strip().lower(): name for name in fieldnames}
             columns = [lower_to_name[name] for name in priority if name in lower_to_name and lower_to_name[name] != freq_column]
             for name in fieldnames:
                 lower = name.strip().lower()
                 if name == freq_column or name in columns:
                     continue
-                if lower.endswith("_db") or lower.endswith("_dbi") or "s21" in lower:
+                if lower.endswith("_db") or lower.endswith("_dbi") or any(parameter in lower for parameter in ("s11", "s12", "s21", "s22")):
                     columns.append(name)
             return columns
+
+        @staticmethod
+        def _measurement_parameter_from_csv(path: Path) -> str:
+            try:
+                with path.open("r", encoding="utf-8-sig", newline="") as handle:
+                    reader = csv.DictReader(handle)
+                    row = next(reader, None)
+            except Exception:
+                return ""
+            if not row:
+                return ""
+            for key in ("param", "parameter", "s_parameter", "measurement_parameter"):
+                value = str(row.get(key) or "").strip().upper()
+                if value:
+                    return value
+            return ""
 
         @staticmethod
         def _frequency_to_ghz(column: str, values: np.ndarray) -> np.ndarray:
@@ -3125,17 +3196,22 @@ def run_gui() -> int:
                 return
             x_values, y_values = self._current_curve_data[column]
             path = Path(self._selected_result_path())
-            self.result_curve_status.setText(f"{path.name} | {column} | {len(x_values)} 点")
+            measurement_parameter = self._measurement_parameter_from_csv(path)
+            measurement_text = f" | 测量 {measurement_parameter}" if measurement_parameter else ""
+            self.result_curve_status.setText(f"{path.name} | {column} | {len(x_values)} 点{measurement_text}")
             if pg is None:
                 self.result_curve_plot.setPlainText(
-                    f"{path.name}\n{column}\n点数: {len(x_values)}\n"
+                    f"{path.name}\n{column}\n"
+                    f"{'测量: ' + measurement_parameter + chr(10) if measurement_parameter else ''}"
+                    f"点数: {len(x_values)}\n"
                     f"X(GHz): {x_values[0]:.6g} ... {x_values[-1]:.6g}\n"
                     f"Y(dB): {np.nanmin(y_values):.3f} ... {np.nanmax(y_values):.3f}"
                 )
                 return
             self.result_curve_plot.clear()
             self.result_curve_plot.plot(x_values, y_values, pen=pg.mkPen("#2f6f9f", width=2), name=column)
-            self.result_curve_plot.setTitle(f"{path.name} - {column}")
+            title_suffix = f" - 测量 {measurement_parameter}" if measurement_parameter else ""
+            self.result_curve_plot.setTitle(f"{path.name} - {column}{title_suffix}")
             self._autorange_result_curve()
 
         def _autorange_result_curve(self, *_args: Any) -> None:
@@ -3706,6 +3782,8 @@ def run_gui() -> int:
             self._sync_overview()
 
         def _search_visa_resources(self, panel: DeviceCommandPanel) -> None:
+            if panel.device_key == "link_box":
+                return
             if panel.mock_check.isChecked():
                 panel.set_resource_options(vm.device_mock_resource_options(panel.device_key))
                 return
@@ -3724,6 +3802,8 @@ def run_gui() -> int:
             if panel.mock_check.isChecked():
                 resources = vm.device_mock_resource_options(panel.device_key)
                 panel.set_resource_options(resources, resources[0] if resources else "")
+            elif panel.device_key == "link_box":
+                panel.btn_search_visa.setEnabled(False)
             else:
                 panel.btn_search_visa.setEnabled(True)
                 try:

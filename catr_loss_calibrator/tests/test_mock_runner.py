@@ -13,6 +13,7 @@ from catr_loss_calibrator.calibration.recovery import CalibrationRunError
 from catr_loss_calibrator.calibration.state_machine import CalibrationState, CalibrationStateMachine
 from catr_loss_calibrator.hardware.interfaces import SParameterTrace
 from catr_loss_calibrator.hardware.mock import MockLinkBox, MockVna
+from catr_loss_calibrator.project.config import DEFAULT_VNA_POWER_DBM, SweepConfig
 from catr_loss_calibrator.storage.loss_file_policy import LossFilePolicy
 from catr_loss_calibrator.storage.workspace import (
     CalibrationRunContext,
@@ -53,6 +54,16 @@ class ChangingReadVna(MockVna):
 class RealLikeVna(MockVna):
     def __init__(self) -> None:
         super().__init__(resource="TCPIP0::127.0.0.1::inst0::INSTR", model="E5080B")
+
+
+class RecordingPowerVna(MockVna):
+    def __init__(self) -> None:
+        super().__init__()
+        self.power_history: list[float] = []
+
+    def configure_power(self, power_dbm: float) -> None:
+        super().configure_power(power_dbm)
+        self.power_history.append(power_dbm)
 
 
 def test_state_machine_enforces_order() -> None:
@@ -494,6 +505,72 @@ def test_mock_runner_uses_instrument_page_vna_settings() -> None:
     assert vna._points == 21
     assert vna._power_dbm == -7.5
     assert vna._if_bandwidth_hz == 2000.0
+
+
+def test_mock_runner_defaults_vna_power_to_minus_30_dbm() -> None:
+    item = default_calibration_catalog().get("LINK-CAL-001")
+    vna = MockVna()
+    runner = MockCalibrationRunner(item, vna, MockLinkBox(), Path("unused"))
+
+    settings = runner._normalized_vna_settings()
+
+    assert settings["power_dbm"] == DEFAULT_VNA_POWER_DBM
+    assert SweepConfig().power_dbm == DEFAULT_VNA_POWER_DBM
+    assert vna._power_dbm == DEFAULT_VNA_POWER_DBM
+
+
+def test_runner_allows_substep_vna_power_overrides() -> None:
+    item = default_calibration_catalog().get("LINK-CAL-002")
+    step = next(step for step in item.steps if step.id == "CAL002-MAIN")
+    with TemporaryDirectory() as tmpdir:
+        vna = RecordingPowerVna()
+        runner = MockCalibrationRunner(
+            item,
+            vna,
+            MockLinkBox(),
+            Path(tmpdir),
+            vna_settings={
+                "points": 3,
+                "vna_power_dbm": -30.0,
+                "substep_power_dbm": {
+                    "CAL002-MAIN:V-THRU": -10.0,
+                    "CAL002-MAIN:V-DUTAMP1": -35.0,
+                },
+            },
+        )
+        runner.link_box.connect()
+        runner.vna.connect()
+        v_thru = next(substep for substep in runner._substeps_for(step) if substep.id == "V-THRU")
+        v_amp1 = next(substep for substep in runner._substeps_for(step) if substep.id == "V-DUTAMP1")
+
+        runner.state_machine.transition(CalibrationState.WAIT_MANUAL_CONFIRM)
+        runner._run_substep(step, v_thru)
+        runner.state_machine.transition(CalibrationState.WAIT_MANUAL_CONFIRM)
+        runner._run_substep(step, v_amp1)
+
+        assert vna.power_history == [-10.0, -35.0]
+        first_metadata = json.loads((Path(tmpdir) / "metadata" / "LINK-CAL-002_CAL002-MAIN_V-THRU.json").read_text(encoding="utf-8"))
+        second_metadata = json.loads((Path(tmpdir) / "metadata" / "LINK-CAL-002_CAL002-MAIN_V-DUTAMP1.json").read_text(encoding="utf-8"))
+        assert first_metadata["measurement_settings"]["power_dbm"] == -10.0
+        assert second_metadata["measurement_settings"]["power_dbm"] == -35.0
+
+
+def test_runner_uses_substep_measurement_parameter() -> None:
+    item = default_calibration_catalog().get("LINK-CAL-002")
+    step = next(step for step in item.steps if step.id == "CAL002-MAIN")
+    substep = next(substep for substep in step.substeps if substep.id == "V-AMP2")
+    with TemporaryDirectory() as tmpdir:
+        vna = MockVna()
+        runner = MockCalibrationRunner(item, vna, MockLinkBox(), Path(tmpdir), vna_settings={"points": 3})
+        runner.link_box.connect()
+        runner.vna.connect()
+        runner.state_machine.transition(CalibrationState.WAIT_MANUAL_CONFIRM)
+
+        runner._run_substep(step, substep)
+
+        metadata = json.loads((Path(tmpdir) / "metadata" / "LINK-CAL-002_CAL002-MAIN_V-AMP2.json").read_text(encoding="utf-8"))
+        assert vna._parameter == "S12"
+        assert metadata["measurement_settings"]["parameter"] == "S12"
 
 
 def test_mock_runner_can_skip_and_cancel_steps() -> None:

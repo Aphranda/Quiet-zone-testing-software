@@ -13,6 +13,34 @@ from catr_loss_calibrator.calibration.config_loader import DEFAULT_CONFIG_PATH
 from catr_loss_calibrator.calibration.state_machine import CalibrationState
 from catr_loss_calibrator.hardware.mock import MockLinkBox, MockVna
 from catr_loss_calibrator.presentation.viewmodels import CalibrationRunWorker, CalibrationViewModel, StepViewData
+from catr_loss_calibrator.storage.workspace import (
+    CalibrationRunContext,
+    create_session_context,
+    load_session_summary_from_manifest,
+    workspace_for_catalog,
+)
+
+
+def completed_history_summary(vm: CalibrationViewModel, tmp_path: Path, *, points: int = 3) -> dict[str, object]:
+    item = vm.selected_item
+    workspace = workspace_for_catalog(vm.catalog, tmp_path)
+    session = create_session_context(
+        workspace=workspace,
+        run=CalibrationRunContext(project_code="UNIT", calibration_stage="initial", run_label="R01"),
+        item_id=item.id,
+    )
+    historical_runner = MockCalibrationRunner(
+        item,
+        MockVna(),
+        MockLinkBox(),
+        session.session_root,
+        vna_settings={"points": points},
+        session_context=session,
+    )
+    historical_runner.link_box.connect()
+    historical_runner.vna.connect()
+    historical_runner.run()
+    return load_session_summary_from_manifest(session.session_root / "session_manifest.json")
 
 
 def test_viewmodel_scopes_run_summary_to_selected_item() -> None:
@@ -157,6 +185,40 @@ def test_viewmodel_can_retest_single_substep(tmp_path: Path, monkeypatch: pytest
     assert all(Path(path).exists() for path in summary["raw_files"])
 
 
+def test_viewmodel_retests_imported_history_in_same_session(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _app = QCoreApplication.instance() or QCoreApplication([])
+    monkeypatch.setattr(
+        "catr_loss_calibrator.presentation.viewmodels.DEFAULT_OUTPUT_ROOT",
+        tmp_path,
+    )
+    vm = default_loaded_viewmodel()
+    vm.connect_mock_devices()
+    item = vm.selected_item
+    history_summary = completed_history_summary(vm, tmp_path, points=3)
+    session_root = Path(str(history_summary["session_root"]))
+    project_sessions_root = session_root.parent
+    before_sessions = sorted(path.name for path in project_sessions_root.iterdir() if path.is_dir())
+    step = item.steps[0]
+    substep = vm._substeps_for_step(step)[0]
+
+    summary = vm.run_single_substep(
+        step.id,
+        substep.id,
+        {"points": 3, "project_code": "UNIT", "run_label": "R01"},
+        history_summary=history_summary,
+    )
+
+    after_sessions = sorted(path.name for path in project_sessions_root.iterdir() if path.is_dir())
+    manifest = json.loads((session_root / "session_manifest.json").read_text(encoding="utf-8"))
+    assert summary["session_id"] == history_summary["session_id"]
+    assert Path(str(summary["session_root"])) == session_root
+    assert after_sessions == before_sessions
+    assert len(summary["raw_files"]) == len(history_summary["raw_files"])
+    assert manifest["session_id"] == history_summary["session_id"]
+    assert f"{step.id}:{substep.id}" in manifest["current_retested_substep_ids"]
+    assert all(Path(path).is_relative_to(session_root) for path in summary["raw_files"])
+
+
 def test_viewmodel_generates_resumed_done_from_accepted_history(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _app = QCoreApplication.instance() or QCoreApplication([])
     monkeypatch.setattr(
@@ -165,11 +227,7 @@ def test_viewmodel_generates_resumed_done_from_accepted_history(tmp_path: Path, 
     )
     vm = default_loaded_viewmodel()
     item = vm.selected_item
-    historical_runner = MockCalibrationRunner(item, MockVna(), MockLinkBox(), tmp_path / "history", vna_settings={"points": 3})
-    historical_runner.link_box.connect()
-    historical_runner.vna.connect()
-    historical_runner.run()
-    history_summary = historical_runner.overview()
+    history_summary = completed_history_summary(vm, tmp_path, points=3)
     judgments = {
         f"{step.id}:{substep.id}": "accept"
         for step in item.steps
@@ -199,12 +257,9 @@ def test_viewmodel_generates_partial_when_history_not_accepted(tmp_path: Path, m
     )
     vm = default_loaded_viewmodel()
     item = vm.selected_item
-    historical_runner = MockCalibrationRunner(item, MockVna(), MockLinkBox(), tmp_path / "history", vna_settings={"points": 3})
-    historical_runner.link_box.connect()
-    historical_runner.vna.connect()
-    historical_runner.run()
+    history_summary = completed_history_summary(vm, tmp_path, points=3)
 
-    summary = vm.generate_resume_results(historical_runner.overview(), {}, {"points": 3, "project_code": "UNIT", "run_label": "R01"})
+    summary = vm.generate_resume_results(history_summary, {}, {"points": 3, "project_code": "UNIT", "run_label": "R01"})
 
     assert summary["state"] == "PARTIAL"
     assert summary["latest_index_file"] == ""
@@ -222,10 +277,7 @@ def test_viewmodel_warns_resume_when_measurement_settings_differ(tmp_path: Path,
     )
     vm = default_loaded_viewmodel()
     item = vm.selected_item
-    historical_runner = MockCalibrationRunner(item, MockVna(), MockLinkBox(), tmp_path / "history", vna_settings={"points": 3})
-    historical_runner.link_box.connect()
-    historical_runner.vna.connect()
-    historical_runner.run()
+    history_summary = completed_history_summary(vm, tmp_path, points=3)
     judgments = {
         f"{step.id}:{substep.id}": "accept"
         for step in item.steps
@@ -233,7 +285,7 @@ def test_viewmodel_warns_resume_when_measurement_settings_differ(tmp_path: Path,
     }
 
     summary = vm.generate_resume_results(
-        historical_runner.overview(),
+        history_summary,
         judgments,
         {"points": 4, "project_code": "UNIT", "run_label": "R01"},
     )
@@ -257,11 +309,7 @@ def test_viewmodel_warns_accepted_legacy_history_without_measurement_settings(
     )
     vm = default_loaded_viewmodel()
     item = vm.selected_item
-    historical_runner = MockCalibrationRunner(item, MockVna(), MockLinkBox(), tmp_path / "history", vna_settings={"points": 3})
-    historical_runner.link_box.connect()
-    historical_runner.vna.connect()
-    historical_runner.run()
-    history_summary = dict(historical_runner.overview())
+    history_summary = dict(completed_history_summary(vm, tmp_path, points=3))
     history_summary.pop("measurement_settings", None)
     judgments = {
         f"{step.id}:{substep.id}": "accept"
@@ -423,6 +471,26 @@ def test_viewmodel_command_tracking_uses_log_not_legacy_command_history() -> Non
     assert any(message.startswith("返回响应: MOCK,") for message in messages)
 
 
+def test_viewmodel_accepts_link_box_ip_port_resource_config() -> None:
+    _app = QCoreApplication.instance() or QCoreApplication([])
+    vm = CalibrationViewModel()
+
+    state = vm.update_device_config(
+        "link_box",
+        resource="",
+        model="LCD74000F",
+        use_mock=False,
+        timeout_ms=2500,
+        ip_address="192.168.1.113",
+        tcp_port=7,
+    )
+
+    config = vm._device_configs["link_box"]
+    assert state.resource == "192.168.1.113:7"
+    assert config.ip_address == "192.168.1.113"
+    assert config.tcp_port == 7
+
+
 def test_viewmodel_rejects_unknown_inline_action_with_clear_status() -> None:
     _app = QCoreApplication.instance() or QCoreApplication([])
     vm = CalibrationViewModel()
@@ -573,7 +641,7 @@ def test_viewmodel_device_presets_include_target_sg_and_sa_commands() -> None:
     presets = vm.device_command_presets()
 
     vna = presets["vna"]
-    assert vna["N5245B 端口1功率"] == "SOUR1:POW1:LEV:IMM:AMPL -10"
+    assert vna["N5245B 端口1功率"] == "SOUR1:POW1:LEV:IMM:AMPL -30"
     assert vna["关闭连续扫描"] == "SENS1:SWE:MODE HOLD"
     assert vna["立即触发"] == "SENS1:SWE:MODE SING"
     assert vna["N5245B 关闭连续扫描"] == "INIT1:CONT OFF"

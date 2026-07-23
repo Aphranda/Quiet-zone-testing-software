@@ -1198,6 +1198,7 @@
               ],
               "raw_output": "L_VNA_H_AMP2",
               "final_output": "L_VNA_FEED_H_AMP2",
+              "parameter": "S12",
               "required_inputs": [
                 "G_STD_HORN_H",
                 "L_DUT_VNA"
@@ -1220,6 +1221,7 @@
               ],
               "raw_output": "L_VNA_V_AMP2",
               "final_output": "L_VNA_FEED_V_AMP2",
+              "parameter": "S12",
               "required_inputs": [
                 "G_STD_HORN_V",
                 "L_DUT_VNA"

@@ -34,6 +34,9 @@ def test_builtin_json_catalog_matches_legacy_python_catalog() -> None:
             assert [substep.id for substep in imported_step.substeps] == [
                 substep.id for substep in legacy_step.substeps
             ]
+            assert [substep.parameter for substep in imported_step.substeps] == [
+                substep.parameter for substep in legacy_step.substeps
+            ]
 
 
 def test_builtin_json_catalog_contains_path_node_templates() -> None:
@@ -110,6 +113,17 @@ def test_link_cal_004_contains_sa_hv_commands() -> None:
     commands = tuple(command for step in item.steps for command in step.link_commands)
     assert "CONFigure:LINK H/V, SA" in commands
     assert "CONFigure:LINK H/V, AMP2, SA" in commands
+
+
+def test_link_cal_002_amp2_substeps_measure_reverse_s12() -> None:
+    item = default_calibration_catalog().get("LINK-CAL-002")
+    step = next(step for step in item.steps if step.id == "CAL002-MAIN")
+    parameters = {substep.id: substep.parameter for substep in step.substeps}
+
+    assert parameters["V-AMP2"] == "S12"
+    assert parameters["H-AMP2"] == "S12"
+    assert parameters["V-THRU"] == "S21"
+    assert parameters["H-THRU"] == "S21"
 
 
 def test_link_cal_004_repeats_return_segment_for_independent_automation() -> None:

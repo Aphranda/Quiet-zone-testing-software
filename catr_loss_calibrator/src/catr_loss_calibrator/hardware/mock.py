@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from catr_loss_calibrator.hardware.interfaces import InstrumentInfo, SParameterTrace
+from catr_loss_calibrator.project.config import DEFAULT_VNA_POWER_DBM
 
 
 class MockVna:
@@ -13,7 +14,7 @@ class MockVna:
         self._start_hz = 10e9
         self._stop_hz = 17e9
         self._points = 71
-        self._power_dbm = -10.0
+        self._power_dbm = DEFAULT_VNA_POWER_DBM
         self._if_bandwidth_hz = 1000.0
         self._parameter = "S21"
         self._continuous_sweep = False

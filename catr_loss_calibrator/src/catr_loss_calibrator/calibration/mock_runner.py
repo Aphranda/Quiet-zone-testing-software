@@ -24,6 +24,7 @@ from catr_loss_calibrator.calibration.recovery import (
 )
 from catr_loss_calibrator.calibration.state_machine import CalibrationState, CalibrationStateMachine
 from catr_loss_calibrator.hardware.interfaces import LinkBox, SParameterTrace, Vna
+from catr_loss_calibrator.project.config import DEFAULT_VNA_POWER_DBM
 from catr_loss_calibrator.storage.loss_file_policy import LossFilePolicy
 from catr_loss_calibrator.storage.loss_file_storage import save_loss_record_with_policy
 from catr_loss_calibrator.storage.metadata_writer import write_metadata
@@ -202,7 +203,7 @@ class CalibrationRunner:
             self._record_event(f"link:{step.id}:{substep.id}:{command}")
 
         self.state_machine.transition(CalibrationState.CONFIGURE_VNA)
-        settings = self._normalized_vna_settings()
+        settings = self._normalized_vna_settings(step, substep)
         self.vna.configure_sweep(settings["start_hz"], settings["stop_hz"], settings["points"])
         self.vna.configure_power(settings["power_dbm"])
         self.vna.configure_if_bandwidth(settings["if_bandwidth_hz"])
@@ -251,9 +252,13 @@ class CalibrationRunner:
         self.state_machine.transition(CalibrationState.SAVE_OUTPUT)
         self._save_metadata(step, substep, trace, raw_path=raw_path, output_paths=output_paths)
 
-    def _normalized_vna_settings(self) -> dict[str, Any]:
+    def _normalized_vna_settings(
+        self,
+        step: CalibrationStep | None = None,
+        substep: CalibrationSubStep | None = None,
+    ) -> dict[str, Any]:
         settings = dict(self.vna_settings or {})
-        parameter = str(settings.get("parameter") or "S21").strip().upper()
+        parameter = str((substep.parameter if substep is not None else "") or settings.get("parameter") or "S21").strip().upper()
         if "start_hz" in settings:
             start_hz = float(settings["start_hz"])
         else:
@@ -266,11 +271,36 @@ class CalibrationRunner:
             "start_hz": start_hz,
             "stop_hz": stop_hz,
             "points": int(settings.get("points", 51)),
-            "power_dbm": float(settings.get("vna_power_dbm", settings.get("power_dbm", -10.0))),
+            "power_dbm": self._vna_power_for(step, substep, settings),
             "if_bandwidth_hz": float(settings.get("if_bandwidth_hz", 1000.0)),
             "parameter": parameter,
             "continuous_sweep": bool(settings.get("continuous_sweep", False)),
         }
+
+    def _vna_power_for(
+        self,
+        step: CalibrationStep | None,
+        substep: CalibrationSubStep | None,
+        settings: dict[str, Any],
+    ) -> float:
+        override_map = settings.get("substep_power_dbm") or settings.get("vna_power_dbm_by_substep") or {}
+        if isinstance(override_map, dict) and step is not None and substep is not None:
+            candidate_keys = (
+                f"{step.id}:{substep.id}",
+                f"{step.id}/{substep.id}",
+                f"{step.id}_{self._safe_token(substep.id)}",
+                substep.id,
+                substep.raw_output,
+                substep.final_output,
+            )
+            for key in candidate_keys:
+                if key and key in override_map:
+                    return float(override_map[key])
+        if substep is not None and substep.vna_power_dbm is not None:
+            return float(substep.vna_power_dbm)
+        if step is not None and step.vna_power_dbm is not None:
+            return float(step.vna_power_dbm)
+        return float(settings.get("vna_power_dbm", settings.get("power_dbm", DEFAULT_VNA_POWER_DBM)))
 
     def _compute_available_outputs(self, source_step: str, frequency_hz: np.ndarray) -> tuple[Path, ...]:
         saved_paths: list[Path] = []
@@ -442,7 +472,7 @@ class CalibrationRunner:
             output_files=tuple(str(path) for path in output_paths),
             output_hashes=tuple(_sha256(path) for path in output_paths),
             output_roles=tuple(OutputRole.FINAL.value for _path in output_paths),
-            measurement_settings=self._measurement_settings_summary(),
+            measurement_settings=self._measurement_settings_summary(step, substep),
             measurement_warnings=self._measurement_warnings(),
             **self._metadata_session_fields(),
             formula_version="v1",
@@ -637,8 +667,12 @@ class CalibrationRunner:
         }
         return tuple(sorted(output for output in expected if output not in self._output_paths))
 
-    def _measurement_settings_summary(self) -> dict[str, object]:
-        settings = self._normalized_vna_settings()
+    def _measurement_settings_summary(
+        self,
+        step: CalibrationStep | None = None,
+        substep: CalibrationSubStep | None = None,
+    ) -> dict[str, object]:
+        settings = self._normalized_vna_settings(step, substep)
         return {
             "start_hz": settings["start_hz"],
             "stop_hz": settings["stop_hz"],

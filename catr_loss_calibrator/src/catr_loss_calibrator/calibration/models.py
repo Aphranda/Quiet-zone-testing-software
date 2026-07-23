@@ -59,6 +59,7 @@ class CalibrationSubStep:
     required_inputs: tuple[str, ...] = ()
     notes: str = ""
     parameter: str = "S21"
+    vna_power_dbm: float | None = None
     path_template: str = ""
     path: dict[str, Any] | None = None
 
@@ -91,6 +92,7 @@ class CalibrationStep:
     final_outputs: tuple[str, ...] = ()
     required_inputs: tuple[str, ...] = ()
     notes: str = ""
+    vna_power_dbm: float | None = None
     substeps: tuple[CalibrationSubStep, ...] = ()
     path_template: str = ""
     path: dict[str, Any] | None = None

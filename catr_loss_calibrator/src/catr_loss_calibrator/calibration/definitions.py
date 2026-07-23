@@ -40,6 +40,7 @@ def _polarized_substep(
     final_output: str = "",
     required_inputs: tuple[str, ...] = (),
     notes: str = "",
+    parameter: str = "S21",
 ) -> CalibrationSubStep:
     return CalibrationSubStep(
         id=id,
@@ -56,6 +57,7 @@ def _polarized_substep(
         final_output=final_output,
         required_inputs=required_inputs,
         notes=notes,
+        parameter=parameter,
     )
 
 
@@ -268,6 +270,7 @@ def _link_cal_002() -> CalibrationItem:
                         raw_output="L_VNA_H_AMP2",
                         final_output="L_VNA_FEED_H_AMP2",
                         required_inputs=("G_STD_HORN_H", "L_DUT_VNA"),
+                        parameter="S12",
                     ),
                     _polarized_substep(
                         id="V-AMP2",
@@ -281,6 +284,7 @@ def _link_cal_002() -> CalibrationItem:
                         raw_output="L_VNA_V_AMP2",
                         final_output="L_VNA_FEED_V_AMP2",
                         required_inputs=("G_STD_HORN_V", "L_DUT_VNA"),
+                        parameter="S12",
                     ),
                 ),
             ),

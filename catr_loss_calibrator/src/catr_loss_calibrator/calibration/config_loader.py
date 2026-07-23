@@ -97,6 +97,7 @@ def _parse_step(data: Any, path: str) -> CalibrationStep:
         final_outputs=_string_tuple(data.get("final_outputs", ()), f"{path}.final_outputs"),
         required_inputs=_string_tuple(data.get("required_inputs", ()), f"{path}.required_inputs"),
         notes=str(data.get("notes", "")),
+        vna_power_dbm=_optional_float(data.get("vna_power_dbm"), f"{path}.vna_power_dbm"),
         substeps=substeps,
         path_template=str(data.get("path_template", "")),
         path=_optional_dict(data.get("path"), f"{path}.path"),
@@ -119,6 +120,7 @@ def _parse_substep(data: Any, path: str) -> CalibrationSubStep:
         required_inputs=_string_tuple(data.get("required_inputs", ()), f"{path}.required_inputs"),
         notes=str(data.get("notes", "")),
         parameter=str(data.get("parameter", "S21")),
+        vna_power_dbm=_optional_float(data.get("vna_power_dbm"), f"{path}.vna_power_dbm"),
         path_template=str(data.get("path_template", "")),
         path=_optional_dict(data.get("path"), f"{path}.path"),
     )
@@ -165,6 +167,15 @@ def _optional_dict(value: Any, path: str) -> dict[str, Any] | None:
     if not isinstance(value, dict):
         raise LinkConfigError(f"{path} must be an object.")
     return dict(value)
+
+
+def _optional_float(value: Any, path: str) -> float | None:
+    if value in (None, ""):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError) as exc:
+        raise LinkConfigError(f"{path} must be a number.") from exc
 
 
 def _parse_band_config(value: Any, path: str) -> dict[str, Any]:

@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 import re
 
 import numpy as np
 
 from catr_loss_calibrator.hardware.interfaces import InstrumentInfo, SParameterTrace, Vna
+from catr_loss_calibrator.hardware.scpi import ScpiCommunicationError, ScpiConnectionConfig, VisaScpiSession
+from catr_loss_calibrator.project.config import DEFAULT_VNA_POWER_DBM
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -17,31 +22,37 @@ class PyVisaVna(Vna):
     def __post_init__(self) -> None:
         self._connected = False
         self._resource = None
+        self._session = VisaScpiSession(
+            ScpiConnectionConfig(
+                resource_name=self.resource,
+                timeout_ms=self.timeout_ms,
+            )
+        )
         self._start_hz = 10e9
         self._stop_hz = 15e9
         self._points = 51
-        self._power_dbm = -10.0
+        self._power_dbm = DEFAULT_VNA_POWER_DBM
         self._ifbw_hz = 1000.0
         self._trace_name = "CH1_SPARAM"
         self._selected_parameter: str | None = None
 
     @property
     def is_connected(self) -> bool:
-        return self._connected
+        return self._connected and (self._session.is_open or self._resource is not None)
 
     def connect(self) -> InstrumentInfo:
         try:
-            import pyvisa
-        except ImportError as exc:  # pragma: no cover - optional dependency
-            raise RuntimeError("pyvisa is required for PyVisaVna.") from exc
-        rm = pyvisa.ResourceManager()
-        self._resource = rm.open_resource(self.resource)
-        self._resource.timeout = self.timeout_ms
-        self._connected = True
-        idn = self._query("*IDN?")
-        return InstrumentInfo(resource=self.resource, model=idn.split(",")[1] if "," in idn else self.model)
+            self._session.open()
+            self._connected = True
+            idn = self._query("*IDN?")
+        except Exception:
+            self._session.close()
+            self._connected = False
+            raise
+        return self._parse_idn(idn)
 
     def disconnect(self) -> None:
+        self._session.close()
         if self._resource is not None:
             try:
                 self._resource.close()
@@ -50,6 +61,7 @@ class PyVisaVna(Vna):
         self._connected = False
 
     def configure_sweep(self, start_hz: float, stop_hz: float, points: int) -> None:
+        self._ensure_connected()
         if start_hz <= 0 or stop_hz <= start_hz:
             raise ValueError("Invalid VNA sweep frequency range.")
         if points < 2:
@@ -65,6 +77,7 @@ class PyVisaVna(Vna):
         self._points = int(self._query_float_or_default("SENS:SWE:POIN?", float(points)))
 
     def configure_power(self, power_dbm: float) -> None:
+        self._ensure_connected()
         if not -90.0 <= power_dbm <= 30.0:
             raise ValueError("VNA power must be between -90 dBm and 30 dBm.")
         self._prepare_for_reconfiguration()
@@ -74,6 +87,7 @@ class PyVisaVna(Vna):
         self._power_dbm = power_dbm
 
     def configure_if_bandwidth(self, bandwidth_hz: float) -> None:
+        self._ensure_connected()
         if bandwidth_hz <= 0:
             raise ValueError("VNA IF bandwidth must be greater than 0 Hz.")
         self._prepare_for_reconfiguration()
@@ -86,13 +100,16 @@ class PyVisaVna(Vna):
         self._select_parameter(parameter)
 
     def configure_continuous_sweep(self, enabled: bool) -> None:
+        self._ensure_connected()
         self._prepare_for_reconfiguration()
         self._set_sweep_mode("CONT" if enabled else "HOLD")
 
     def query_sweep_time_s(self) -> float:
+        self._ensure_connected()
         return float(self._query("SENS1:SWE:TIME?"))
 
     def trigger_sweep(self, parameter: str = "S21") -> None:
+        self._ensure_connected()
         parameter = parameter.upper()
         if self._selected_parameter != parameter:
             self._select_parameter(parameter)
@@ -113,7 +130,6 @@ class PyVisaVna(Vna):
         else:
             self._write(f"CALC:PAR:SEL '{self._trace_name}'")
 
-        frequency = self._read_frequency_axis()
         value_db: np.ndarray | None = None
         phase: np.ndarray | None = None
 
@@ -136,8 +152,7 @@ class PyVisaVna(Vna):
                 raise RuntimeError(f"VNA returned {formatted.size} FDATA values for {self._points} points.")
             value_db = formatted
 
-        if frequency.size != value_db.size:
-            raise RuntimeError(f"VNA frequency axis has {frequency.size} points but trace has {value_db.size}.")
+        frequency = np.linspace(self._start_hz, self._stop_hz, value_db.size)
         if phase is None:
             phase = np.zeros(value_db.size)
         return SParameterTrace(frequency, value_db, phase, parameter)
@@ -147,20 +162,26 @@ class PyVisaVna(Vna):
         return self.read_s_parameter(parameter)
 
     def send_command(self, command: str) -> str:
+        self._ensure_connected()
         if command.strip().endswith("?"):
             return self._query(command)
         self._write(command)
         return "OK"
 
     def _write(self, command: str) -> None:
+        if self._session.is_open:
+            self._session.write(command)
+            return
         if self._resource is None:
             raise RuntimeError("VNA is not connected.")
         self._resource.write(command)
 
     def _query(self, command: str) -> str:
+        if self._session.is_open:
+            return self._session.query(command)
         if self._resource is None:
             raise RuntimeError("VNA is not connected.")
-        return str(self._resource.query(command))
+        return str(self._resource.query(command)).strip()
 
     def _query_float_or_default(self, command: str, default: float) -> float:
         try:
@@ -169,6 +190,8 @@ class PyVisaVna(Vna):
             return float(default)
 
     def _query_float_values(self, command: str) -> np.ndarray:
+        if self._session.is_open:
+            return np.asarray(self._session.query_ascii_values(command), dtype=float)
         if self._resource is None:
             raise RuntimeError("VNA is not connected.")
         query_ascii_values = getattr(self._resource, "query_ascii_values", None)
@@ -180,6 +203,8 @@ class PyVisaVna(Vna):
         return np.asarray([float(value) for value in values], dtype=float)
 
     def _query_binary_float_values(self, command: str) -> np.ndarray:
+        if self._session.is_open:
+            return np.asarray(self._session.query_binary_values(command, datatype="d", is_big_endian=False), dtype=float)
         if self._resource is None:
             raise RuntimeError("VNA is not connected.")
         query_binary_values = getattr(self._resource, "query_binary_values", None)
@@ -192,18 +217,9 @@ class PyVisaVna(Vna):
         self._write("FORM:BORD SWAP")
         try:
             return self._query_binary_float_values("CALC:DATA? SDATA")
-        except Exception:
+        except Exception as exc:
+            logger.warning("Binary SDATA read failed; falling back to ASCII SDATA: %s", exc)
             return self._query_float_values("CALC:DATA? SDATA")
-
-    def _read_frequency_axis(self) -> np.ndarray:
-        for command in ("SENS:FREQ:DATA?", "SENS1:FREQ:DATA?"):
-            try:
-                values = self._query_float_values(command)
-            except Exception:
-                continue
-            if values.size == self._points:
-                return values
-        return np.linspace(self._start_hz, self._stop_hz, self._points)
 
     def _select_parameter(self, parameter: str) -> None:
         parameter = parameter.upper()
@@ -213,7 +229,29 @@ class PyVisaVna(Vna):
         trace_name = self._trace_name
         self._prepare_for_reconfiguration()
         self._write("*CLS")
+        try:
+            catalog = self._query("CALC1:PAR:CAT:EXT?")
+            catalog_items = [item.strip().strip("'\"") for item in catalog.split(",")]
+            measurement_names = set(catalog_items[0::2])
+            if trace_name in measurement_names:
+                self._write(f"CALC1:PAR:DEL '{trace_name}'")
+                self._raise_for_system_error()
+            self._write(f"CALC1:PAR:DEF:EXT '{trace_name}','{parameter}'")
+            self._write(f"CALC1:PAR:SEL '{trace_name}'")
+            self._raise_for_system_error()
+            self._feed_trace_display(trace_name)
+            self._wait_for_operation_complete()
+            self._selected_parameter = parameter
+            logger.info("VNA measurement parameter configured: %s.", parameter)
+            return
+        except Exception as exc:  # noqa: BLE001 - use legacy command variants as fallback.
+            logger.warning("VNA catalog-based parameter configuration failed: %s", exc)
+
         strategies = (
+            (
+                f"CALC:PAR:SEL '{trace_name}'",
+                f"CALC:PAR:MOD:EXT '{trace_name}','{parameter}'",
+            ),
             (
                 f"CALC1:PAR:DEF:EXT '{trace_name}','{parameter}'",
                 f"CALC1:PAR:SEL '{trace_name}'",
@@ -227,25 +265,51 @@ class PyVisaVna(Vna):
                 f"CALC:PAR:SEL '{trace_name}'",
             ),
         )
-        last_error: Exception | None = None
+        errors: list[str] = []
         for commands in strategies:
             try:
+                self._write("*CLS")
                 for command in commands:
                     self._write(command)
                 self._feed_trace_display(trace_name)
                 self._wait_for_operation_complete()
                 self._raise_for_system_error()
                 self._selected_parameter = parameter
+                logger.info("VNA measurement parameter configured: %s.", parameter)
                 return
             except Exception as exc:  # noqa: BLE001 - alternate SCPI dialects.
-                last_error = exc
-        if last_error is not None:
-            raise last_error
+                errors.append(str(exc))
+                logger.warning("VNA parameter configuration strategy failed: %s", exc)
+        raise ScpiCommunicationError(
+            f"Unable to configure VNA measurement parameter {parameter}: {'; '.join(errors)}"
+        )
 
     def _feed_trace_display(self, trace_name: str) -> None:
         self._try_write("DISP:WIND1:STAT ON")
-        self._try_write("DISP:WIND1:TRAC1:DEL")
+        if self._display_trace_exists(1):
+            self._try_write("DISP:WIND1:TRAC1:DEL")
         self._try_write(f"DISP:WIND1:TRAC1:FEED '{trace_name}'")
+        self._drain_optional_display_error()
+
+    def _display_trace_exists(self, trace_number: int) -> bool:
+        try:
+            catalog = self._query("DISP:WIND1:CAT?")
+        except Exception:
+            return False
+
+        tokens = [token.strip().strip("'\"") for token in catalog.split(",")]
+        return str(int(trace_number)) in tokens
+
+    def _drain_optional_display_error(self) -> None:
+        try:
+            response = self._query("SYST:ERR?")
+        except Exception:
+            return
+
+        normalized = response.strip()
+        if self._is_no_error(normalized) or self._is_ignored_optional_display_error(normalized):
+            return
+        logger.warning("Optional VNA display command reported SCPI error: %s", normalized)
 
     def _prepare_for_reconfiguration(self) -> None:
         self._try_write("ABOR")
@@ -253,9 +317,29 @@ class PyVisaVna(Vna):
         self._drain_stale_init_ignored_error()
 
     def _set_sweep_mode(self, mode: str) -> None:
-        self._write(f"SENS1:SWE:MODE {mode.strip().upper()}")
+        normalized_mode = mode.strip().upper()
+        current = self._query_sweep_mode()
+        if current == normalized_mode:
+            return
+        self._write(f"SENS1:SWE:MODE {normalized_mode}")
         self._wait_for_operation_complete()
         self._raise_for_system_error()
+
+    def _query_sweep_mode(self) -> str | None:
+        try:
+            response = self._query("SENS1:SWE:MODE?")
+        except Exception:
+            return None
+
+        normalized = response.strip().strip("'\"").upper()
+        aliases = {
+            "CONTINUOUS": "CONT",
+            "CONT": "CONT",
+            "SINGLE": "SING",
+            "SING": "SING",
+            "HOLD": "HOLD",
+        }
+        return aliases.get(normalized)
 
     def _wait_for_operation_complete(self) -> None:
         self._query("*OPC?")
@@ -266,7 +350,7 @@ class PyVisaVna(Vna):
         except Exception:
             return
         normalized = response.strip()
-        if normalized and not normalized.startswith(("0,", "+0,")) and normalized not in {"0", "+0"} and "NO ERROR" not in normalized.upper():
+        if not self._is_no_error(normalized):
             raise RuntimeError(f"VNA reported SCPI error: {normalized}")
 
     def _drain_stale_init_ignored_error(self) -> None:
@@ -274,12 +358,28 @@ class PyVisaVna(Vna):
             response = self._query("SYST:ERR?")
         except Exception:
             return
-        normalized = response.strip().upper()
-        if not normalized or normalized.startswith(("0,", "+0,")) or normalized in {"0", "+0"} or "NO ERROR" in normalized:
+        normalized = response.strip()
+        if self._is_no_error(normalized):
             return
-        if "INIT IGNORED" in normalized:
+        if "INIT IGNORED" in normalized.upper():
+            logger.info("Cleared stale VNA Init ignored state before reconfiguration: %s", normalized)
             return
         raise RuntimeError(f"VNA has pending SCPI error before reconfiguration: {response.strip()}")
+
+    @staticmethod
+    def _is_no_error(response: str) -> bool:
+        normalized = response.strip()
+        return (
+            not normalized
+            or normalized.startswith(("0,", "+0,"))
+            or normalized in {"0", "+0"}
+            or "NO ERROR" in normalized.upper()
+        )
+
+    @staticmethod
+    def _is_ignored_optional_display_error(response: str) -> bool:
+        normalized = response.strip().upper()
+        return "DUPLICATE TRACE NUMBER" in normalized or "REQUESTED TRACE NOT FOUND" in normalized
 
     def _try_write(self, command: str) -> None:
         try:
@@ -310,3 +410,13 @@ class PyVisaVna(Vna):
                 self._drain_stale_init_ignored_error()
         if last_error is not None:
             raise last_error
+
+    def _parse_idn(self, idn: str) -> InstrumentInfo:
+        parts = [part.strip() for part in idn.split(",")]
+        model = parts[1] if len(parts) > 1 else self.model
+        serial = parts[2] if len(parts) > 2 else ""
+        return InstrumentInfo(resource=self.resource, model=model, serial=serial)
+
+    def _ensure_connected(self) -> None:
+        if not self.is_connected:
+            raise RuntimeError("VNA is not connected.")

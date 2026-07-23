@@ -9,6 +9,8 @@ class InstrumentConnectionConfig:
     model: str
     use_mock: bool = True
     timeout_ms: int = 10_000
+    ip_address: str = ""
+    tcp_port: int | None = None
 
 
 @dataclass(frozen=True)

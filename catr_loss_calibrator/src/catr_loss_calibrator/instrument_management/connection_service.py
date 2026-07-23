@@ -39,6 +39,8 @@ class InstrumentConnectionService:
                 resource=link_box_config.resource,
                 model=link_box_config.model,
                 timeout_ms=link_box_config.timeout_ms,
+                ip_address=link_box_config.ip_address,
+                tcp_port=link_box_config.tcp_port,
             )
         )
         return cls(vna=vna, link_box=link_box)

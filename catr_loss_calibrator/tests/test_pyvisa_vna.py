@@ -6,8 +6,15 @@ from catr_loss_calibrator.hardware.vna.pyvisa_vna import PyVisaVna
 
 
 class FakeVisaResource:
-    def __init__(self, values: dict[str, list[float] | Exception]) -> None:
+    def __init__(
+        self,
+        values: dict[str, list[float] | str | Exception],
+        *,
+        scpi_errors: dict[str, str] | None = None,
+    ) -> None:
         self.values = values
+        self.scpi_errors = scpi_errors or {}
+        self.error_queue: list[str] = []
         self.commands: list[str] = []
 
     def write(self, command: str) -> None:
@@ -19,16 +26,28 @@ class FakeVisaResource:
         if upper == "*OPC?":
             return "1"
         if upper == "SYST:ERR?":
+            if self.error_queue:
+                return self.error_queue.pop(0)
             return "0,No error"
+        error = self.scpi_errors.get(command)
+        if error is not None:
+            self.error_queue.append(error)
+            raise RuntimeError(error)
         value = self.values.get(command)
         if isinstance(value, Exception):
             raise value
         if value is None:
             return ""
+        if isinstance(value, str):
+            return value
         return ",".join(str(item) for item in value)
 
     def query_ascii_values(self, command: str):
         self.commands.append(command)
+        error = self.scpi_errors.get(command)
+        if error is not None:
+            self.error_queue.append(error)
+            raise RuntimeError(error)
         value = self.values.get(command)
         if isinstance(value, Exception):
             raise value
@@ -43,13 +62,14 @@ def connected_vna(resource: FakeVisaResource) -> PyVisaVna:
     vna._connected = True
     vna._selected_parameter = "S21"
     vna._points = 3
+    vna._start_hz = 1.0
+    vna._stop_hz = 3.0
     return vna
 
 
 def test_pyvisa_vna_reads_formatted_trace_data() -> None:
     resource = FakeVisaResource(
         {
-            "SENS:FREQ:DATA?": [1.0, 2.0, 3.0],
             "CALC:DATA? FDATA": [-1.0, -2.0, -3.0],
         }
     )
@@ -58,12 +78,13 @@ def test_pyvisa_vna_reads_formatted_trace_data() -> None:
     assert np.allclose(trace.frequency_hz, np.array([1.0, 2.0, 3.0]))
     assert np.allclose(trace.value_db, np.array([-1.0, -2.0, -3.0]))
     assert np.allclose(trace.phase_deg, np.zeros(3))
+    assert "SENS:FREQ:DATA?" not in resource.commands
+    assert "SENS1:FREQ:DATA?" not in resource.commands
 
 
 def test_pyvisa_vna_prefers_sdata_over_formatted_trace_data() -> None:
     resource = FakeVisaResource(
         {
-            "SENS:FREQ:DATA?": [1.0, 2.0],
             "CALC:DATA? SDATA": [1.0, 0.0, 0.0, 1.0],
             "CALC:DATA? FDATA": [-10.0, -20.0],
         }
@@ -80,7 +101,6 @@ def test_pyvisa_vna_prefers_sdata_over_formatted_trace_data() -> None:
 def test_pyvisa_vna_falls_back_to_sdata_complex_values() -> None:
     resource = FakeVisaResource(
         {
-            "SENS:FREQ:DATA?": [1.0, 2.0],
             "CALC:DATA? FDATA": RuntimeError("unsupported"),
             "CALC:DATA? SDATA": [1.0, 0.0, 0.0, 1.0],
         }
@@ -131,3 +151,35 @@ def test_pyvisa_vna_configure_sweep_reads_actual_instrument_values() -> None:
     assert vna._start_hz == 1.1e9
     assert vna._stop_hz == 2.2e9
     assert vna._points == 11
+
+
+def test_pyvisa_vna_deletes_existing_measurement_before_defining_trace() -> None:
+    resource = FakeVisaResource({"CALC1:PAR:CAT:EXT?": "'CH1_SPARAM','S21','OTHER','S11'"})
+    vna = connected_vna(resource)
+    vna._selected_parameter = None
+
+    vna.configure_measurement_parameter("S21")
+
+    delete_index = resource.commands.index("CALC1:PAR:DEL 'CH1_SPARAM'")
+    define_index = resource.commands.index("CALC1:PAR:DEF:EXT 'CH1_SPARAM','S21'")
+    assert delete_index < define_index
+
+
+def test_pyvisa_vna_does_not_query_optional_frequency_axis_commands() -> None:
+    resource = FakeVisaResource(
+        {
+            "CALC:DATA? SDATA": [1.0, 0.0, 0.0, 1.0],
+        },
+        scpi_errors={"SENS1:FREQ:DATA?": '-113,"Undefined header;SENS1:FREQ:DATA<Err>"'},
+    )
+    vna = connected_vna(resource)
+    vna._points = 2
+
+    trace = vna.read_s_parameter("S21")
+    vna.configure_power(-7.0)
+
+    assert np.allclose(trace.frequency_hz, np.linspace(vna._start_hz, vna._stop_hz, 2))
+    assert "SENS:FREQ:DATA?" not in resource.commands
+    assert "SENS1:FREQ:DATA?" not in resource.commands
+    assert resource.error_queue == []
+    assert "SOUR:POW -7" in resource.commands
