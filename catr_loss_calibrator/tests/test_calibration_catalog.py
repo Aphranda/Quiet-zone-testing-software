@@ -126,6 +126,77 @@ def test_link_cal_002_amp2_substeps_measure_reverse_s12() -> None:
     assert parameters["H-THRU"] == "S21"
 
 
+def test_link_cal_002_declares_vna_power_by_condition() -> None:
+    item = default_calibration_catalog().get("LINK-CAL-002")
+    powers_by_step = {step.id: step.vna_power_dbm for step in item.steps}
+    main_step = next(step for step in item.steps if step.id == "CAL002-MAIN")
+    powers_by_substep = {substep.id: substep.vna_power_dbm for substep in main_step.substeps}
+
+    assert powers_by_step["CAL002-AUX-D"] == -30.0
+    assert powers_by_step["CAL002-DUT-VNA2"] == -30.0
+    assert powers_by_step["CAL002-DUT-AMP1-VNA2"] == -30.0
+    assert powers_by_substep == {
+        "H-THRU": 0.0,
+        "V-THRU": 0.0,
+        "H-DUTAMP1": -20.0,
+        "V-DUTAMP1": -20.0,
+        "H-AMP2": -20.0,
+        "V-AMP2": -20.0,
+    }
+
+
+def test_link_cal_003_declares_vna_power_by_condition() -> None:
+    item = default_calibration_catalog().get("LINK-CAL-003")
+    powers_by_step = {step.id: step.vna_power_dbm for step in item.steps}
+    dut_sa_step = next(step for step in item.steps if step.id == "CAL003-DUT-SA")
+    powers_by_substep = {substep.id: substep.vna_power_dbm for substep in dut_sa_step.substeps}
+
+    assert powers_by_step["CAL003-AUX-E"] == -30.0
+    assert powers_by_substep == {
+        "DUT-SA": -30.0,
+        "DUT-AMP1-SA": -30.0,
+    }
+
+
+def test_link_cal_004_declares_vna_power_by_condition() -> None:
+    item = default_calibration_catalog().get("LINK-CAL-004")
+    powers_by_step = {step.id: step.vna_power_dbm for step in item.steps}
+    powers_by_substep = {
+        substep.id: substep.vna_power_dbm
+        for step in item.steps
+        for substep in step.substeps
+    }
+
+    assert powers_by_step["CAL004-AUX-F"] == -30.0
+    assert powers_by_step["CAL004-DUT-VNA2"] == -30.0
+    assert powers_by_substep == {
+        "H-SA": 0.0,
+        "V-SA": 0.0,
+        "H-AMP2-SA": -20.0,
+        "V-AMP2-SA": -20.0,
+        "H-SA-DUTAMP1-CHECK": -20.0,
+        "V-SA-DUTAMP1-CHECK": -20.0,
+    }
+
+
+def test_link_cal_005_declares_vna_power_by_condition() -> None:
+    item = default_calibration_catalog().get("LINK-CAL-005")
+    powers_by_step = {step.id: step.vna_power_dbm for step in item.steps}
+    sg_step = next(step for step in item.steps if step.id == "CAL005-SG")
+    powers_by_substep = {substep.id: substep.vna_power_dbm for substep in sg_step.substeps}
+
+    assert powers_by_step["CAL005-AUX-G"] == -30.0
+    assert powers_by_step["CAL005-DUT-VNA2"] == -30.0
+    assert powers_by_substep == {
+        "H-SG": 0.0,
+        "V-SG": 0.0,
+        "H-SG-DUTAMP1": -20.0,
+        "V-SG-DUTAMP1": -20.0,
+        "H-AMP2-SG": -20.0,
+        "V-AMP2-SG": -20.0,
+    }
+
+
 def test_link_cal_004_repeats_return_segment_for_independent_automation() -> None:
     item = default_calibration_catalog().get("LINK-CAL-004")
     outputs = tuple(output for step in item.steps for output in step.final_outputs)
@@ -187,4 +258,19 @@ def test_output_parameter_roles_distinguish_raw_temporary_and_final_outputs() ->
 
     assert main_step.outputs_by_role(OutputRole.RAW_S21) == ()
     assert "L_VNA_H" in main_step.outputs_by_role(OutputRole.TEMPORARY)
+    assert "L_VNA_H_DEEMB" in main_step.outputs_by_role(OutputRole.FINAL)
     assert "L_VNA_FEED_H" in main_step.outputs_by_role(OutputRole.FINAL)
+
+
+def test_link_cal_002_outputs_deembedded_full_loop_losses() -> None:
+    item = default_calibration_catalog().get("LINK-CAL-002")
+    step = next(step for step in item.steps if step.id == "CAL002-MAIN")
+
+    assert set(step.final_outputs) >= {
+        "L_VNA_H_DEEMB",
+        "L_VNA_V_DEEMB",
+        "L_VNA_H_AMP1_DEEMB",
+        "L_VNA_V_AMP1_DEEMB",
+        "L_VNA_H_AMP2_DEEMB",
+        "L_VNA_V_AMP2_DEEMB",
+    }

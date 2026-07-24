@@ -3,6 +3,7 @@ from pathlib import Path
 
 from catr_loss_calibrator.calibration.formulas import (
     aux_loss,
+    deembed_standard_horn,
     feed_loss,
     link_cal_001_feed,
     link_cal_001_dut,
@@ -38,6 +39,10 @@ def test_feed_loss_subtracts_dut_segment() -> None:
 
 def test_aux_loss_turns_raw_s21_into_positive_loss() -> None:
     assert np.allclose(aux_loss(np.array([-3.5])), np.array([3.5]))
+
+
+def test_deembed_standard_horn_keeps_full_loop_except_horn_gain() -> None:
+    assert np.allclose(deembed_standard_horn(np.array([-70.0]), np.array([20.0])), np.array([-90.0]))
 
 
 def test_link_cal_001_feed_uses_signed_subtraction() -> None:

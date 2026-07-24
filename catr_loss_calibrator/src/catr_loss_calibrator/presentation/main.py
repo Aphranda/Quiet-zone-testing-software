@@ -1191,7 +1191,9 @@ def run_gui() -> int:
             self.btn_result_open_session = QPushButton("打开Session")
             self.btn_result_open_project = QPushButton("打开项目")
             self.btn_result_open_workspace = QPushButton("打开Workspace")
+            self.btn_result_generate_resume_results = QPushButton("重新计算")
             self.btn_result_export_summary = QPushButton("导出摘要")
+            self.btn_result_generate_resume_results.setEnabled(False)
             _style_button(self.btn_result_browse_workspace, role="secondary")
             _style_button(self.btn_result_load_workspace, role="secondary")
             _style_button(self.btn_result_open_history_dir, role="primary")
@@ -1201,6 +1203,7 @@ def run_gui() -> int:
             _style_button(self.btn_result_open_session, role="primary")
             _style_button(self.btn_result_open_project, role="primary")
             _style_button(self.btn_result_open_workspace, role="primary")
+            _style_button(self.btn_result_generate_resume_results, role="success")
             _style_button(self.btn_result_export_summary, role="success")
             self.result_curve_status = QLabel("选择 CSV 结果文件后显示曲线")
             self.result_curve_status.setWordWrap(True)
@@ -1663,6 +1666,7 @@ def run_gui() -> int:
             action_row.addWidget(self.btn_result_open_session)
             action_row.addWidget(self.btn_result_open_project)
             action_row.addWidget(self.btn_result_open_workspace)
+            action_row.addWidget(self.btn_result_generate_resume_results)
             action_row.addWidget(self.btn_result_export_summary)
             layout.addLayout(action_row)
             layout.addWidget(self.result_file_table)
@@ -1703,6 +1707,7 @@ def run_gui() -> int:
             self.btn_result_open_session.clicked.connect(lambda _checked=False: self._open_result_context_dir("session_root"))
             self.btn_result_open_project.clicked.connect(lambda _checked=False: self._open_result_context_dir("project_root"))
             self.btn_result_open_workspace.clicked.connect(lambda _checked=False: self._open_result_context_dir("workspace_root"))
+            self.btn_result_generate_resume_results.clicked.connect(self._generate_resume_results)
             self.btn_result_export_summary.clicked.connect(self._export_result_summary)
             self.result_view_combo.currentIndexChanged.connect(lambda _index: self._sync_overview())
             self.result_history_combo.currentIndexChanged.connect(lambda _index: self._sync_overview())
@@ -1766,6 +1771,7 @@ def run_gui() -> int:
             self._manual_curve_judgments.clear()
             self._current_curve_step_key = ""
             self.btn_generate_resume_results.setEnabled(False)
+            self.btn_result_generate_resume_results.setEnabled(False)
             self.history_data_status.setText("未导入历史数据")
             self.history_data_status.setToolTip("")
             self._sync_catalog_path_field()
@@ -2222,6 +2228,7 @@ def run_gui() -> int:
             self.result_summary.setPlainText(self._format_overview_summary(result_overview))
             self._sync_result_files(result_overview)
             self.result_session.setPlainText(self._format_session_detail(result_overview))
+            self._sync_result_recompute_button(result_overview)
             link_box = "connected" if overview.get("link_box_connected") else "disconnected"
             vna = "connected" if overview.get("vna_connected") else "disconnected"
             sg = "connected" if overview.get("signal_generator_connected") else "disconnected"
@@ -2308,6 +2315,14 @@ def run_gui() -> int:
             item = vm.selected_item
             imported_workspace_root = self._result_workspace_root_from_input()
             if imported_workspace_root is not None:
+                manifest_path = imported_workspace_root / "session_manifest.json"
+                if manifest_path.exists():
+                    try:
+                        summary = load_session_summary_from_manifest(manifest_path)
+                    except Exception:
+                        summary = {}
+                    if summary and (item is None or str(summary.get("item_id", "")) == item.id):
+                        return (summary,)
                 return list_session_summaries_from_workspace_root(
                     workspace_root=imported_workspace_root,
                     item_id=item.id if item is not None and vm.catalog.source_path != str(workspace_config_snapshot_path(imported_workspace_root)) else None,
@@ -2364,8 +2379,14 @@ def run_gui() -> int:
             if self._looks_like_legacy_output_root(root):
                 self.result_view_combo.setCurrentIndex(3)
                 return
-            self._load_catalog_snapshot_from_workspace(root)
-            if str(self.result_view_combo.currentData() or "") == "current":
+            if (root / "session_manifest.json").exists():
+                summary = load_session_summary_from_manifest(root / "session_manifest.json")
+                workspace_root = Path(str(summary.get("workspace_root") or ""))
+                if workspace_root.exists():
+                    self._load_catalog_snapshot_from_workspace(workspace_root)
+            else:
+                self._load_catalog_snapshot_from_workspace(root)
+            if str(self.result_view_combo.currentData() or "") != "history":
                 self.result_view_combo.setCurrentIndex(2)
             else:
                 self._sync_overview()
@@ -2383,6 +2404,7 @@ def run_gui() -> int:
                 self._curve_quality_cache.clear()
                 self._manual_curve_judgments.clear()
                 self.btn_generate_resume_results.setEnabled(False)
+                self.btn_result_generate_resume_results.setEnabled(False)
                 self.history_data_status.setText("历史导入失败")
                 self._show_modal_dialog(
                     title="导入历史数据失败",
@@ -2399,6 +2421,7 @@ def run_gui() -> int:
                 self._curve_quality_cache.clear()
                 self._manual_curve_judgments.clear()
                 self.btn_generate_resume_results.setEnabled(False)
+                self.btn_result_generate_resume_results.setEnabled(False)
                 self.history_data_status.setText("未找到历史数据")
                 self._show_modal_dialog(
                     title="未找到历史数据",
@@ -2414,6 +2437,7 @@ def run_gui() -> int:
             self._curve_quality_cache.clear()
             self._load_manual_curve_judgments(summary)
             self.btn_generate_resume_results.setEnabled(True)
+            self.btn_result_generate_resume_results.setEnabled(True)
             self.result_workspace_input.setText(str(root))
             status = self._format_history_import_status(summary)
             self.history_data_status.setText(status)
@@ -2503,7 +2527,11 @@ def run_gui() -> int:
         @staticmethod
         def _looks_like_legacy_output_root(root: Path) -> bool:
             candidate = root.parent if root.name.lower() in {"metadata", "raw", "loss"} else root
-            return (candidate / "metadata").exists() and not (candidate / "projects").exists()
+            return (
+                (candidate / "metadata").exists()
+                and not (candidate / "projects").exists()
+                and not (candidate / "session_manifest.json").exists()
+            )
 
         def _open_history_sessions_dir(self) -> None:
             root = self._result_workspace_root_from_input() or self._default_result_workspace_root()
@@ -3028,12 +3056,14 @@ def run_gui() -> int:
             return settings
 
         def _generate_resume_results(self) -> None:
-            if not self._history_data_summary:
+            source_summary = self._history_data_summary or self._selected_result_recompute_summary()
+            if not source_summary:
                 self.saved_curve_status.setText("请先导入历史数据。")
+                self.result_curve_status.setText("请先导入历史数据。")
                 return
             try:
                 summary = vm.generate_resume_results(
-                    self._history_data_summary,
+                    source_summary,
                     self._manual_curve_judgments,
                     self._vna_run_settings(),
                 )
@@ -3059,11 +3089,43 @@ def run_gui() -> int:
                 f"final/loss: {len(summary.get('loss_files', ()) or ())}"
                 f"{warning_text}"
             )
+            self.result_curve_status.setText(
+                f"续测结果已重新计算: {state}; "
+                f"raw {len(summary.get('raw_files', ()) or ())}; "
+                f"final/loss {len(summary.get('loss_files', ()) or ())}"
+            )
             self._sync_substep_list(self._current_step_view)
             self._sync_item_list()
             self._sync_step_list_colored()
             self._sync_overview()
             self.tabs.setCurrentWidget(self.result_page)
+
+        def _selected_result_recompute_summary(self) -> dict[str, object]:
+            mode = str(self.result_view_combo.currentData() or "current")
+            if mode == "history":
+                return self._selected_history_summary()
+            if mode == "latest":
+                return self._latest_summary_for_selected_item()
+            root = self._result_workspace_root_from_input()
+            if root is not None and (root / "session_manifest.json").exists():
+                try:
+                    return load_session_summary_from_manifest(root / "session_manifest.json")
+                except Exception:
+                    return {}
+            return {}
+
+        def _sync_result_recompute_button(self, overview: dict[str, Any] | None = None) -> None:
+            summary = self._history_data_summary or self._selected_result_recompute_summary()
+            enabled = bool(
+                summary
+                and str(summary.get("state") or "").strip().upper() != "LEGACY_READONLY"
+                and str(summary.get("session_root") or "").strip()
+                and str(summary.get("manifest_file") or "").strip()
+            )
+            self.btn_result_generate_resume_results.setEnabled(enabled)
+            self.btn_generate_resume_results.setEnabled(bool(self._history_data_summary))
+            if overview is not None and not enabled and str(self.result_view_combo.currentData() or "") == "legacy":
+                self.result_curve_status.setText("旧版目录为只读结果，不能重新计算。请加载 workspace/session 历史数据。")
 
         def _merged_history_summary_with_current(self, current_summary: dict[str, object]) -> dict[str, object]:
             if not self._history_data_summary:

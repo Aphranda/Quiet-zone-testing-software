@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -555,6 +556,55 @@ def test_runner_allows_substep_vna_power_overrides() -> None:
         assert second_metadata["measurement_settings"]["power_dbm"] == -35.0
 
 
+def test_runner_uses_configured_step_vna_power_before_global_setting() -> None:
+    item = default_calibration_catalog().get("LINK-CAL-002")
+    step = next(step for step in item.steps if step.id == "CAL002-DUT-AMP1-VNA2")
+    with TemporaryDirectory() as tmpdir:
+        vna = RecordingPowerVna()
+        runner = MockCalibrationRunner(
+            item,
+            vna,
+            MockLinkBox(),
+            Path(tmpdir),
+            vna_settings={"points": 3, "vna_power_dbm": -30.0},
+        )
+        runner.link_box.connect()
+        runner.vna.connect()
+        runner.state_machine.transition(CalibrationState.WAIT_MANUAL_CONFIRM)
+
+        runner._run_substep(step, runner._substeps_for(step)[0])
+
+        assert vna.power_history == [-50.0]
+        metadata = json.loads(
+            (Path(tmpdir) / "metadata" / "LINK-CAL-002_CAL002-DUT-AMP1-VNA2_S21_DUT_VNA_AMP1_RAW.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert metadata["measurement_settings"]["power_dbm"] == -50.0
+
+
+def test_runner_uses_configured_substep_vna_power_before_global_setting() -> None:
+    item = default_calibration_catalog().get("LINK-CAL-002")
+    step = next(step for step in item.steps if step.id == "CAL002-MAIN")
+    substep = next(substep for substep in step.substeps if substep.id == "V-DUTAMP1")
+    with TemporaryDirectory() as tmpdir:
+        vna = RecordingPowerVna()
+        runner = MockCalibrationRunner(
+            item,
+            vna,
+            MockLinkBox(),
+            Path(tmpdir),
+            vna_settings={"points": 3, "vna_power_dbm": -30.0},
+        )
+        runner.link_box.connect()
+        runner.vna.connect()
+        runner.state_machine.transition(CalibrationState.WAIT_MANUAL_CONFIRM)
+
+        runner._run_substep(step, substep)
+
+        assert vna.power_history == [-50.0]
+
+
 def test_runner_uses_substep_measurement_parameter() -> None:
     item = default_calibration_catalog().get("LINK-CAL-002")
     step = next(step for step in item.steps if step.id == "CAL002-MAIN")
@@ -571,6 +621,33 @@ def test_runner_uses_substep_measurement_parameter() -> None:
         metadata = json.loads((Path(tmpdir) / "metadata" / "LINK-CAL-002_CAL002-MAIN_V-AMP2.json").read_text(encoding="utf-8"))
         assert vna._parameter == "S12"
         assert metadata["measurement_settings"]["parameter"] == "S12"
+
+
+def test_link_cal_002_writes_deembedded_full_loop_loss_files() -> None:
+    item = default_calibration_catalog().get("LINK-CAL-002")
+    with TemporaryDirectory() as tmpdir:
+        runner = MockCalibrationRunner(
+            item,
+            MockVna(),
+            MockLinkBox(),
+            Path(tmpdir),
+            vna_settings={"points": 3, "G_STD_HORN_H": 20.0, "G_STD_HORN_V": 21.0},
+        )
+        runner.link_box.connect()
+        runner.vna.connect()
+        runner.run()
+
+        path = Path(tmpdir) / "loss" / "L_VNA_H_DEEMB_10_15G_F10_17G_H10_15G.csv"
+        assert path.exists()
+        with path.open("r", encoding="utf-8-sig", newline="") as handle:
+            rows = list(csv.DictReader(handle))
+        assert rows[0]["param"] == "L_VNA_H_DEEMB"
+        assert float(rows[0]["value_db"]) == -21.0
+
+        loss_names = {Path(path).name for path in runner.overview()["loss_files"]}
+        assert "L_VNA_V_DEEMB_10_15G_F10_17G_H10_15G.csv" in loss_names
+        assert "L_VNA_H_AMP2_DEEMB_10_15G_F10_17G_H10_15G.csv" in loss_names
+        assert "L_VNA_V_AMP2_DEEMB_10_15G_F10_17G_H10_15G.csv" in loss_names
 
 
 def test_mock_runner_can_skip_and_cancel_steps() -> None:

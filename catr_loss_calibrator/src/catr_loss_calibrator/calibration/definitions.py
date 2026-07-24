@@ -203,7 +203,17 @@ def _link_cal_002() -> CalibrationItem:
                     "CONFigure:LINK H/V, AMP2, VNA1",
                 ),
                 raw_outputs=("L_VNA_H/V", "L_VNA_H/V_AMP1", "L_VNA_H/V_AMP2"),
-                final_outputs=("L_VNA_FEED_H/V", "L_VNA_FEED_H/V_AMP1", "L_VNA_FEED_H/V_AMP2"),
+                final_outputs=(
+                    "L_VNA_H_DEEMB",
+                    "L_VNA_V_DEEMB",
+                    "L_VNA_H_AMP1_DEEMB",
+                    "L_VNA_V_AMP1_DEEMB",
+                    "L_VNA_H_AMP2_DEEMB",
+                    "L_VNA_V_AMP2_DEEMB",
+                    "L_VNA_FEED_H/V",
+                    "L_VNA_FEED_H/V_AMP1",
+                    "L_VNA_FEED_H/V_AMP2",
+                ),
                 required_inputs=("G_STD_HORN_H/V", "L_DUT_VNA", "L_DUT_VNA_AMP1"),
                 substeps=(
                     _polarized_substep(
